@@ -30,6 +30,7 @@
 ### 0.3 사용자에게 보이는 변화
 - 열고 닫는 서랍 화면(폰 세로·가로, `layout/`): **없음**.
 - 고정 메뉴 화면(`layout-sw600dp-land/`, 짧은 변 600dp 이상 가로): **배치가 바뀐다** — 앱바·붙여넣기/선택 하단 막대·speed dial이 창 안으로 들어가 고정 메뉴 오른쪽 영역에만 놓이고, 고정 메뉴는 화면 위·아래 끝까지 닿는다. 화면/창 분리 자체의 결과라(앱바·하단 막대가 창 단위 부품, 서랍이 화면 단위 부품) 피할 수 없다. 앱바가 창 안으로 들어가고 고정 메뉴가 화면 위쪽까지 닿는 것은 HLD D2가 적었고 오너가 수용했다(R8). 새로 확인받을 것은 하단 막대·speed dial 위치, 고정 메뉴가 아래 끝까지 닿는 것, 초점·읽기 순서 변화(고정 메뉴가 앱바보다 앞 순서가 됨), 그리고 "이 변화가 #5에서 생긴다"는 점이다 → 설계 피드백 F2. **오너 수용(2026-10-28, #5 코멘트 "🗂 PM 결정 — LLD-A")** — 이 단계의 "보이는 변화 없음"에 대한 유일한 예외: 앱바·하단 막대·speed dial이 창 영역 안으로, 고정 메뉴가 화면 위·아래 끝까지, 초점·읽기 순서에서 고정 메뉴가 앱바보다 앞.
+- 앱 업데이트 직후 이전 판이 저장한 화면 상태로 복원될 때(한 번): 그 상태(경로·선택·열린 대화상자 등)를 버리고 시작 경로부터 다시 연다(2.1 `restoreHostFragment`, PM 결정 m1). 이전 판에서는 이 경우 크래시였을 것으로 본다(정적 분석) — 정상 경로(새로 시작·회전·프로세스 종료)에는 변화 없음.
 
 ## 1. 변경 파일 (R4 범위 공지 — PROCESS_ROLES 11-1, 5개 초과)
 
@@ -70,7 +71,7 @@
 - **책임**: 저장 상태에서 복원된 `android.R.id.content`의 프래그먼트가 `FileListHostFragment`면 그대로 쓰고, 아니면(이전 판 앱이 저장한 `FileListFragment`, 또는 없음) 그것을 제거하고 새 호스트로 바꾼다.
 - **입력·전제**: `onCreate`의 `super.onCreate(savedInstanceState)` **뒤**, `savedInstanceState != null`일 때만 부른다. 메인 스레드. 이 시점에 복원된 프래그먼트는 `CREATED` 상태다 — `FragmentActivity.onCreate`가 상태 복원 후 `dispatchCreate()`만 하고, 뷰 생성(`onCreateView`·`onActivityCreated`)은 `onStart`의 `dispatchActivityCreated()`에서 일어난다. 그래서 이전 판 프래그먼트의 뷰는 아직 없다.
 - **왜 필요한가(교체하지 않으면)**: 이전 판(759c331 이전 구조)이 저장한 상태에는 `android.R.id.content`에 `FileListFragment`가, 그 자식으로 `R.id.navigationFragment` 자리의 `NavigationFragment`가 있다. 복원하면 새 판의 `FileListFragment`(창) 클래스로 다시 만들어지는데, ① 새 창 레이아웃에는 `R.id.navigationFragment`가 없어 `onStart`에서 자식 `NavigationFragment`의 컨테이너를 찾지 못해 `IllegalArgumentException("No view found for id …")`, ② 창의 `listener`(`requireParentFragment()`)가 부모가 없어 `IllegalStateException`, ③ 기존 `as FileListHostFragment` 캐스트가 `ClassCastException`이 된다(정적 분석, 실기 미확인 — T-17).
-- **출력·사후조건**: 돌려준 호스트가 `android.R.id.content`의 유일한 프래그먼트. 교체한 경우 이전 프래그먼트와 그 자식들(`NavigationFragment`, 열려 있던 대화상자 프래그먼트 등)은 뷰가 만들어지기 전에 `onDestroy`·`onDetach`까지 끝나고, 그 `ViewModelStore`(창 `FileListViewModel`)는 비워진다(`onCleared` → 목록 `LiveData` 닫힘, `FileListViewModel.kt:236-238`).
+- **출력·사후조건**: 돌려준 호스트가 `android.R.id.content`의 유일한 프래그먼트. 교체한 경우 이전 프래그먼트와 그 자식들(`NavigationFragment`, 열려 있던 대화상자 프래그먼트 등)은 뷰가 만들어지기 전에 `onDestroy`·`onDetach`까지 끝난다. 창 `FileListViewModel`은 지연 생성(`FileListFragment.kt:168`)이고 `onCreate`(`:195-199`)가 접근하지 않으므로 보통 만들어지지 않는다 — 만들어졌다면 `ViewModelStore`가 비워지며 `onCleared`(`FileListViewModel.kt:236-238`)가 목록 `LiveData`를 닫는다.
 - **오류**: 없음. `commitNow`는 `onCreate` 안(상태 저장 전, 다른 트랜잭션 실행 중이 아님)이라 허용된다.
 - **알고리즘**:
   1. `val restored = supportFragmentManager.findFragmentById(android.R.id.content)`
@@ -426,7 +427,7 @@ class FileListHostFragment : Fragment(), FileListFragment.Listener, NavigationFr
 | T-14 고정 메뉴 배치(C4) | sw600dp-land 레이아웃 4개 | 정상(의도된 변화) | C4에서 시작·고정 메뉴 펼침/접힘·붙여넣기 막대(복사 후)·speed dial 열기를 기준과 나란히 캡처 | 0.3대로만 다르다: 앱바·하단 막대·speed dial이 고정 메뉴 오른쪽 영역에. 고정 메뉴 맨 위 항목이 상태 표시줄에 가리지 않고, 맨 아래 항목이 내비게이션 막대에 가리지 않음. 목록 마지막 항목이 하단 막대·내비게이션 막대에 가리지 않음. 같은 확인을 (a) 3버튼 내비게이션과 제스처 내비게이션(`adb shell cmd overlay enable com.android.internal.systemui.navbar.threebutton` / `...navbar.gestural`) (b) 개발자 옵션 "RTL 레이아웃 방향 강제"(`adb shell settings put global debug.force_rtl 1` 후 앱 재시작, 끝나면 0) (c) 왼쪽 인셋이 있는 구성(기기를 반대 가로 방향으로 돌려 3버튼 내비게이션 막대가 왼쪽에 오게 — 태블릿형 sw600dp 구성은 막대가 하단에 남을 수 있으므로, 그때는 개발자 옵션 "디스플레이 컷아웃 시뮬레이션" 오버레이로 왼쪽 인셋을 만들고, 그래도 인셋이 생기지 않으면 **미확인**으로 적는다)에서 반복 — 기준 APK와 0.3의 차이 외에 같음 |
 | T-15 격자 열 수 | 창 `updateSpanCount`, 호스트 `onPersistentDrawerOpenChanged` | 경계 | 격자 보기로 바꾼 뒤 C1·C2·C4(고정 메뉴 펼침/접힘)에서 한 줄 열 수 비교, C4에서 펼침↔접힘 전환 직후 | 기준과 같은 열 수, 전환 직후 바로 바뀜 |
 | T-16 회전·상태 유지 | 전체 | 경계 | 하위 폴더 + 선택 2개 + 검색 펼침(검색어 입력) + 복사 목록 있는 상태에서 회전 ×2, 서랍 연 채로 회전 | 경로·선택·검색어·붙여넣기 막대·스크롤 위치가 기준과 같게 유지 |
-| T-17 앱 업데이트 뒤 복원 | `FileListActivity.onCreate` 복원 분기 | 오류 | 개발자 옵션 "활동 유지 안 함" 켬(`adb shell settings put global always_finish_activities 1`) → `baseline.apk`로 하위 폴더 연 뒤 홈 → `adb install -r feature.apk` → 최근 앱에서 복귀. 끝나면 `... always_finish_activities 0` | **크래시 없음 + 기본 폴더로 시작**(런처로 연 화면이므로 설정의 기본 디렉터리, 이전에 열었던 하위 폴더가 아님). `adb logcat -b crash -d` 비어 있음. `dumpsys activity top`에 `FileListHostFragment` > `FileListFragment`·`NavigationFragment`만 있고 이전 판 `FileListFragment`가 `android.R.id.content`에 남아 있지 않음. 업데이트 후 저장 상태가 아예 넘어오지 않아(시스템이 버림) 처음부터 시작해도 기대 결과는 같다 — 이때는 "복원 분기 미발동"으로 적고, 같은 절차를 `adb shell am kill` 없이 `always_finish_activities` 상태에서 baseline→feature 순으로 한 번 더 시도한다. 정상 회전(T-16)에서는 교체가 일어나지 않아야 한다(상태 유지) |
+| T-17 앱 업데이트 뒤 복원 | `FileListActivity.onCreate` 복원 분기 | 오류 | 개발자 옵션 "활동 유지 안 함" 켬(`adb shell settings put global always_finish_activities 1`) → `baseline.apk`로 하위 폴더 연 뒤 홈 → `adb install -r feature.apk` → 최근 앱에서 복귀. 끝나면 `... always_finish_activities 0` | **크래시 없음 + 기본 폴더로 시작**(런처로 연 화면이므로 설정의 기본 디렉터리, 이전에 열었던 하위 폴더가 아님). `adb logcat -b crash -d` 비어 있음. `dumpsys activity top`에 `FileListHostFragment` > `FileListFragment`·`NavigationFragment`만 있고 이전 판 `FileListFragment`가 `android.R.id.content`에 남아 있지 않음. 교체 분기가 실제로 발동했는지는 화면만으로 구분되지 않으므로(미발동이어도 같은 결과), 시험할 때만 `restoreHostFragment()`의 교체 갈래에 임시 `Log.d`를 넣어 logcat으로 확인하고 **커밋 전에 지운다**. 로그가 찍히지 않으면(시스템이 업데이트 때 저장 상태를 버린 경우) 교체 분기는 **미확인**으로 보고한다. 정상 회전(T-16)에서는 교체가 일어나지 않아야 한다(상태 유지) |
 | T-18 새 작업·복사 목록 공유 | (변경 없음 확인) | 정상 | 넘침 메뉴 "새 작업" → 새 화면에서 파일 복사 → 원래 화면으로 돌아와 붙여넣기 막대 | 기준과 같이 공유됨(HLD D6) |
 | T-19 프로세스 종료 | (변경 없음 확인, A6 편차) | 경계 | 하위 폴더에서 홈 → `adb shell am kill me.zhanghai.android.files` → 복귀 | 기준과 같음(기본 디렉터리 또는 Intent 경로에서 다시 시작 — 편차 #11) |
 
@@ -467,3 +468,4 @@ class FileListHostFragment : Fragment(), FileListFragment.Listener, NavigationFr
 | 2026-10-28 | v1.1 | 0.3·F2 서술 정정(D2·R8이 이미 다룬 것과 새로 확인할 것 구분), T-01·T-13·T-14 보강, R3 표기 "방식 확정" | LLD 1회차 검수 m2·m3·m4 | 검수팀 |
 | 2026-10-28 | v1.2 | T-14(c) 왼쪽 인셋 구성 방법 보강 | LLD 2회차 검수 n1 | 검수팀 |
 | 2026-10-28 | v1.3 | PM 결정 반영: 0.1(F1·F3 확정), 0.3(F2 오너 수용), 2.1 `restoreHostFragment` 신규(m1)와 `onCreate` 갱신, 1장 표 1행, T-17 기대 결과, 6장 F1~F3 결정 표기, 7장 R8 | #5 "🗂 PM 결정 — LLD-A" | PM |
+| 2026-10-28 | v1.4 | 2.1 `restoreHostFragment` 사후조건의 뷰모델 서술 정정, T-17 교체 분기 확인 방법(임시 로그, 미발동 시 미확인), 0.3에 업데이트 직후 상태 손실 한 줄 | LLD 4회차 검수 m-a·m-b·m-c | 검수팀 |
