@@ -52,7 +52,7 @@
 
 ### 2.1 `CopyMoveConfirmation.kt` (신규, 순수 로직)
 
-모든 함수는 입출력이 없고 메인 스레드에서 부른다(HLD 3.6-1 "계산 시점", `Stability_ANR`). Android 프레임워크 클래스에 의존하지 않는다(단위 테스트 대상, 3.2).
+모든 함수는 입출력이 없고 메인 스레드에서 부른다(HLD 3.6-1 "계산 시점", `Stability_ANR`). Android UI·프레임워크 기능(리소스·Context·직렬화)을 쓰지 않는다 — 인자 타입 `FileItemSet`·`FileItem`이 `Parcelable`을 구현하고 `FileItem`이 `java.text.CollationKey`를 품지만 이 함수들은 `path`만 읽는다(단위 시험 가능성은 3.2의 미확인 조건을 따른다).
 
 #### `me.zhanghai.android.files.filelist.getCopyMoveType(copy: Boolean, files: Collection<FileItem>): CopyMoveType`
 - **추적**: HLD K6, 3.6 "종류 결정" / REQ-2-15, SRS A4
@@ -137,7 +137,13 @@ class ConfirmCopyMoveDialogFragment : AppCompatDialogFragment() {
 - **추적**: HLD K6, 3.6 / REQ-2-14, 15. **#9가 쓰는 진입 API**.
 - **책임**: 보일 때 원본·대상을 굳혀 확인 창을 연다.
 - **입력·전제**: 메인 스레드. `fragment`는 `Listener`를 구현한다(창 `FileListFragment`). `files`는 비어 있지 않다. `files`는 살아 있는 집합이어도 된다(복사 목록 `PasteState.files`, 선택 `viewModel.selectedFiles` — 둘 다 나중에 그 자리에서 바뀌는 가변 집합: `FileListViewModel.kt:197-220`, `:154-174`).
-- **출력·사후조건**: `ConfirmCopyMoveDialogFragment().putArgs(Args(getCopyMoveType(copy, frozen), frozen, targetDirectory, origin)).show(fragment)` — `frozen = FileItemSet().apply { addAll(files) }`(복사본). 대화상자는 `fragment`의 자식 FragmentManager에 붙는다(`util/DialogFragmentExtensions.kt:11-13`). 이 함수는 어떤 상태도 바꾸지 않는다(복사 목록·선택·작업 없음 — REQ-2-14).
+- **출력·사후조건**: 이 함수는 어떤 상태도 바꾸지 않는다(복사 목록·선택·작업 없음 — REQ-2-14). 돌아온 뒤 `fragment`의 자식 FragmentManager에 이 확인 창이 **많아야 하나** 있다.
+- **알고리즘**:
+  1. `if (files.isEmpty()) return` — 빈 입력은 아무것도 하지 않는다(빈 집합이면 `getCopyMoveType`이 `EXTRACT`를 내므로 여기서 막는다. #9도 같은 계약).
+  2. `val fragmentManager = fragment.childFragmentManager`; `if (fragmentManager.findFragmentByTag(TAG) != null) return` — 이미 떠 있으면 새로 열지 않는다(중복 방지, 아래).
+  3. `val frozen = FileItemSet().apply { addAll(files) }`(복사본).
+  4. `ConfirmCopyMoveDialogFragment().putArgs(Args(getCopyMoveType(copy, frozen), frozen, targetDirectory, origin)).showNow(fragmentManager, TAG)` — `TAG`는 `ConfirmCopyMoveDialogFragment::class.java.name`(companion 상수). 기존 `show(fragment)` 확장(`util/DialogFragmentExtensions.kt:11-13`, 태그 없음·비동기 `commit`) 대신 `DialogFragment.showNow`(fragment 1.8.8, 동기 `commitNow`)를 쓴다 — 비동기면 같은 프레임의 두 번째 호출이 아직 붙지 않은 첫 창을 `findFragmentByTag`로 찾지 못한다.
+- **중복 방지가 필요한 이유(검수 1회차 M1)**: 지금은 첫 붙여넣기가 `clearPasteState()`로 막대를 바로 닫아 두 번째 누름이 없다(기존 `:1104-1116`). 이 설계에서는 확인 창이 떠 있는 동안 막대·복사 목록이 그대로라, 단추 연타나 Ctrl+V 키 반복(`onKeyShortcut` 기존 `:497-506`)으로 창이 쌓이고 각 창이 굳힌 인자로 "실행"되면 같은 작업이 두 번 시작될 수 있다. 2의 검사로 막는다. `showNow`는 상태 저장 뒤에 부르면 `IllegalStateException`이지만, 호출처는 사용자 입력(단추·단축키 — 창이 RESUMED일 때만 옴)뿐이라 해당하지 않는다. "실행"·취소로 닫힌 창은 `dismiss`의 제거 트랜잭션이 끝날 때까지(같은 프레임) 태그로 찾힐 수 있으나, 그 사이 새로 열 일이 없다(실행 뒤엔 막대·선택이 정리됨).
 - **왜 복사본인가**: `putArgs`는 `Bundle.putParcelable`로 객체 참조를 담고(`util/ParcelableArgs.kt:18-21`) 상태 저장 때까지 직렬화하지 않는다. 살아 있는 집합을 그대로 넣으면 "실행" 뒤 `clearPasteState()`(`FileListViewModel.kt:213-220`의 `files.clear()`)나 선택 해제가 인자 자체를 비우고, 확인 창이 떠 있는 동안 목록이 바뀌면 보인 것과 다른 항목으로 실행된다(HLD 3.6 "보일 때 인자로 굳힌다").
 - **오류**: 없음. `fragment`가 `Listener`가 아니면 "실행" 때 `ClassCastException`(구조 위반, 기존 대화상자들과 같음).
 - **기존 코드와의 관계**: `ConfirmDeleteFilesDialogFragment.show`(`:55-57`) 모양. 종류 계산을 여기서 하므로 호출자는 `copy` 불리언만 안다.
@@ -159,7 +165,7 @@ class ConfirmCopyMoveDialogFragment : AppCompatDialogFragment() {
   9. `setNegativeButton(android.R.string.cancel, null)`; `.create()`.
 - **취소 경로(REQ-2-15, SRS A5)**: 취소 단추·뒤로 가기·바깥 누르기·Esc는 모두 대화상자를 닫기만 한다 — 이 프래그먼트는 `onCancel`·`onDismiss`를 재정의하지 않고 리스너를 부르지 않으므로 복사 목록·선택·작업 어느 것도 바뀌지 않는다. `isCancelable`은 기본값(true, `ConfirmDeleteFilesDialogFragment`와 같음).
 - **Esc(`Keyboard_Exit`, HLD R11)**: API 28 이상은 `Dialog.onKeyDown`이 `KEYCODE_ESCAPE`를 받아 취소 가능한 대화상자를 `cancel()`한다(android-35 소스 `android/app/Dialog.java:678-688`). API 21~27은 `Dialog`에 Esc 처리가 없고, 처리되지 않은 Esc에 대해 시스템이 키 배치의 대체 키(BACK)를 보내 뒤로 가기로 닫힐 것으로 본다(미확인 — T-06(d)). 이 단계는 추가 코드를 넣지 않는다. T-06(d)가 API 27 이하에서 실패하면 `dialog.setOnKeyListener`로 `KEYCODE_ESCAPE` → `cancel()`을 더한다(검수에 알림).
-- **버튼 터치 대상(`Touch_Target_Size`, HLD R11 닫기)**: 테마 값으로 48dp 이상이다. 대화상자 단추 스타일 `buttonBarPositive/NegativeButtonStyle`은 `Widget.MaterialComponents.Button.TextButton.Dialog`(MDC 테마) / `Widget.Material3.Button.TextButton.Dialog`(M3 테마, 이 앱은 두 테마를 다 가짐: `res/values/themes.xml:10`, `themes_material3.xml:10`)이고, 둘 다 `Widget.AppCompat.Button`의 `android:minHeight` 48dip(appcompat 1.7.1 `res/values/values.xml:1094`)을 덮어쓰지 않는다(material 1.12.0 `res/values/values.xml:6348-6400`, `:5238-5335` — `minHeight` 항목 없음, `minWidth` 64dp). 단추의 위·아래 inset(6dp/4dp)은 뷰 안쪽 그리기 여백이라 터치 영역(뷰 경계)은 줄지 않는다. 실측은 T-16(a).
+- **버튼 터치 대상(`Touch_Target_Size`, HLD R11 닫기)**: 테마 값으로 48dp 이상이다. 대화상자 단추 스타일 `buttonBarPositive/NegativeButtonStyle`은 `Widget.MaterialComponents.Button.TextButton.Dialog`(MDC 테마) / `Widget.Material3.Button.TextButton.Dialog`(M3 테마, 이 앱은 두 테마를 다 가짐: `res/values/themes.xml:10`, `themes_material3.xml:10`)이고, (테마 연결: material 1.12.0 `res/values/values.xml:3340-3341`(MDC), `:4632-4633`(M3)) 둘 다 `Widget.AppCompat.Button`의 `android:minHeight` 48dip(appcompat 1.7.1 `res/values/values.xml:1094`)을 덮어쓰지 않는다(material 1.12.0 `res/values/values.xml:6348-6400`, `:5238-5335` — `minHeight` 항목 없음, `minWidth` 64dp). 단추의 위·아래 inset(6dp/4dp)은 뷰 안쪽 그리기 여백이라 터치 영역(뷰 경계)은 줄지 않는다. 실측은 T-16(a).
 - **전체 폭 금지(`UI_Secondary_Elements`)**: `ConfirmDeleteFilesDialogFragment`와 같은 `MaterialAlertDialogBuilder(requireContext(), theme)` — 큰 화면에서 대화상자 창 폭은 테마의 최소 폭 규칙을 따르는 내용 폭이다. 실측은 T-16(b).
 - **대비·설명(`Visual_Contrast`, `Content_Description`)**: 새 글자는 대화상자 제목·본문의 기본 글자 스타일이고 새 비텍스트 조작 요소는 없다(두 단추는 글자 단추). 실측은 T-16(c).
 - **오류**: 없음(입출력 없음). 인자 누락은 구조 위반(`args()`가 던짐, 기존과 같음).
@@ -223,14 +229,14 @@ class ConfirmCopyMoveDialogFragment : AppCompatDialogFragment() {
 ## 3. 테스트 설계
 
 ### 3.1 수동 시험 (에뮬레이터, 기준 APK 비교)
-준비는 LLD-A 5.1과 같다(빌드 명령, 기준 APK = `origin/develop` 머리, C1·C2·C4, 매 시험 뒤 `adb logcat -b crash -d` 비어 있음). 시험 폴더: `adb shell mkdir -p /sdcard/Download/lld8/a /sdcard/Download/lld8/b`, `adb shell touch /sdcard/Download/lld8/f1.txt /sdcard/Download/lld8/f2.txt /sdcard/Download/lld8/f3.txt /sdcard/Download/lld8/a/g1.txt`, 압축 파일 `t.zip`(안에 `x.txt`, `d/y.txt`)을 `adb push`로 `/sdcard/Download/lld8/`.
+준비는 LLD-A 5.1과 같다(빌드 명령, 기준 APK = `origin/develop` 머리, C1·C2·C4, 매 시험 뒤 `adb logcat -b crash -d` 비어 있음). 시험 폴더: `adb shell mkdir -p /sdcard/Download/lld8/a /sdcard/Download/lld8/b`, `adb shell touch /sdcard/Download/lld8/f1.txt /sdcard/Download/lld8/f2.txt /sdcard/Download/lld8/f3.txt /sdcard/Download/lld8/f4.txt /sdcard/Download/lld8/a/g1.txt`, 압축 파일 `t.zip`(안에 `x.txt`, `d/y.txt`)을 `adb push`로 `/sdcard/Download/lld8/`.
 
 | 테스트 | 대상 함수 | 경우 | 절차 | 기대 결과 |
 |---|---|---|---|---|
 | T-00 빌드 | 전체 | 정상 | LLD-A 5.1-1 | `BUILD SUCCESSFUL`, 새 경고 없음 |
 | T-01 회귀 없음(작업 쪽) | 2.3 | 정상 | 기준·새 APK로 같은 붙여넣기(복사 2개) | 만들어진 파일·알림이 같다(확인 창 단계만 추가) |
 | T-02 복사 1개(REQ-2-14·15) | `confirmPasteFiles`, `onCreateDialog`, `copyMoveFiles` | 정상 | `lld8`에서 `f1.txt` 복사 → `b`로 이동 → 붙여넣기 | 확인 창: 제목 "복사", `“f1.txt”`, `/storage/emulated/0/Download/lld8 → /storage/emulated/0/Download/lld8/b`(실제 표시 경로), 안내 없음, 단추 "취소"·"실행". 창이 떠 있는 동안 알림 영역에 작업 알림 없음. 실행 → `b/f1.txt` 생성, 막대 닫힘 |
-| T-03 여러 개·이동 | 같음 | 정상 | `f2`·`f3` 잘라내기 → `b` 붙여넣기 | 제목 "이동", "2개 항목", 실행 → 원본 사라지고 `b`에 생김 |
+| T-03 여러 개·이동 | 같음 | 정상 | `f2`·`f3`·`f4` 잘라내기 → `b` 붙여넣기 | 제목 "이동", "3개 항목"(SRS REQ-2-15의 3개 경우), 실행 → 원본 사라지고 `b`에 생김 |
 | T-04 압축 풀기 2종(SRS A4) | `getCopyMoveType`, `locationOf` | 정상·경계 | (a) `t.zip` 선택 → "압축 풀기" → `b`에서 "여기에 압축 풀기" (b) `t.zip` 안으로 들어가 `x.txt` 복사 → `b` 붙여넣기 | (a) 제목 "압축 풀기", `“t.zip”`, 원래 위치 `…/lld8`(압축 파일이 있는 폴더), 안내 없음, 실행 → 기준과 같은 결과 (b) 제목 "압축 풀기", 원래 위치 `…/lld8/t.zip/`가 아닌 `…/lld8/t.zip`(루트), 실행 → `b/x.txt` |
 | T-05 압축 안 하위 폴더 표시 | `toLocationDisplayString` | 경계 | `t.zip/d` 안의 `y.txt` 복사 → `b` 붙여넣기 | 원래 위치 `…/lld8/t.zip/d` |
 | T-06 취소 4종(REQ-2-15, A5) | `onCreateDialog` 취소 경로 | 정상 | 복사 목록 2개인 상태에서 확인 창을 열고 (a) 취소 (b) 뒤로 가기 (c) 바깥 누르기 (d) Esc(`adb shell input keyevent 111`) — API 36, 가능하면 API 27 이하 AVD도 | 넷 다 창이 닫히고 막대가 같은 개수로 남음, 작업 알림·파일 변화 없음. (d) API 27 이하 결과는 보고(미확인이면 그렇게 적음, 실패면 2.2 Esc 대안 적용) |
@@ -248,6 +254,8 @@ class ConfirmCopyMoveDialogFragment : AppCompatDialogFragment() {
 | T-18 프로세스 종료 복원 | Args 복원 | 경계 | 확인 창을 띄운 채 홈 → `adb shell am kill me.zhanghai.android.files` → 복귀 → 실행 | 확인 창이 같은 내용으로 복원되고 실행 결과가 보인 대로. 크래시 없음(복사 목록은 비어 있음 — A6과 같음) |
 | T-19 다른 확인 창 회귀 | (변경 없음 확인) | 정상 | 삭제·압축 만들기·이름 바꾸기 각 1회 | 기준과 같음 |
 | T-20 새 작업 사이 붙여넣기(HLD D6) | 2.3 | 정상 | 넘침 메뉴 "새 작업" 화면에서 복사 → 원래 화면에서 붙여넣기 | 원래 화면에서 확인 창 → 실행 → 생성 |
+| T-21 자기 하위로(SRS A9) | `createCopyMoveConfirmation`, `copyMoveFiles` | 경계 | `lld8`에서 폴더 `a` 복사 → `a` 안으로 들어가 붙여넣기. 같은 절차로 잘라내기 | 확인 창(같은 폴더 안내 없음 — `a`의 부모 `lld8` ≠ 대상 `lld8/a`) → 실행 → 기존 "자기 안으로" 오류 창(`FileJobs.kt:1196-1235`). 기준 APK와 같은 오류 창 |
+| T-22 중복 열림 방지(M1) | `show` 알고리즘 2·4 | 경계 | 복사 목록이 있는 막대에서 (a) 붙여넣기 단추를 빠르게 두 번 (b) Ctrl+V를 누른 채 키 반복(`adb shell input keycombination 113 50`을 짧은 간격으로 3회) → 뜬 창에서 실행 | 확인 창은 하나만 뜬다(실행 뒤 다른 창이 남지 않음). 작업 알림·결과가 한 번분(사본이 두 번 생기지 않음). `adb shell dumpsys activity top`에 `ConfirmCopyMoveDialogFragment`가 하나 |
 
 - 판정: 0.3의 차이(확인 창, T-11) 외에 기준 APK와 다른 결과가 있으면 실패.
 - `OTHER_PANE` 갈래(`copyMoveFiles`의 선택 해제)는 진입점이 #9에서 생기므로 #9의 시험에서 확인한다. 이 단계는 코드 검수의 줄 대조로 확인한다.
@@ -260,7 +268,7 @@ class ConfirmCopyMoveDialogFragment : AppCompatDialogFragment() {
 |---|---|---|---|
 | U-01 | `getCopyMoveType` | copy·일반 / copy·전부 압축 / copy·일부 압축 / move·압축 | COPY / EXTRACT / COPY / MOVE |
 | U-02 | `toCopyMoveJobPath` | `/a/b`, `/a/./b`, `/a/b/../c`, `/` | `/a/b`, `/a/b`, `/a/b/../c`(그대로), `/` |
-| U-03 | `createCopyMoveConfirmation` 같은 폴더 | 전부 같음 / 일부(1/2) / 없음 / 대상 `/a/.` / 대상 `/x/../a` / 다른 파일 시스템의 같은 문자열 경로 | ALL / SOME(1) / NONE / ALL / NONE / NONE |
+| U-03 | `createCopyMoveConfirmation` 같은 폴더 | 전부 같음 / 일부(1/2) / 없음 / 대상 `/a/.` / 대상 `/x/../a` / 다른 파일 시스템의 같은 문자열 경로 | ALL / SOME(1) / NONE / ALL / NONE / NONE — 마지막 경우는 수동 시험 대응이 없다(두 파일 시스템에 같은 문자열 경로를 만들기 어려움). 단위 시험이 없으면 `Path.equals` 계약(`ByteStringListPath.kt:248-260`)의 코드 검수로 갈음 |
 | U-04 | 같은 함수 위치 요약 | 위치 1곳 / 2곳(삽입 순서 첫 항목) / 같은 위치 3개 | other 0 / first = 첫 항목 위치·other 1 / other 0 |
 | U-05 | 같은 함수 `sources` | 순서가 섞인 3개 | `toUri()` 정렬, 각 원소 = `toCopyMoveJobPath()` 값, `sameDirectoryCount`가 이 값으로 계산됨 |
 
@@ -282,12 +290,14 @@ class ConfirmCopyMoveDialogFragment : AppCompatDialogFragment() {
 ## 6. 설계 피드백
 설계 문서(SRS·HLD)는 고치지 않았다.
 
-- **F1 (PM 결정 필요) HLD 3.6-1·D11의 "작업에도 같은 `normalize()` 값" → `..`가 있는 경로는 정규화하지 않음으로 좁힘**: HLD R9 대응 칸은 "(3)이 실제로 생기면 `..`가 남은 경로에서는 정규화·안내를 하지 않는 쪽으로 좁히는 안을 LLD가 PM에게 올린다"고 정했다. 실제로 생긴다: Android의 `/sdcard`는 심볼릭 링크라 경로 입력으로 `/sdcard/..`를 열면 목록은 `/storage/self`의 내용인데 `normalize()`는 `/`를 준다 — HLD대로면 그 화면에 붙여넣기한 작업의 대상이 `/`가 되고, 그 화면에서 복사한 항목(`/sdcard/../primary`)은 없는 경로 `/primary`가 원본이 된다. 이 LLD의 안: 경로에 `..` 조각이 있으면 그 경로는 **정규화하지 않고 원래 값으로 판정하고 작업에도 원래 값을 넘긴다**(`.`만 있는 경로는 정규화). HLD가 적은 "정규화·안내를 하지 않음"과의 차이: 안내를 끄지 않고 원래 값의 `==`로 판정한다 — 작업 코드(`FileJobs.kt:750`)도 같은 `==`를 쓰므로 "안내와 결과가 같다"는 HLD 3.6-1의 원칙이 유지되고, `..` 경로의 동작은 지금과 같다. 잃는 것: `/a/b/..`처럼 링크가 없는 `..` 경로에서 같은 폴더 안내·사본 생성이 되지 않는다(지금도 같은 파일 판정으로 아무 변화 없이 끝남, `LinuxCopyMove.kt:46-49`). 바뀌는 범위는 2.1 `toCopyMoveJobPath` 한 함수다. PM이 HLD 원안(모두 정규화)을 고르면 그 함수를 `normalize()` 한 줄로 바꾸고 T-12 기대 결과를 바꾼다. 설계팀이 HLD 3.6-1·D11·R9 문구를 맞춰야 한다(PM 결정 뒤).
+- **F1 (PM 결정 필요) HLD 3.6-1·D11의 "작업에도 같은 `normalize()` 값" → `..`가 있는 경로는 정규화하지 않음으로 좁힘**: HLD R9 대응 칸은 "(3)이 실제로 생기면 `..`가 남은 경로에서는 정규화·안내를 하지 않는 쪽으로 좁히는 안을 LLD가 PM에게 올린다"고 정했다. 실제로 생긴다: Android의 `/sdcard`는 심볼릭 링크라 경로 입력으로 `/sdcard/..`를 열면 목록은 `/storage/self`의 내용인데 `normalize()`는 `/`를 준다 — HLD대로면 그 화면에 붙여넣기한 작업의 대상이 `/`가 되고, 그 화면에서 복사한 항목(`/sdcard/../primary`)은 없는 경로 `/primary`가 원본이 된다. 이 LLD의 안: 경로에 `..` 조각이 있으면 그 경로는 **정규화하지 않고 원래 값으로 판정하고 작업에도 원래 값을 넘긴다**(`.`만 있는 경로는 정규화). HLD가 적은 "정규화·안내를 하지 않음"과의 차이: 안내를 끄지 않고 원래 값의 `==`로 판정한다 — 작업 코드(`FileJobs.kt:750`)도 같은 `==`를 쓰므로 "안내와 결과가 같다"는 HLD 3.6-1의 원칙이 유지되고, `..` 경로의 동작은 지금과 같다. 잃는 것: `/a/b/..`처럼 링크가 없는 `..` 경로에서 같은 폴더 안내·사본 생성이 되지 않는다(지금도 같은 파일 판정으로 아무 변화 없이 끝남, `LinuxCopyMove.kt:46-49`). 바뀌는 범위는 2.1 `toCopyMoveJobPath` 한 함수다. **PM이 볼 차이 두 가지**(검수 1회차): ① HLD R9 문구는 "`..` 경로에서는 안내하지 않음"인데 이 안은 원래 값 `==`로 안내를 **낸다**(작업 판정과 같은 식이라 결과와 일치) ② 이 안을 채택하면 링크 없는 `..` 경로에서 REQ-2-21 안내와 SRS A7의 사본 생성이 일어나지 않는다 — SRS A7에 "`..`가 섞인 경로(직접 입력으로만 생김)는 지금 동작 유지"를 적어야 한다(설계팀). PM이 HLD 원안(모두 정규화)을 고르면 그 함수를 `normalize()` 한 줄로 바꾸고 T-12 기대 결과를 바꾼다. 설계팀이 HLD 3.6-1·D11·R9 문구를 맞춰야 한다(PM 결정 뒤).
 - **F2 HLD 줄 번호(문서만)**: HLD의 `FileListFragment.kt` 인용(`:1167-1179` 붙여넣기, `:1181-1182` `makePathListForJob`, `:991` 삭제, `:1013` 압축, `:874-875`·`:1096-1101` 읽기 전용, `:1082` 압축 판단 등)은 #5 이전 줄이다. a76055e에서는 `:1104-1116`, `:1118-1119`, `:928`, `:950`, `:811-812`·`:1033-1038`, `:1019` 등이다. 동작 영향 없음 — 릴리스 문서 동기화 때 맞추면 된다.
 - **F3 (PM 결정 필요) 단위 시험 의존성**: HLD 3.6-1은 같은 폴더 판정을 "단위 테스트 대상(SRS C-3)"으로 둔다. 저장소에 테스트 의존성이 없어 넣으려면 라이브러리 승인(PROCESS_ROLES 10장)이 필요하다 — 요청 후보 `testImplementation 'junit:junit:4.13.2'`(EPL-1.0, 테스트 전용·APK에 들어가지 않음). 승인되지 않으면 3.1 수동 시험만으로 확인한다(T-08·T-09·T-11·T-12가 판정 경우를 덮음). #6(너비 판단)도 같은 결정을 쓴다.
-- **F4 확인**: HLD K6의 "출처" 인자는 `Origin { PASTE, OTHER_PANE }`, 리스너는 `copyMoveFiles(...)` 하나로 정했다(이름만, 동작 영향 없음).
+- **F4 확인**: HLD K6의 "출처" 인자는 `Origin { PASTE, OTHER_PANE }`, 리스너는 `copyMoveFiles(...)` 하나로 정했다(이름만, 동작 영향 없음). HLD K6은 인자에 "작업 종류(`CopyMoveType`)"를 두는데, 진입 API `show`는 `copy: Boolean`을 받아 안에서 종류를 계산하고(2.1 `getCopyMoveType`) `Args`에는 `CopyMoveType`으로 담는다 — 호출자가 압축 판정을 따로 하지 않게 하려는 것이며 저장되는 값은 HLD와 같다.
+- **F5 (PM 확인) 중복 열림 방지(검수 1회차 M1, `[판단]`)**: 2.2 `show`에 태그 검사 + `showNow`를 더했다. HLD에 없는 동작이지만 확인 창 도입이 만드는 이중 실행 회귀를 막는 것이고 사용자에게 보이는 동작은 "창 하나"뿐이다. PM 확인을 요청한다.
 
 ## 7. 변경 이력
 | 일자 | 버전 | 변경 | 사유 | 요청자 |
 |---|---|---|---|---|
 | 2026-10-29 | v1 | 최초 작성 | 이슈 #8 LLD 단계 | PM |
+| 2026-10-29 | v1.1 | 2.2 `show`에 빈 입력 계약·중복 열림 방지(태그 + `showNow`)와 T-22, T-21(자기 하위 A9), T-03을 3개로, 2.1 의존 서술 정정, 48dp 테마 연결 줄, U-03 마지막 경우의 수동 대응 없음 명시, F1에 HLD 문구 차이·SRS A7 영향, F4 보강, F5 | LLD 1회차 검수 M1·m1~m5 | 검수팀 |
