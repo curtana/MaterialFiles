@@ -4,7 +4,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 결정 반영(v1.3) — F1 오너 확정, F3 오너 승인, F5 PM 승인(PR #16 코멘트 6473368985·정정 6473374204). v1.2 검수 통과, v1.3 바뀐 절 재검수 |
+| 상태 | 결정 반영(v1.3.1) — F1 오너 확정, F3 오너 승인, F5 PM 승인(PR #16 코멘트 6473368985·정정 6473374204). v1.2 검수 통과, v1.3 바뀐 절 재검수 |
 | 근거 | SRS v4.7, HLD v4.7 (`docs/design/2-dual-pane/`), LLD-A v1.4(구조·확장 지점 4장) |
 | 기준 코드 | `origin/develop` a76055e (#5 화면/창 분리 머지 뒤). HLD의 `FileListFragment.kt` 줄 번호는 #5 이전 기준이라 이 문서는 a76055e에서 다시 찾은 줄을 쓴다(6장 F2). |
 | 이슈 | #8 (하위 이슈 D, 상위 #2, 선행 #5) |
@@ -44,7 +44,7 @@
 | 6 | `app/build.gradle` | 수정 | `dependencies`에 `testImplementation 'junit:junit:4.13.2'` 한 줄(F3 승인). 다른 설정은 바꾸지 않는다. | — |
 | 7 | `app/src/test/java/me/zhanghai/android/files/filelist/CopyMoveConfirmationTest.kt` | 신규 | 2.1 순수 함수의 JVM 단위 시험 U-01~U-05(3.2). | K6 |
 
-- 7개(신규 3, 수정 4) — 5개 초과라 이 표로 범위를 알린다(PROCESS_ROLES 11-1, PM이 F3 승인과 함께 확인). `provider/`·`filejob/`·JNI·레이아웃은 건드리지 않는다. `app/build.gradle`은 테스트 의존성 한 줄만(APK에 들어가지 않음). 새 권한·설정 키·런타임 의존성 없음.
+- 7개(신규 3, 수정 4) — 5개 초과라 이 표로 범위를 알린다(PROCESS_ROLES 11-1 — 구현 착수 전 PM에게 이 표로 알린다). `provider/`·`filejob/`·JNI·레이아웃은 건드리지 않는다. `app/build.gradle`은 테스트 의존성 한 줄만(APK에 들어가지 않음). 새 권한·설정 키·런타임 의존성 없음.
 - 단위 테스트(3.2)는 **필수**다(F3 오너 승인 2026-10-29). 실행: `JAVA_HOME="/c/Program Files/Android/Android Studio/jbr" ./gradlew testDebugUnitTest --console=plain 2>&1 | tail -n 30`.
 - 바꾸지 않지만 관계있는 것: `ConfirmDeleteFilesDialogFragment.kt`(같은 모양의 본보기, `:21-65`), `util/DialogFragmentExtensions.kt:11-13`(`show(fragment)` = 자식 FragmentManager), `FileListViewModel.kt:195-220`(`pasteState`·`clearPasteState`), `:154-174`(`selectFiles`), `PasteState.kt`.
 
@@ -244,7 +244,7 @@ class ConfirmCopyMoveDialogFragment : AppCompatDialogFragment() {
 | T-01 회귀 없음(작업 쪽) | 2.3 | 정상 | 기준·새 APK로 같은 붙여넣기(복사 2개) | 만들어진 파일·알림이 같다(확인 창 단계만 추가) |
 | T-02 복사 1개(REQ-2-14·15) | `confirmPasteFiles`, `onCreateDialog`, `copyMoveFiles` | 정상 | `lld8`에서 `f1.txt` 복사 → `b`로 이동 → 붙여넣기 | 확인 창: 제목 "복사", `“f1.txt”`, `/storage/emulated/0/Download/lld8 → /storage/emulated/0/Download/lld8/b`(실제 표시 경로), 안내 없음, 단추 "취소"·"실행". 창이 떠 있는 동안 알림 영역에 작업 알림 없음. 실행 → `b/f1.txt` 생성, 막대 닫힘 |
 | T-03 여러 개·이동 | 같음 | 정상 | `f2`·`f3`·`f4` 잘라내기 → `b` 붙여넣기 | 제목 "이동", "3개 항목"(SRS REQ-2-15의 3개 경우), 실행 → 원본 사라지고 `b`에 생김 |
-| T-04 압축 풀기 2종(SRS A4) | `getCopyMoveType`, `locationOf` | 정상·경계 | (a) `t.zip` 선택 → "압축 풀기" → `b`에서 "여기에 압축 풀기" (b) `t.zip` 안으로 들어가 `x.txt` 복사 → `b` 붙여넣기 | (a) 제목 "압축 풀기", `“t.zip”`, 원래 위치 `…/lld8`(압축 파일이 있는 폴더), 안내 없음, 실행 → 기준과 같은 결과 (b) 제목 "압축 풀기", 원래 위치 `…/lld8/t.zip/`가 아닌 `…/lld8/t.zip`(루트), 실행 → `b/x.txt` |
+| T-04 압축 풀기·혼합(SRS A4) | `getCopyMoveType`, `locationOf` | 정상·경계 | (a) `t.zip` 선택 → "압축 풀기" → `b`에서 "여기에 압축 풀기" (b) `t.zip` 안으로 들어가 `x.txt` 복사 → `b` 붙여넣기 (c) 혼합: `t.zip` 안의 `x.txt` 복사 + `lld8`의 `f1` 복사(복사 목록 2개) → `b` 붙여넣기 | (a) 제목 "압축 풀기", `“t.zip”`, 원래 위치 `…/lld8`(압축 파일이 있는 폴더), 안내 없음, 실행 → 기준과 같은 결과 (b) 제목 "압축 풀기", 원래 위치 `…/lld8/t.zip/`가 아닌 `…/lld8/t.zip`(루트), 실행 → `b/x.txt` (c) 제목 "복사"(전부 압축이 아니므로 COPY), "2개 항목", "외 1곳", 실행 결과 기준과 같음 |
 | T-05 압축 안 하위 폴더 표시 | `toLocationDisplayString` | 경계 | `t.zip/d` 안의 `y.txt` 복사 → `b` 붙여넣기 | 원래 위치 `…/lld8/t.zip/d` |
 | T-06 취소 4종(REQ-2-15, A5) | `onCreateDialog` 취소 경로 | 정상 | 복사 목록 2개인 상태에서 확인 창을 열고 (a) 취소 (b) 뒤로 가기 (c) 바깥 누르기 (d) Esc(`adb shell input keyevent 111`) — API 36, 가능하면 API 27 이하 AVD도 | 넷 다 창이 닫히고 막대가 같은 개수로 남음, 작업 알림·파일 변화 없음. (d) API 27 이하 결과는 보고(미확인이면 그렇게 적음, 실패면 2.2 Esc 대안 적용) |
 | T-07 회전 유지(REQ-2-15) | Args 복원, `onCreateDialog` 재계산 | 경계 | T-09의 확인 창(안내 있음)을 띄운 채 회전 ×2 → 실행. 별도로 회전 뒤 취소 | 창과 내용(안내 포함)이 같게 남음. 실행 결과가 회전 전 대상과 같음. 취소 뒤 막대 그대로 |
@@ -271,7 +271,7 @@ class ConfirmCopyMoveDialogFragment : AppCompatDialogFragment() {
 
 ### 3.2 단위 시험 (필수 — F3 오너 승인, SRS C-3)
 대상은 2.1의 순수 함수. 파일 `app/src/test/java/me/zhanghai/android/files/filelist/CopyMoveConfirmationTest.kt`(JUnit 4). 시험 대역:
-- 경로: 시험 파일 안의 `TestPath : ByteStringListPath<TestPath>`(구분자 `/`, `createPath`는 생성자 호출, `uriScheme`은 `"test"`, `defaultDirectory`는 루트) + 가짜 `java8.nio.file.FileSystem` 객체 두 개(`fsA`, `fsB` — 같은 클래스·다른 파일 시스템 비교용, 쓰지 않는 메서드는 `throw UnsupportedOperationException()`). `isArchivePath`는 `this is ArchivePath`(`provider/archive/ArchivePath.kt:110-111`)라 압축 경로를 만들려면 실제 압축 파일 시스템(입출력)이 필요하다. 그래서 **U-01은 이동·일반 복사 두 경우만 JVM에서** 확인하고, 압축 두 경우(전부·일부)는 3.1 T-04(a)(b)로 확인한다(시험용 판정 주입처럼 제품 코드를 시험 때문에 바꾸지 않는다).
+- 경로: 시험 파일 안의 `TestPath : ByteStringListPath<TestPath>`(구분자 `/`, `createPath`는 생성자 호출, `uriScheme`은 `"test"`, `defaultDirectory`는 루트) 이며 구현할 추상 멤버는 `isPathAbsolute`(첫 바이트가 `/`), `createPath` 두 개, `getFileSystem`, `getRoot`, `toFile`·`register`·`toRealPath`(시험에서 쓰지 않으므로 `UnsupportedOperationException`)다. **`getRoot`는 절대 경로에서 던지면 안 된다** — `toByteString()`이 `root != null`을 읽고 `toString()`·`toUri()`(U-05 정렬)가 그것을 쓴다. 절대 경로면 조각 없는 같은 파일 시스템의 루트 `TestPath`, 상대 경로면 `null`을 돌려준다. 여기에 가짜 `java8.nio.file.FileSystem` 객체 두 개(`fsA`, `fsB` — 같은 클래스·다른 파일 시스템 비교용, 쓰지 않는 메서드는 `throw UnsupportedOperationException()`). `isArchivePath`는 `this is ArchivePath`(`provider/archive/ArchivePath.kt:110-111`)라 압축 경로를 만들려면 실제 압축 파일 시스템(입출력)이 필요하다. 그래서 **U-01은 이동·일반 복사 두 경우만 JVM에서** 확인하고, 압축 두 경우는 3.1 T-04로 확인한다 — 전부 압축은 T-04(a)(b), 일부 압축(혼합)은 T-04(c)(시험용 판정 주입처럼 제품 코드를 시험 때문에 바꾸지 않는다).
 - 항목: `FileItem(path, Collator.getInstance().getCollationKey(name), <가짜 BasicFileAttributes>, null, null, false, MimeType.DIRECTORY 또는 일반 MIME)`.
 - `ByteStringListPath`·`ByteString`은 `android.os.Parcelable`(인터페이스)만 참조하고 시험 경로에서 `Parcel`을 쓰지 않는다 — JVM의 스텁 `android.jar`로 로드될 것으로 본다. **로드·생성이 실패하면**(스텁 `RuntimeException("Stub!")` 등) 우회 설정(`unitTests.returnDefaultValues` 등)을 임의로 넣지 말고 멈춰 PM에게 `BLOCKED`로 보고한다(필수 시험이므로 건너뛰지 않는다).
 
@@ -313,4 +313,5 @@ class ConfirmCopyMoveDialogFragment : AppCompatDialogFragment() {
 | 2026-10-29 | v1 | 최초 작성 | 이슈 #8 LLD 단계 | PM |
 | 2026-10-29 | v1.1 | 2.2 `show`에 빈 입력 계약·중복 열림 방지(태그 + `showNow`)와 T-22, T-21(자기 하위 A9), T-03을 3개로, 2.1 의존 서술 정정, 48dp 테마 연결 줄, U-03 마지막 경우의 수동 대응 없음 명시, F1에 HLD 문구 차이·SRS A7 영향, F4 보강, F5 | LLD 1회차 검수 M1·m1~m5 | 검수팀 |
 | 2026-10-29 | v1.2 | 2.2 클래스 골격에 companion(`TAG`·`show`), `show` 입력·전제를 빈 입력 허용으로, T-22 1차 확인을 코드 검수로·기기 입력을 한 셸 연속으로, 4장 #6 행 표기 | LLD 2회차 검수 n1~n3 | 검수팀 |
-| 2026-10-29 | v1.3 | 결정 반영: 상태, F1(LLD 안 확정)·F2·F3(JUnit 승인)·F5(승인) 결정 기록, 1장 변경 파일 7개(`app/build.gradle`, 단위 시험 파일), 3.2 단위 시험 필수화와 시험 대역·실패 시 처리, U-01 범위(압축 경우는 T-04), U-03 마지막 경우를 단위 시험이 맡음, 5장 R9(3) | PR #16 PM·오너 결정(코멘트 6473368985, 정정 6473374204) | PM |
+| 2026-10-29 | v1.3 | 결정 반영: 상태, F1(LLD 안 확정)·F2·F3(JUnit 승인)·F5(승인) 결정 기록, 1장 변경 파일 7개(`app/build.gradle`, 단위 시험 파일), 3.2 단위 시험 필수화와 시험 대역·실패 시 처리, U-01 범위(압축 경우는 T-04), U-03 마지막 경우를 단위 시험이 맡음, 2.1 서두(JVM 단위 시험 대상), 3.1 끝의 U 필수 줄, 5장 R9(3) | PR #16 PM·오너 결정(코멘트 6473368985, 정정 6473374204) | PM |
+| 2026-10-29 | v1.3.1 | 1장 범위 공지 문구, 3.2 `TestPath` 구현 멤버와 `getRoot` 조건, T-04(c) 혼합 선택(U-01 일부 압축 경우의 수동 대응) | LLD 4회차 검수 m1~m3 | 검수팀 |
