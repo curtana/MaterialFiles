@@ -29,7 +29,7 @@
 
 ### 0.3 사용자에게 보이는 변화
 - 열고 닫는 서랍 화면(폰 세로·가로, `layout/`): **없음**.
-- 고정 메뉴 화면(`layout-sw600dp-land/`, 짧은 변 600dp 이상 가로): **배치가 바뀐다** — 앱바·붙여넣기/선택 하단 막대·speed dial이 창 안으로 들어가 고정 메뉴 오른쪽 영역에만 놓이고, 고정 메뉴는 화면 위·아래 끝까지 닿는다. 화면/창 분리 자체의 결과라(앱바·하단 막대가 창 단위 부품, 서랍이 화면 단위 부품) 피할 수 없다. 앱바 위치 변화는 오너가 수용했으나(HLD D2·R8), 하단 막대·speed dial과 "이 변화가 #5에서 생긴다"는 점은 설계 문서에 없다 → 설계 피드백 F2, **PM 확인 필요**.
+- 고정 메뉴 화면(`layout-sw600dp-land/`, 짧은 변 600dp 이상 가로): **배치가 바뀐다** — 앱바·붙여넣기/선택 하단 막대·speed dial이 창 안으로 들어가 고정 메뉴 오른쪽 영역에만 놓이고, 고정 메뉴는 화면 위·아래 끝까지 닿는다. 화면/창 분리 자체의 결과라(앱바·하단 막대가 창 단위 부품, 서랍이 화면 단위 부품) 피할 수 없다. 앱바가 창 안으로 들어가고 고정 메뉴가 화면 위쪽까지 닿는 것은 HLD D2가 적었고 오너가 수용했다(R8). 새로 확인받을 것은 하단 막대·speed dial 위치, 고정 메뉴가 아래 끝까지 닿는 것, 초점·읽기 순서 변화(고정 메뉴가 앱바보다 앞 순서가 됨), 그리고 "이 변화가 #5에서 생긴다"는 점이다 → 설계 피드백 F2, **PM 확인 필요**.
 
 ## 1. 변경 파일 (R4 범위 공지 — PROCESS_ROLES 11-1, 5개 초과)
 
@@ -390,7 +390,7 @@ class FileListHostFragment : Fragment(), FileListFragment.Listener, NavigationFr
 | 테스트 | 대상 함수 | 경우(정상·경계·오류) | 절차 | 기대 결과 |
 |---|---|---|---|---|
 | T-00 빌드 | 전체 | 정상 | 5.1-1 | `BUILD SUCCESSFUL` |
-| T-01 시작·구조 | `FileListActivity.onCreate`, `FileListHostFragment.onActivityCreated` | 정상 | 앱 아이콘으로 시작(C1·C2·C4). `adb shell dumpsys activity top | grep -A3 "Added Fragments"`로 프래그먼트 확인 | 기준 APK와 같은 화면. 프래그먼트: `FileListHostFragment` > `FileListFragment`(1개)·`NavigationFragment` |
+| T-01 시작·구조 | `FileListActivity.onCreate`, `FileListHostFragment.onActivityCreated` | 정상 | 앱 아이콘으로 시작(C1·C2·C4). `adb shell dumpsys activity top > top.txt` 뒤 `FileListActivity` 절의 프래그먼트 목록 전체(중첩 `Child FragmentManager` 포함)를 읽어 확인 | 기준 APK와 같은 화면. 프래그먼트: `FileListHostFragment` > `FileListFragment`(1개)·`NavigationFragment` |
 | T-02 기본 디렉터리 시작(REQ-2-18) | 창 `onActivityCreated` 5 | 정상 | 하위 폴더로 이동 → 최근 앱에서 지움 → 다시 시작. 설정에서 기본 디렉터리를 `/sdcard/Download`로 바꾸고 반복 | 매번 설정의 기본 디렉터리 |
 | T-03 경로 Intent(REQ-2-19) | 호스트 `Args` → 창 `Args` | 정상 | `adb shell am start -a android.intent.action.VIEW -t inode/directory -d file:///sdcard/Download/lldA -n me.zhanghai.android.files/.filelist.FileListActivity` (URI 형식이 안 먹으면 앱의 "바로가기 만들기"로 만든 바로가기, 또는 다른 파일 관리자에서 열기) | 창 1이 `/sdcard/Download/lldA`. 기준 APK와 같음 |
 | T-04 압축·다운로드·선택 Intent | 창 `onActivityCreated` 5 | 정상·경계 | (a) 파일 앱 등에서 `t.zip`을 이 앱으로 열기 (b) `adb shell am start -a me.zhanghai.android.files.intent.action.VIEW_DOWNLOADS -n me.zhanghai.android.files/.filelist.FileListActivity` (c) `adb shell am start -a android.intent.action.GET_CONTENT -t "*/*" -n …/.filelist.FileListActivity` 후 파일 선택 (d) `OPEN_DOCUMENT_TREE`(다른 앱의 폴더 선택, 예: 설정 앱의 저장소 선택 화면이 이 앱을 쓰게) 또는 `am start -a android.intent.action.OPEN_DOCUMENT_TREE -n …` 후 "현재 폴더 열기" (e) `CREATE_DOCUMENT`(`-a android.intent.action.CREATE_DOCUMENT -t text/plain --es android.intent.extra.TITLE x.txt`) | (a) 압축 루트 (b) 다운로드 폴더 (c) 제목 "파일 열기", 선택 시 결과 반환 후 화면 닫힘 (d) 하단 막대 "현재 폴더 열기"로 반환 (e) 하단 파일 이름 입력 막대. 모두 기준 APK와 같음 |
@@ -402,8 +402,8 @@ class FileListHostFragment : Fragment(), FileListFragment.Listener, NavigationFr
 | T-10 툴바 메뉴 | 창 `onOptionsItemSelected`, 호스트 `onNavigationIconClicked` | 정상 | 넘침 메뉴의 보기·정렬·숨김 파일·새로 고침·위로·경로로 이동·새 작업·책갈피·바로가기 각 1회. C4: 메뉴 아이콘 눌러 고정 메뉴 접기/펼치기 | 기준과 같음. C4 접기/펼치기가 설정에 저장돼 회전 뒤에도 유지 |
 | T-11 키보드 단축키·#10 | `FileListActivity.onKeyShortcut`, 호스트 `onKeyShortcut` | 정상·오류 | 에뮬레이터 창에 PC 키보드로(또는 `adb shell input keycombination 113 <키코드>`, 113=CTRL_LEFT): Ctrl+R(46) 새로 고침, Ctrl+H(36) 숨김 파일, Ctrl+L(40) 경로 대화상자, Ctrl+A(29) 전체 선택; 선택 중 Ctrl+C(31)·Ctrl+X(52); 붙여넣기 막대에서 Ctrl+V(50); 할당 없는 Ctrl+Q(45) | 앞의 것은 모두 기준과 같게 동작. Ctrl+Q는 아무 일 없음·크래시 없음 |
 | T-12 메뉴 키 | (지원 액션바 경로 유지) | 정상 | `adb shell input keyevent 82` | 툴바 넘침 메뉴가 열림(기준과 같음) |
-| T-13 권한 흐름 | 호스트 권한 함수 17개, `onResume`, `refreshPanes` | 정상·오류·경계 | `adb uninstall me.zhanghai.android.files` 뒤 새로 설치 → 시작: 모든 파일 접근 근거 대화상자 → 취소(알림 권한 요청으로 이어짐) → 앱 다시 시작 → 확인 → 설정 화면에서 허용 → 돌아오면 목록 새로 고침. 알림 권한: 거부 → 다시 시작 시 근거 대화상자 → "설정에서" 대화상자. 근거 대화상자가 떠 있는 채 회전 → 버튼 동작. 허용 상태에서 `adb shell appops set me.zhanghai.android.files MANAGE_EXTERNAL_STORAGE ignore` → 앱 복귀 | 대화상자 순서·문구·결과가 기준과 같음. 한 번만 묻는다(대화상자가 둘 겹치지 않음). 회전 뒤 버튼이 호스트로 결과를 넘김(크래시 없음). 허용 뒤 목록이 새로 고쳐짐 |
-| T-14 고정 메뉴 배치(C4) | sw600dp-land 레이아웃 4개 | 정상(의도된 변화) | C4에서 시작·고정 메뉴 펼침/접힘·붙여넣기 막대(복사 후)·speed dial 열기를 기준과 나란히 캡처 | 0.3대로만 다르다: 앱바·하단 막대·speed dial이 고정 메뉴 오른쪽 영역에. 고정 메뉴 맨 위 항목이 상태 표시줄에 가리지 않고, 맨 아래 항목이 내비게이션 막대에 가리지 않음. 목록 마지막 항목이 하단 막대·내비게이션 막대에 가리지 않음 |
+| T-13 권한 흐름 | 호스트 권한 함수 17개, `onResume`, `refreshPanes` | 정상·오류·경계 | `adb uninstall me.zhanghai.android.files` 뒤 새로 설치 → 시작: 모든 파일 접근 근거 대화상자 → 취소(알림 권한 요청으로 이어짐) → 앱 다시 시작 → 확인 → 설정 화면에서 허용 → 돌아오면 목록 새로 고침. 알림 권한: 거부 → 다시 시작 시 근거 대화상자 → "설정에서" 대화상자. 근거 대화상자가 떠 있는 채 회전 → 버튼 동작. 허용 상태에서 `adb shell appops set me.zhanghai.android.files MANAGE_EXTERNAL_STORAGE ignore` → 앱 복귀. API 갈래: API 36 AVD는 "모든 파일 접근"(API 30+)·알림 권한(API 33+) 갈래만 실행된다. `WRITE_EXTERNAL_STORAGE` 갈래(API 23~29: `ensureStorageAccess`의 `else if`, `onShowRequestStoragePermission*`·`requestStoragePermission*`·`onRequestStoragePermission*` 6개)와 API 33 미만의 알림 생략 갈래는 해당 API AVD(예: API 29)로 확인하고, AVD를 만들 수 없으면 **미확인**으로 보고한다(본문을 그대로 옮기는 함수라 코드 검수의 줄 대조로 보완) | 대화상자 순서·문구·결과가 기준과 같음. 한 번만 묻는다(대화상자가 둘 겹치지 않음). 회전 뒤 버튼이 호스트로 결과를 넘김(크래시 없음). 허용 뒤 목록이 새로 고쳐짐 |
+| T-14 고정 메뉴 배치(C4) | sw600dp-land 레이아웃 4개 | 정상(의도된 변화) | C4에서 시작·고정 메뉴 펼침/접힘·붙여넣기 막대(복사 후)·speed dial 열기를 기준과 나란히 캡처 | 0.3대로만 다르다: 앱바·하단 막대·speed dial이 고정 메뉴 오른쪽 영역에. 고정 메뉴 맨 위 항목이 상태 표시줄에 가리지 않고, 맨 아래 항목이 내비게이션 막대에 가리지 않음. 목록 마지막 항목이 하단 막대·내비게이션 막대에 가리지 않음. 같은 확인을 (a) 3버튼 내비게이션과 제스처 내비게이션(`adb shell cmd overlay enable com.android.internal.systemui.navbar.threebutton` / `...navbar.gestural`) (b) 개발자 옵션 "RTL 레이아웃 방향 강제"(`adb shell settings put global debug.force_rtl 1` 후 앱 재시작, 끝나면 0) (c) 왼쪽 인셋이 있는 구성(기기를 반대 가로 방향으로 돌려 3버튼 내비게이션 막대가 왼쪽에 오게)에서 반복 — 기준 APK와 0.3의 차이 외에 같음 |
 | T-15 격자 열 수 | 창 `updateSpanCount`, 호스트 `onPersistentDrawerOpenChanged` | 경계 | 격자 보기로 바꾼 뒤 C1·C2·C4(고정 메뉴 펼침/접힘)에서 한 줄 열 수 비교, C4에서 펼침↔접힘 전환 직후 | 기준과 같은 열 수, 전환 직후 바로 바뀜 |
 | T-16 회전·상태 유지 | 전체 | 경계 | 하위 폴더 + 선택 2개 + 검색 펼침(검색어 입력) + 복사 목록 있는 상태에서 회전 ×2, 서랍 연 채로 회전 | 경로·선택·검색어·붙여넣기 막대·스크롤 위치가 기준과 같게 유지 |
 | T-17 앱 업데이트 뒤 복원 | `FileListActivity.onCreate` 복원 분기 | 오류 | 개발자 옵션 "활동 유지 안 함" 켬(`adb shell settings put global always_finish_activities 1`) → `baseline.apk`로 하위 폴더 연 뒤 홈 → `adb install -r feature.apk` → 최근 앱에서 복귀. 끝나면 `... always_finish_activities 0` | 크래시 없음(새로 시작하거나 정상 복원). 크래시가 나면 원인(이전 판 저장 상태의 `FileListFragment` 복원)과 함께 보고 — 대응(복원 분기에서 타입이 다르면 새로 만들기)은 PM 판단 |
@@ -417,7 +417,7 @@ class FileListHostFragment : Fragment(), FileListFragment.Listener, NavigationFr
 설계 문서(SRS·HLD)는 고치지 않았다. PM·설계팀 확인이 필요한 것은 "질문"으로 표시했다.
 
 - **F1 (질문) HLD D2를 #5에서 하면 보이는 변화가 생긴다 → #6으로 미룸**: `setSupportActionBar`는 메뉴 호스팅만이 아니라 툴바에 다음을 한다(appcompat 1.7.1 바이트코드 확인): ① `ToolbarWidgetWrapper` 생성자가 테마 `actionBarStyle`의 `titleTextStyle`·`subtitleTextStyle`·`contentInsetStart/End`·`height`·`popupTheme`·`displayOptions`를 툴바에 적용(창 레이아웃의 `app:subtitleTextAppearance` 등을 덮어씀 — 그래서 지원 액션바를 빼면 제목·부제목 글꼴·여백이 바뀔 수 있음) ② 툴바 메뉴의 단축키(`file_list.xml:84-105` Ctrl+L·R·A·H)를 `AppCompatDelegateImpl.onKeyShortcut`이 처리 ③ 메뉴 키(`AppCompatActivity.dispatchKeyEvent` → `ActionBar.onMenuKeyEvent`)로 넘침 메뉴 열기 ④ 검색 펼침의 뒤로 가기 접기(API 33 미만 `AppCompatDelegateImpl.onBackPressed` → `collapseActionView`, API 33 이상 `Toolbar.setBackInvokedCallbackEnabled(true)`) ⑤ 내비게이션 아이콘 → `android.R.id.home` ⑥ 액티비티 제목 → 툴바 제목. HLD D2·K5는 이를 다루지 않는다. 창이 하나인 #5에서는 지원 액션바가 틀리지 않으므로(D2의 이유는 창이 둘일 때의 문제) 유지하고, D2는 창 2가 생기는 #6에서 하되 HLD에 ①~⑥의 동등성(특히 ① 글꼴 유지 방법)을 적어 달라. **PM 확인: #5에서 D2를 미루는 것.**
-- **F2 (질문) 고정 메뉴 화면의 배치 변화는 #5에서 생기고, 앱바만이 아니다**: 서랍(화면 단위)과 앱바·하단 막대·speed dial(창 단위)을 나누는 순간 생긴다(D2와 무관). 지금은 하단 막대·speed dial이 고정 메뉴까지 덮는 전체 폭(`layout-sw600dp-land/file_list_fragment_include.xml:10-14`, `:41-43`)이고, 분리 뒤에는 창 영역에만 있다. 또 고정 메뉴가 화면 위·아래 끝까지 닿는다. HLD D2는 앱바 위치만 적었고 오너 수용(R8)도 앱바다. 이슈 #5 본문의 "사용자에게 보이는 동작 변화 없음"의 예외로 이것을 받아들일지 **PM(필요하면 오너) 확인**.
+- **F2 (질문) 고정 메뉴 화면의 배치 변화는 #5에서 생긴다(D2가 아니라 분리 자체의 결과)**: 서랍(화면 단위)과 앱바·하단 막대·speed dial(창 단위)을 나누는 순간 생긴다. 앱바가 창 안으로 들어가고 고정 메뉴가 화면 위쪽까지 닿는 것은 HLD 5장 D2가 이미 적었고 오너가 수용했다(R8). D2·R8에 없는 것: ① 하단 막대·speed dial — 지금은 고정 메뉴까지 덮는 전체 폭(`layout-sw600dp-land/file_list_fragment_include.xml:10-14`, `:41-43`)이고 분리 뒤에는 창 영역에만 있다 ② 고정 메뉴가 화면 아래 끝까지 닿는다 ③ 초점(Tab)·화면 낭독 순서에서 고정 메뉴가 앱바보다 앞이 된다(뷰 계층 순서). 이슈 #5 본문의 "사용자에게 보이는 동작 변화 없음"의 예외로 ①~③을 받아들일지 **PM(필요하면 오너) 확인**.
 - **F3 격자 열 수를 창 너비로(HLD K5)는 #6으로**: 창이 하나일 때 창 너비 기준으로 바꾸면 고정 메뉴 실제 너비(320dp보다 작을 수 있음, `navigation/NavigationRecyclerView.kt:53-60`)·시스템 인셋 때문에 지금(`screenWidthDp` − 320dp, `:660-665`)과 열 수가 달라지는 화면이 생긴다. 두 창에서만 필요하므로 #6에서 바꾼다.
 - **F4 창 레이아웃 파일 이름**: HLD K5의 `res/layout/file_list_pane_fragment.xml` 대신 기존 `file_list_fragment*.xml`을 창 레이아웃으로 쓴다(1장). 문서만 맞추면 된다.
 - **F5 R3 방식**: HLD 3.5의 두 방식 대신 "창 전용 디스패처 + 호스트 전달 콜백"을 골랐다(3.2·3.3 근거 — 등록 시점 방식은 `ON_START` 순서 때문에 효과가 없음). HLD 3.5·R3에 반영을 권한다.
@@ -431,7 +431,7 @@ class FileListHostFragment : Fragment(), FileListFragment.Listener, NavigationFr
 |---|---|
 | R1 | #6(B)로 이월 — `FullDraggableContainer`와 K4 쓸기의 충돌은 K4가 생길 때 확인. 이 단계는 서랍 구조를 그대로 옮겨 서랍 열기 제스처를 T-05로만 확인. |
 | R2 | #6(B)로 이월(fastscroll 띠). |
-| R3 | **닫음** — 3장 방식, T-06~T-09. |
+| R3 | **방식 확정**(3장) — 실제 순서 확인은 구현 PR의 T-06~T-09에서 닫는다. |
 | R4 | **닫음** — 1장에 변경 파일 10개·범위 명시(5개 초과 공지). 구현 착수 전 PM에게 이 표로 알린다. |
 | R5 | #6(B)로 이월(창이 하나라 해당 없음). |
 | R6 | #6(B)·#7(C)로 이월. |
@@ -444,3 +444,4 @@ class FileListHostFragment : Fragment(), FileListFragment.Listener, NavigationFr
 | 일자 | 버전 | 변경 | 사유 | 요청자 |
 |---|---|---|---|---|
 | 2026-10-28 | v1 | 최초 작성 | 이슈 #5 LLD 단계(#10 흡수) | PM |
+| 2026-10-28 | v1.1 | 0.3·F2 서술 정정(D2·R8이 이미 다룬 것과 새로 확인할 것 구분), T-01·T-13·T-14 보강, R3 표기 "방식 확정" | LLD 1회차 검수 m2·m3·m4 | 검수팀 |
