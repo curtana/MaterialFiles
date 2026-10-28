@@ -121,6 +121,11 @@ class ConfirmCopyMoveDialogFragment : AppCompatDialogFragment() {
 
     enum class Origin { PASTE, OTHER_PANE }
 
+    companion object {
+        private val TAG = ConfirmCopyMoveDialogFragment::class.java.name
+        fun show(copy: Boolean, files: FileItemSet, targetDirectory: Path, origin: Origin, fragment: Fragment) { ... } // 2.2 아래
+    }
+
     interface Listener {
         fun copyMoveFiles(
             type: CopyMoveType, sources: List<Path>, targetDirectory: Path,
@@ -136,7 +141,7 @@ class ConfirmCopyMoveDialogFragment : AppCompatDialogFragment() {
 #### `ConfirmCopyMoveDialogFragment.Companion.show(copy: Boolean, files: FileItemSet, targetDirectory: Path, origin: Origin, fragment: Fragment): Unit`
 - **추적**: HLD K6, 3.6 / REQ-2-14, 15. **#9가 쓰는 진입 API**.
 - **책임**: 보일 때 원본·대상을 굳혀 확인 창을 연다.
-- **입력·전제**: 메인 스레드. `fragment`는 `Listener`를 구현한다(창 `FileListFragment`). `files`는 비어 있지 않다. `files`는 살아 있는 집합이어도 된다(복사 목록 `PasteState.files`, 선택 `viewModel.selectedFiles` — 둘 다 나중에 그 자리에서 바뀌는 가변 집합: `FileListViewModel.kt:197-220`, `:154-174`).
+- **입력·전제**: 메인 스레드. `fragment`는 `Listener`를 구현한다(창 `FileListFragment`). `files`는 비어 있을 수 있다(그때는 알고리즘 1에서 아무것도 하지 않음 — 호출자는 보통 비어 있지 않은 집합을 넘긴다). `files`는 살아 있는 집합이어도 된다(복사 목록 `PasteState.files`, 선택 `viewModel.selectedFiles` — 둘 다 나중에 그 자리에서 바뀌는 가변 집합: `FileListViewModel.kt:197-220`, `:154-174`).
 - **출력·사후조건**: 이 함수는 어떤 상태도 바꾸지 않는다(복사 목록·선택·작업 없음 — REQ-2-14). 돌아온 뒤 `fragment`의 자식 FragmentManager에 이 확인 창이 **많아야 하나** 있다.
 - **알고리즘**:
   1. `if (files.isEmpty()) return` — 빈 입력은 아무것도 하지 않는다(빈 집합이면 `getCopyMoveType`이 `EXTRACT`를 내므로 여기서 막는다. #9도 같은 계약).
@@ -255,7 +260,7 @@ class ConfirmCopyMoveDialogFragment : AppCompatDialogFragment() {
 | T-19 다른 확인 창 회귀 | (변경 없음 확인) | 정상 | 삭제·압축 만들기·이름 바꾸기 각 1회 | 기준과 같음 |
 | T-20 새 작업 사이 붙여넣기(HLD D6) | 2.3 | 정상 | 넘침 메뉴 "새 작업" 화면에서 복사 → 원래 화면에서 붙여넣기 | 원래 화면에서 확인 창 → 실행 → 생성 |
 | T-21 자기 하위로(SRS A9) | `createCopyMoveConfirmation`, `copyMoveFiles` | 경계 | `lld8`에서 폴더 `a` 복사 → `a` 안으로 들어가 붙여넣기. 같은 절차로 잘라내기 | 확인 창(같은 폴더 안내 없음 — `a`의 부모 `lld8` ≠ 대상 `lld8/a`) → 실행 → 기존 "자기 안으로" 오류 창(`FileJobs.kt:1196-1235`). 기준 APK와 같은 오류 창 |
-| T-22 중복 열림 방지(M1) | `show` 알고리즘 2·4 | 경계 | 복사 목록이 있는 막대에서 (a) 붙여넣기 단추를 빠르게 두 번 (b) Ctrl+V를 누른 채 키 반복(`adb shell input keycombination 113 50`을 짧은 간격으로 3회) → 뜬 창에서 실행 | 확인 창은 하나만 뜬다(실행 뒤 다른 창이 남지 않음). 작업 알림·결과가 한 번분(사본이 두 번 생기지 않음). `adb shell dumpsys activity top`에 `ConfirmCopyMoveDialogFragment`가 하나 |
+| T-22 중복 열림 방지(M1) | `show` 알고리즘 2·4 | 경계 | **1차 확인은 코드 검수**: `show`의 태그 검사(알고리즘 2)와 `showNow`(알고리즘 4)를 줄 대조한다 — 확인 창이 뜨면 키·터치가 창으로 가므로 기기 입력만으로는 가드가 없어도 통과할 수 있다. 보조 기기 시험: 복사 목록이 있는 막대에서 (a) 붙여넣기 단추를 빠르게 두 번 (b) 한 셸 명령으로 Ctrl+V를 연속 입력(`adb shell "input keycombination 113 50; input keycombination 113 50"`) → 뜬 창에서 실행 | 코드: 두 줄이 명세대로. 기기: 확인 창은 하나만 뜨고(실행 뒤 다른 창이 남지 않음), 작업 알림·결과가 한 번분(사본이 두 번 생기지 않음), `adb shell dumpsys activity top`에 `ConfirmCopyMoveDialogFragment` 하나 |
 
 - 판정: 0.3의 차이(확인 창, T-11) 외에 기준 APK와 다른 결과가 있으면 실패.
 - `OTHER_PANE` 갈래(`copyMoveFiles`의 선택 해제)는 진입점이 #9에서 생기므로 #9의 시험에서 확인한다. 이 단계는 코드 검수의 줄 대조로 확인한다.
@@ -277,7 +282,7 @@ class ConfirmCopyMoveDialogFragment : AppCompatDialogFragment() {
 | 하위 이슈 | 붙을 자리 | 이 단계에서 준비한 것 |
 |---|---|---|
 | #9 E | 선택 메뉴 `res/menu/file_list_select.xml`에 "반대쪽으로 복사"·"반대쪽으로 이동" 두 항목, `updateOverlayToolbar`(기존 `:787-851`, 선택 메뉴 부분 `:807-833`)에서 반대쪽 경로 읽기 전용·선택 읽기 전용 판단(HLD 3.6 읽기 전용 규칙), `onOverlayActionModeMenuItemClicked`(기존 `:853-892`)에서 `ConfirmCopyMoveDialogFragment.show(copy, viewModel.selectedFiles, <반대쪽 경로>, Origin.OTHER_PANE, this)`. 반대쪽 경로는 #6의 `DualPaneViewModel.panePaths`. | `show` API(살아 있는 선택 집합을 넘겨도 됨 — 복사본을 만든다), `Origin.OTHER_PANE`, 리스너의 선택 해제 갈래, 판정·문구 전부 |
-| #6 B | 두 창이 되어도 확인 창은 연 창의 자식이라(`show(fragment)`) 그 창의 뷰모델로 실행·정리한다. 바꿀 것 없음. | — |
+| #6 B | 두 창이 되어도 확인 창은 연 창의 자식이라(`show`가 `fragment.childFragmentManager`에 `showNow`) 그 창의 뷰모델로 실행·정리한다. 바꿀 것 없음. | — |
 
 ## 5. 위험 처리 (HLD 6장 중 이 단계 몫)
 | ID | 이 단계 처리 |
@@ -301,3 +306,4 @@ class ConfirmCopyMoveDialogFragment : AppCompatDialogFragment() {
 |---|---|---|---|---|
 | 2026-10-29 | v1 | 최초 작성 | 이슈 #8 LLD 단계 | PM |
 | 2026-10-29 | v1.1 | 2.2 `show`에 빈 입력 계약·중복 열림 방지(태그 + `showNow`)와 T-22, T-21(자기 하위 A9), T-03을 3개로, 2.1 의존 서술 정정, 48dp 테마 연결 줄, U-03 마지막 경우의 수동 대응 없음 명시, F1에 HLD 문구 차이·SRS A7 영향, F4 보강, F5 | LLD 1회차 검수 M1·m1~m5 | 검수팀 |
+| 2026-10-29 | v1.2 | 2.2 클래스 골격에 companion(`TAG`·`show`), `show` 입력·전제를 빈 입력 허용으로, T-22 1차 확인을 코드 검수로·기기 입력을 한 셸 연속으로, 4장 #6 행 표기 | LLD 2회차 검수 n1~n3 | 검수팀 |
