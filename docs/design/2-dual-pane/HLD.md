@@ -2,8 +2,8 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 검수 통과(v4.5, SRS v4.5 기준) |
-| 근거 | SRS v4.5 (`docs/design/2-dual-pane/SRS.md`, 요구사항 정리 v2 반영). HLD v3까지는 SRS v3 기준 |
+| 상태 | 검수 통과(v4.6, SRS v4.6 기준) |
+| 근거 | SRS v4.6 (`docs/design/2-dual-pane/SRS.md`, 요구사항 정리 v2 반영). HLD v3까지는 SRS v3 기준 |
 | 기준 코드 | `origin/develop` 3d87794 |
 
 ## 1. 구조 개요
@@ -164,7 +164,7 @@ K6 "취소"/닫기 → 아무것도 바꾸지 않음
 ## 5. 설계 결정
 | 결정 | 대안 | 고른 이유 |
 |---|---|---|
-| D1 호스트 프래그먼트(K2) + 창 프래그먼트(K5) 두 개로 나눈다 | (a) `FileListFragment` 두 개를 그대로 붙임 (b) 한 프래그먼트 안에 목록 뷰 두 벌 (c) Activity embedding | (a)는 서랍·탐색 서랍·권한·뒤로 가기·지원 액션바가 둘이 된다(1.1). (b)는 `FileListFragment`의 창 단위 코드(1700줄 대부분)를 두 벌 상태로 다시 써야 한다. D1은 창 단위 코드를 그대로 두고 화면 단위 코드만 옮긴다. (c) Activity embedding(창마다 액티비티)은 규격(`Responsive_adaptive_layouts`)이 옛 액티비티 기반 화면 분할에 안내하는 방식인데, 이 화면은 한 액티비티·한 작업 흐름 안의 두 목록이고 창 사이 공유 상태(활성 창, 복사 목록, 반대쪽 경로)와 하나의 서랍·탐색 서랍이 필요해 액티비티 둘로 나누면 그 공유를 액티비티 간 통신으로 바꿔야 한다 — 편차 여부는 SRS 4.3 Q9(PM·오너 판단). |
+| D1 호스트 프래그먼트(K2) + 창 프래그먼트(K5) 두 개로 나눈다 | (a) `FileListFragment` 두 개를 그대로 붙임 (b) 한 프래그먼트 안에 목록 뷰 두 벌 (c) Activity embedding | (a)는 서랍·탐색 서랍·권한·뒤로 가기·지원 액션바가 둘이 된다(1.1). (b)는 `FileListFragment`의 창 단위 코드(1700줄 대부분)를 두 벌 상태로 다시 써야 한다. D1은 창 단위 코드를 그대로 두고 화면 단위 코드만 옮긴다. (c) Activity embedding(창마다 액티비티)은 규격(`Responsive_adaptive_layouts`)이 옛 액티비티 기반 화면 분할에 안내하는 방식인데, 이 화면은 한 액티비티·한 작업 흐름 안의 두 목록이고 창 사이 공유 상태(활성 창, 복사 목록, 반대쪽 경로)와 하나의 서랍·탐색 서랍이 필요해 액티비티 둘로 나누면 그 공유를 액티비티 간 통신으로 바꿔야 한다. 근거: 한 액티비티 안 두 창이 `Responsive_adaptive_layouts`의 다중 창 레이아웃 권장을 충족하므로 Activity embedding 미사용은 편차가 아니다(SRS 4.3 Q9 오너 결정, 2026-10-28). |
 | D2 창마다 자기 툴바와 자기 메뉴(툴바 `MenuHost`) | (a) 툴바 하나를 공유하고 활성 창이 바뀔 때 메뉴를 다시 만듦 (b) 활성 창 툴바를 `setSupportActionBar`로 바꿔 끼움 | 기존 앱바(툴바+선택 툴바+breadcrumb, 목록과 함께 접히는 동작 `file_list_fragment_app_bar_include.xml`)를 창마다 그대로 쓸 수 있다. 메뉴가 누른 창에 작용하므로 "상단 메뉴 = 활성 창"이 구조로 성립한다(탭 활성화 3.4). (a)는 선택 툴바·검색 뷰가 창별 상태라 공유 툴바에서 매번 바꿔 끼워야 하고, (b)는 전환마다 메뉴 재생성·제목 깜박임. **결과로 보이는 변화**: 고정 메뉴 화면(sw600dp-land)에서 지금은 앱바가 고정 메뉴 위 전체 너비에 걸쳐 있다(`res/layout-sw600dp-land/file_list_fragment_include.xml:16-38` — 앱바 다음에 `PersistentDrawerLayout`). D2에서는 앱바가 각 창 안으로 들어가 고정 메뉴가 화면 위쪽까지 닿고 앱바는 고정 메뉴 오른쪽 영역에만 있다. 열고 닫는 서랍 화면은 지금도 앱바가 내용 안에 있어 변화가 없다. 사용자에게 보이는 배치 변경이며 오너가 수용했다(요구사항 v2 결정, R8 결정됨). |
 | D3 너비 판단을 K4 한 곳, 고정 메뉴는 목표 상태로 | (a) `Configuration.screenWidthDp`(구성 값) (b) 리소스 한정자(`layout-w600dp`) | 요구가 "고정 메뉴를 뺀 영역 너비"라 구성 값·리소스 한정자로는 고정 메뉴 열기·닫기를 반영할 수 없다. 측정 너비 그대로는 서랍 애니메이션 중 모드가 흔들린다(3.2). |
 | D4 쓸기 인식은 창들의 부모(K4)의 `onInterceptTouchEvent` + 자식이 DOWN을 소비하지 않을 때 `onTouchEvent`(3.3-5) | (a) 각 `RecyclerView`에 `OnItemTouchListener` (b) 액티비티 `dispatchTouchEvent` | 창 전체(빈 곳 포함)를 덮고, 서랍 컨테이너보다 안쪽이라 서랍 제스처가 먼저 처리되며, 표준 `requestDisallowInterceptTouchEvent`를 존중한다. (a)는 빈 목록·오류 화면에서 안 되고, (b)는 서랍·다이얼로그 위 터치까지 봐야 한다. |
@@ -203,3 +203,4 @@ K6 "취소"/닫기 → 아무것도 바꾸지 않음
 | 2026-10-28 | v4.3 | 규격 추적표 v0.3 반영: 3.3-1(a)에 하단·필수 제스처 영역(`getMandatorySystemGestureInsets`, GN-1·3) 추가와 GN-2·4 관계, 3.9 터치 대상 48dp·대비·색 외 구분·키보드·마우스, K4 RTL-1·RTL-5(A2 오너 결정), K6 전체 폭 금지·Esc·BidiFormatter, K7 BidiFormatter·3.9 참조, R11 추가 | 규격 추적표 v0.3 머지(PR #4) | PM |
 | 2026-10-28 | v4.4 | 규격 반영 검수 m2·m8·m10·m11: 3.1 목록 스크롤 위치 행, 3.3-1(a) 인셋 서술 정리(필수 인셋은 부분 영역, `WindowInsetsCompat`, 좌표 변환은 LLD), R7 닫음, 근거를 SRS v4.4로 | 규격 반영 검수(pr3_std) | 검수팀 |
 | 2026-10-28 | v4.5 | D1에 Activity embedding 비교(대안 (c)) | 규격 반영 재검수 n4 | 검수팀 |
+| 2026-10-28 | v4.6 | D1 (c)에 Activity embedding 미사용이 편차가 아니라는 근거(Q9 오너 결정), 근거를 SRS v4.6으로 | Q7~Q9 오너 결정 | PM |
