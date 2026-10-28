@@ -125,7 +125,7 @@
 | 이슈 | 관련 조항 ID | REQ ID | 비고 |
 |---|---|---|---|
 | #2 두 창 파일 목록 — 시스템 뒤로 가기·제스처 충돌 | `Back_Button_Nav`, `Back_Gesture_Nav`, GN-1, GN-2, GN-3, GN-4 | (설계팀이 SRS 개정 시 채움) | 제외 영역을 요청하지 않으면 GN-4는 영향 없음 |
-| #2 — 큰 화면·창 크기·멀티 윈도 | `Fullscreen_Display`, `Consistent_UX`, `Display_State_Parity`, `Multi-Window_Functionality`, `Responsive_adaptive_layouts`, WSC-1, WSC-2, WSC-3 | (설계팀이 SRS 개정 시 채움) | WSC-3(폰 가로 높이)와 SRS C2 검토 필요 |
+| #2 — 큰 화면·창 크기·멀티 윈도 | `Fullscreen_Display`, `Consistent_UX`, `Display_State_Parity`, `Multi-Window_Functionality`, `Responsive_adaptive_layouts`, WSC-1, WSC-2, WSC-3 | (설계팀이 SRS 개정 시 채움) | WSC-3: 폰 가로도 두 창 유지(오너 결정, 3장) |
 | #2 — 상태 유지(회전·구성 변경) | `State_Preservation`, `Orientation_Transitions`, `Config_Changes`, `Config_Combinations` | (설계팀이 SRS 개정 시 채움) | |
 | #2 — 접근성(터치 대상·쓸기 대체·TalkBack·색 외 구분) | `Touch_Target_Size`, `Touch_Targets`, `Visual_Contrast`, `Content_Description`, `Theme_Support`, `Mouse_Trackpad_Basic`, `Keyboard_Navigation`, A11Y-1, A11Y-2, A11Y-3, A11P-1, A11P-2, A11P-3, A11P-4 | (설계팀이 SRS 개정 시 채움) | A11P-1이 SRS 4.3 Q3에 해당 |
 | #2 — 확인 대화상자 | `UI_Secondary_Elements`, `Keyboard_Exit` | (설계팀이 SRS 개정 시 채움) | 복사·이동 전 확인 창 자체를 요구하는 조항은 확인한 문서에 없다 — 확인 창은 규격 요구가 아닌 요구사항 결정이다 |
