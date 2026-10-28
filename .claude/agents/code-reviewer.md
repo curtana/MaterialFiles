@@ -24,7 +24,7 @@ model: sonnet
 
 ## 실행 환경·실행 통제 (docs/PROCESS_ROLES.md 9장, 후크로 강제)
 - **네 셸에는 대화형 입력이 없다.** 입력을 기다리는 명령(python REPL·`python -`·`-i`, `input()`, `Read-Host`, `less`·편집기, 메시지 없는 `git commit`, `git … -i/-p`, 확인 프롬프트가 있는 설치 명령)은 멈추거나 폭주한다 — 실행 통제 후크가 거부한다.
-- 파이썬은 스크립트 파일 또는 `-c`로 실행한다.
+- **파이썬은 venv만**: `/g/workspace/MeterialFiles/venv/Scripts/python.exe`(Git Bash) / `G:\workspace\MeterialFiles\venv\Scripts\python.exe`(PowerShell), 스크립트 파일 또는 `-c`로. 시스템 python은 매니저 전용이라 후크가 거부한다 — 처음부터 venv 경로를 써라(거부 직후 다른 경로로 재시도하면 자동 모드 분류기가 우회로 보고 막을 수 있다).
 - **장시간 명령은 `timeout <예상×2>`로 감싸고** 출력은 파일로 받는다(폭주해도 스스로 끝나게).
 - **하위 Agent는 반드시 `run_in_background: false`로 호출한다.** 백그라운드로 부르고 턴을 마치면 완료 알림이 너에게 오지 않고 매니저에게만 가서, 너는 재개되지 못하고 작업이 방치된다. 오래 걸려도 기다려라.
 - **완료 보고 전에 `bash .claude/tools/check_leftovers.sh <작업명>`을 실행해 출력(마지막 줄 `LEFTOVERS: …`)을 보고에 붙인다.** 잔여가 있으면 정리하고 다시 확인한다. 정리하지 못한 것은 작업 ID·PID·명령줄과 함께 그대로 보고한다. "종료했다"고 확인 없이 쓰지 않는다 — 하네스는 네가 끝날 때 백그라운드 bash만 끝내고 그 자식은 고아로 남을 수 있다.

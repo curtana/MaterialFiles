@@ -176,15 +176,18 @@ PM이 반드시 개입하는 지점: ① 요구사항 정리·오너 확인 ② 
 ### 9-2. 파이썬 정책
 | 주체 | 허용 | 금지 |
 |---|---|---|
-| 매니저 | 시스템 python(`/c/Python314/python`)의 스크립트·`-c`·`-m` | REPL 형태(`python` 단독·`-i`), `python -`(heredoc·파이프 입력 포함) |
-| 서브에이전트 | 매니저와 같음 | REPL 형태 |
+| 매니저 | venv python만(`/g/workspace/MeterialFiles/venv/Scripts/python.exe`)의 스크립트·`-c`·`-m`. 시스템 python은 venv를 만들 때만 | 시스템 python으로 작업 실행, REPL 형태(`python` 단독·`-i`), `python -`(heredoc·파이프 입력 포함) |
+| 서브에이전트 | venv python만: `/g/workspace/MeterialFiles/venv/Scripts/python.exe`(Git Bash) / `G:\workspace\MeterialFiles\venv\Scripts\python.exe`(PowerShell) | 시스템 python, REPL 형태 |
+
+- venv는 메인 체크아웃의 `venv/`(git 제외) 하나를 모든 역할·워크트리가 같이 쓴다. 없으면 `python -m venv venv`로 만든다. 패키지가 필요하면 라이브러리 승인(10장)을 거쳐 이 venv에 설치한다.
+- 후크는 서브에이전트의 시스템 python만 기계적으로 거부한다. 매니저의 venv 사용은 규칙으로 지킨다.
 
 ### 9-3. 후크 — `.claude/tools/hook_guard.py`
 후크 입력에는 서브에이전트가 실행한 도구 호출에만 `agent_id`가 붙는다 — 이것으로 매니저와 서브에이전트를 구분한다. 연결은 `.claude/settings.local.json`(git 제외)에 있다.
 
 | 모드 | 하는 일 |
 |---|---|
-| `pretool` | 실행 전 거부: 입력을 기다리는 형태(누구든), reviewer·analyst의 `_workspace/` 밖 Write·Edit. 거부 사유에 대안을 적어 돌려준다. matcher는 `Bash\|PowerShell\|Write\|Edit\|MultiEdit\|NotebookEdit`. |
+| `pretool` | 실행 전 거부: 입력을 기다리는 형태(누구든), 서브에이전트의 시스템 python, reviewer·analyst의 `_workspace/` 밖 Write·Edit. 거부 사유에 대안을 적어 돌려준다. matcher는 `Bash\|PowerShell\|Write\|Edit\|MultiEdit\|NotebookEdit`. |
 | `substop` | 서브에이전트 종료 시 남긴 실행 중 작업을 `_workspace/hooks/agent_background.jsonl`에 기록하고 경고한다. **종료를 막지 않는다** — 막아도 정리 지시가 전달되지 않고, bash 안의 자식은 고아로 남는다. 고아는 9-4가 찾는다. |
 | `approval` | 승인 요청을 `_workspace/hooks/approvals.log`에 기록만 한다. |
 

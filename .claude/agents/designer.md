@@ -46,6 +46,7 @@ PM은 이슈 번호로 task를 준다. `gh issue view <번호> --comments`로 **
 
 ## 실행 환경·실행 통제 (docs/PROCESS_ROLES.md 9장, 후크로 강제)
 - **네 셸에는 대화형 입력이 없다.** 입력을 기다리는 명령(python REPL·`python -`·`-i`, `input()`, `Read-Host`, `less`·편집기, 메시지 없는 `git commit`, `git … -i/-p`)은 멈추거나 폭주한다 — 실행 통제 후크가 거부한다.
+- **파이썬은 venv만**: `/g/workspace/MeterialFiles/venv/Scripts/python.exe`(Git Bash) / `G:\workspace\MeterialFiles\venv\Scripts\python.exe`(PowerShell), 스크립트 파일 또는 `-c`로. 시스템 python은 후크가 거부한다.
 - **하위 Agent는 반드시 `run_in_background: false`로 호출한다.**
 - **완료 보고 전에 `bash .claude/tools/check_leftovers.sh <작업명>`을 실행해 출력(마지막 줄 `LEFTOVERS: …`)을 보고에 붙인다.**
 
