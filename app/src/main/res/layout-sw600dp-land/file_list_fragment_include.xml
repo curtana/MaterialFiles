@@ -21,21 +21,14 @@
 
             <include layout="@layout/file_list_fragment_app_bar_include" />
 
-            <me.zhanghai.android.files.ui.PersistentDrawerLayout
-                android:id="@+id/persistentDrawerLayout"
+            <!-- The content include has a <merge> root, so its layout params can't be overridden. -->
+            <FrameLayout
                 android:layout_width="match_parent"
                 android:layout_height="0dp"
                 android:layout_weight="1">
 
-                <me.zhanghai.android.files.ui.NavigationFrameLayout
-                    android:id="@+id/navigationFragment"
-                    android:layout_width="wrap_content"
-                    android:layout_height="match_parent"
-                    android:layout_gravity="start"
-                    android:background="?colorSurface" />
-
                 <include layout="@layout/file_list_fragment_content_include" />
-            </me.zhanghai.android.files.ui.PersistentDrawerLayout>
+            </FrameLayout>
         </LinearLayout>
 
         <include layout="@layout/file_list_fragment_bottom_bar_include" />
