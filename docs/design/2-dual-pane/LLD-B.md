@@ -4,7 +4,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 작성 중 |
+| 상태 | 작성 중(v1.2 — PM 결정 반영) |
 | 근거 | SRS v4.7, HLD v4.7 (`docs/design/2-dual-pane/`), LLD-A v1.4, `docs/STANDARDS_TRACEABILITY.md`(develop) |
 | 기준 코드 | `origin/develop` a76055e (#5 머지 PR #15). 인용 줄 번호는 이 커밋 기준 |
 | 이슈 | #6 (하위 이슈 B, 상위 #2). #5에서 미룬 결정 F1(툴바 `MenuHost`)·F3(격자 열 수)을 포함 |
@@ -20,7 +20,7 @@
   - K2 `FileListHostFragment`: 선택 모드가 아니면 창 2를 만든다. 뒤로 가기 전달·탐색 서랍 경로 관찰이 **활성 창을 따라간다**. 검색 펼침 뒤로 가기 콜백(F1 ④)과 메뉴 키 전달(F1 ③)을 더한다.
   - K5 `FileListFragment`: **F1** 지원 액션바(`setSupportActionBar`) + 옵션 메뉴 → 툴바 `MenuHost`(HLD D2, 동등성 ①~⑥은 3장). **F3** 두 창 모드의 격자 열 수를 창 너비로. 인자에 창 번호.
   - K1 `FileListActivity`: 메뉴 키를 호스트로(F1 ③).
-- **하지 않는다**: 창 표시 줄·활성 창 표시·창 표시 누르기 전환·전환 뒤 접근성 초점 이동(K7·K9, #7), 확인 창(K6, #8), 반대쪽 복사·이동(#9). K3 `panePaths`(반대쪽 경로 게시판)는 첫 소비자인 #7(K7 반대쪽 경로)·#9가 더한다 — 이 단계에는 읽는 곳이 없다(설계 피드백 FB-4).
+- **하지 않는다**: 창 표시 줄·활성 창 표시·창 표시 누르기 전환·전환 뒤 접근성 초점 이동(K7·K9, #7), 확인 창(K6, #8), 반대쪽 복사·이동(#9). K3 `panePaths`(반대쪽 경로 게시판)는 **#7이 소유**한다(PM 결정 2026-10-29, #9가 그것을 쓴다) — 이 단계에는 읽는 곳이 없다(FB-4).
 - 이 단계가 끝나면 두 창 모드에서 **어느 창이 활성인지 보이는 표시가 아직 없다**(K7은 #7). develop 안의 중간 상태이며 릴리스는 #7까지 묶어서 한다(PROCESS_ROLES 12장 "묶음을 끝낸 뒤 릴리스").
 
 ### 0.2 추적 — 이 단계의 몫
@@ -40,7 +40,7 @@
 
 ### 0.3 사용자에게 보이는 변화
 - **의도된 변화**(요구사항): 두 창 모드, 쓸기 전환, 탭 활성화. 창 2의 붙여넣기 막대·speed dial도 창마다 보인다(HLD R6 — 이 단계는 숨기지 않는다, 7장).
-- **F1(툴바 `MenuHost`)**: 3장의 ①~⑥을 유지한다 — 한 창 모드의 툴바 모양·메뉴·단축키·메뉴 키·홈 단추·제목은 기준 APK와 같아야 한다. 단 **하나의 경계 경우**가 달라질 수 있다: API 33 이상에서 검색을 펼친 채 **열고 닫는 서랍을 연 뒤** 뒤로 가기를 누르면, 지금은 그 순간의 콜백 등록 순서에 따라 서랍이 먼저 닫히기도 하고 검색이 먼저 접히기도 한다(4.1). 이 LLD는 API 33 미만의 지금 순서(검색 접기 먼저)로 통일한다 → 설계 피드백 FB-3, PM 확인 요청.
+- **F1(툴바 `MenuHost`)**: 3장의 ①~⑥을 유지한다 — 한 창 모드의 툴바 모양·메뉴·단축키·메뉴 키·홈 단추·제목은 기준 APK와 같아야 한다. 단 **하나의 경계 경우**가 달라질 수 있다: API 33 이상에서 검색을 펼친 채 **열고 닫는 서랍을 연 뒤** 뒤로 가기를 누르면, 지금은 그 순간의 콜백 등록 순서에 따라 서랍이 먼저 닫히기도 하고 검색이 먼저 접히기도 한다(4.1). 이 LLD는 API 33 미만의 지금 순서(검색 접기 먼저)로 통일한다 — **PM 결정(2026-10-29, FB-3)**.
 - **F3(격자 열 수)**: 한 창 모드는 지금 공식 그대로라 변화 없음. 두 창 모드만 창 너비로 계산(2.5 `updateSpanCount`).
 
 ### 0.4 #5에서 미룬 결정의 처리 요약
@@ -60,8 +60,10 @@
 | 5 | `app/src/main/java/me/zhanghai/android/files/filelist/FileListActivity.kt` | 수정 | `dispatchKeyEvent` — 메뉴 키를 호스트로(F1 ③) | K1 |
 | 6 | `app/src/main/res/layout/file_list_host_fragment_include.xml` | 수정 | `paneContainer` `FrameLayout` → `DualPaneLayout` > `paneContainer` + `pane2Container` | K2·K4 |
 | 7 | `app/src/main/res/layout-sw600dp-land/file_list_host_fragment_include.xml` | 수정 | 위와 같음(고정 메뉴 변형) | K2·K4 |
+| 8 | `app/build.gradle` | 수정 | 두 번째 `dependencies` 블록(`app/build.gradle:121`~)에 `testImplementation 'junit:junit:4.13.2'` 한 줄(FB-6, 오너 승인 2026-10-29) | 시험 |
+| 9 | `app/src/test/java/me/zhanghai/android/files/filelist/DualPaneLayoutTest.kt` | 신규 | U-01~U-05(5.1) — 저장소의 첫 단위 테스트 소스 | 시험 |
 
-- 합계 7개(신규 1, 수정 6): Kotlin 5, 레이아웃 XML 2. `provider/`·`filejob/`·JNI·`app/build.gradle`은 건드리지 않는다(SRS C-1). 새 권한·설정 키·문자열 없음. 새 의존성은 단위 테스트를 넣을 때만(5.1, 라이브러리 승인 요청 — FB-6).
+- 합계 9개(신규 2, 수정 7): 앱 Kotlin 5, 레이아웃 XML 2, `app/build.gradle` 1, 시험 Kotlin 1. `provider/`·`filejob/`·JNI는 건드리지 않는다(SRS C-1). `app/build.gradle`은 시험 의존성 한 줄뿐(앱 런타임 의존성·설정 변경 없음, PROCESS_ROLES 4장상 검수 필수 파일). 새 권한·설정 키·문자열 없음.
 - 창 1 컨테이너 ID는 `R.id.paneContainer`를 그대로 쓴다(이전 판의 저장 상태 복원과 `FileListHostFragment.kt:115`의 조회가 같은 ID를 본다). 창 2는 `R.id.pane2Container`.
 - 바꾸지 않지만 관계있는 것: `res/layout/file_list_fragment*.xml`(창 레이아웃 — `R.id.appBarLayout`·`R.id.recyclerView` ID를 K4가 찾는다), `ui/IgnoreFitsSystemWindowsFullyDraggableDrawerContentLayout.kt`, `ui/PersistentDrawerLayout.kt`, `navigation/NavigationFragment.kt`.
 
@@ -135,19 +137,21 @@ interface Listener {
 ```
 - K2가 구현해 K3에 넘긴다(2.4). K4는 뷰모델을 모른다(뷰 → 프래그먼트 → 뷰모델).
 
-#### `companion object` 상수와 순수 함수
+#### `companion object` 상수와 파일 수준 순수 함수
 - `const val DUAL_PANE_MIN_WIDTH_DP = 600` (REQ-2-03, WSC Compact/Medium 경계)
 - `const val SWIPE_MIN_DISTANCE_DP = 48` — 확정 거리(HLD 3.3-3 "기준 거리 값은 LLD"). 근거: 48dp 터치 대상 크기와 같은 크기로, 슬롭(약 8dp)을 넘겨 가로채기 시작한 뒤 의도한 쓸기로 볼 만큼 충분하고 화면 폭(최소 약 320dp)의 1/6 미만이라 짧은 쓸기도 된다.
 - `const val FAST_SCROLL_TOUCH_WIDTH_DP = 48` — 제외 (c) 띠 너비. 근거: fastscroll 1.3.0의 `afs_min_touch_target_size` = 48dp(라이브러리 `res/values/values.xml`), `FastScroller.isInViewTouchTarget`이 엄지·트랙 뷰를 이 최소 크기로 넓혀 판정(R2 닫음, 7장).
 
-##### `internal fun isDualPaneWidth(availableWidthPx: Int, density: Float): Boolean` (companion, 순수)
+- 두 순수 함수는 클래스 밖 **파일 수준** `internal fun`으로 둔다(JVM 클래스 `DualPaneLayoutKt`). 단위 테스트가 `ViewGroup`을 상속한 `DualPaneLayout` 클래스를 불러오지 않고 호출할 수 있게 하기 위해서다(로컬 JVM 시험에는 Android 프레임워크 구현이 없다). 상수는 `const`라 컴파일 때 값이 박혀 클래스 로드가 없다.
+
+##### `internal fun isDualPaneWidth(availableWidthPx: Int, density: Float): Boolean` (`DualPaneLayout.kt` 파일 수준, 순수)
 - **추적**: HLD 3.2 판단 규칙 / REQ-2-03
 - **입력·전제**: `availableWidthPx ≥ 0`, `density > 0`.
 - **출력**: `availableWidthPx / density >= DUAL_PANE_MIN_WIDTH_DP` (부동소수 비교 — 600dp 정확히는 두 창).
 - **오류**: 없음.
 - **테스트**: U-01·U-02.
 
-##### `internal fun computeAvailableWidthPx(ownWidthPx: Int, parentWidthPx: Int, persistentDrawerRangePx: Int?, isPersistentDrawerOpen: Boolean): Int` (companion, 순수)
+##### `internal fun computeAvailableWidthPx(ownWidthPx: Int, parentWidthPx: Int, persistentDrawerRangePx: Int?, isPersistentDrawerOpen: Boolean): Int` (`DualPaneLayout.kt` 파일 수준, 순수)
 - **추적**: HLD 3.2 W, D3 / REQ-2-03
 - **입력**: `persistentDrawerRangePx` = 고정 메뉴 화면이면 서랍 뷰의 `measuredWidth + 좌우 margin`, 아니면 `null`.
 - **출력**: `null`이면 `ownWidthPx`(열고 닫는 서랍은 내용 위에 겹치므로 빼지 않음). 아니면 `parentWidthPx - (if (isPersistentDrawerOpen) persistentDrawerRangePx else 0)`, 0 아래로 내려가지 않게 `coerceAtLeast(0)`.
@@ -235,7 +239,7 @@ interface Listener {
   - (a) `isInSystemGestureArea(ev)`.
   - (b) 손가락 아래 보이는 창의 `R.id.appBarLayout` 영역 안: 창 컨테이너에서 `findViewById<View>(R.id.appBarLayout)`, `Rect(0, 0, w, h)`를 `offsetDescendantRectToMyCoords(view, rect)`로 K4 좌표로 바꿔 `contains`. 툴바·선택 툴바·breadcrumb와 #7의 창 표시 줄이 모두 이 안이다(`res/layout/file_list_fragment_app_bar_include.xml:13-56`).
   - (c) 같은 창의 `R.id.recyclerView` 영역 중 끝(end) 가장자리 `fastScrollTouchWidth` 띠 안(LTR 오른쪽 띠, RTL 왼쪽 띠 — fastscroll은 `AutoMirrorDrawable`로 RTL에서 왼쪽). 목록이 비어 fastscroll이 안 보여도 띠는 뺀다(손해는 띠만큼 쓸기 영역이 줄어드는 것뿐).
-  - (d) `canChildScrollHorizontally(ev.x, ev.y, direction = -swipeSign)`: 좌표 아래 자손을 위에서 아래로(자식은 나중 것부터) 따라가며 하나라도 `canScrollHorizontally(direction)`이면 참. 쓸기에서 손가락이 `swipeSign` 쪽으로 움직이면 내용은 반대쪽으로 스크롤하므로 `-swipeSign`. `FullDraggableHelper.canNestedViewScroll`(drawer 1.0.3)과 같은 방식.
+  - (d) `canChildScrollHorizontally(ev.x, ev.y, direction = -swipeSign)`: 좌표 아래 자손을 위에서 아래로(자식은 나중 것부터) 따라가며, **`ViewGroup`인 자손**(실제 가로 스크롤 컨테이너 — `HorizontalScrollView`·`RecyclerView`·`ViewPager` 계열) 중 하나라도 `canScrollHorizontally(direction)`이면 참. `TextView`(마키 한 줄 파일 이름 `file_item_list.xml:84`·`FileListAdapter.kt:228-231`, `EditText` 포함)처럼 `ViewGroup`이 아닌 뷰는 보지 않는다 — 마키 글자 위에서도 쓸기가 되게(검수 1회차 `[판단]` 1, PM 결정 2026-10-29). 쓸기에서 손가락이 `swipeSign` 쪽으로 움직이면 내용은 반대쪽으로 스크롤하므로 `-swipeSign`. `FullDraggableHelper.canNestedViewScroll`(drawer 1.0.3)과 같은 방식.
 - 좌표 변환 비용은 DOWN 1회뿐.
 
 ##### `private fun isInSystemGestureArea(ev: MotionEvent): Boolean`
@@ -264,6 +268,7 @@ interface Listener {
   2. 새로 시작(`savedInstanceState == null`): `pane1 = FileListFragment().putArgs(FileListFragment.Args(args.intent, 0))`, 두 창 사용이면 `pane2 = FileListFragment().putArgs(FileListFragment.Args(Intent(), 1))`(빈 Intent → 기본 디렉터리, REQ-2-18·19, HLD 3.7). 한 트랜잭션에서 `add(R.id.paneContainer, pane1)`, `pane2?.let { add(R.id.pane2Container, it) }`, `add(R.id.navigationFragment, navigationFragment)` — 창을 탐색 서랍보다 먼저(기존 주석 `H:108-109`).
   3. 복원: `pane1 = findFragmentById(R.id.paneContainer) as FileListFragment`, `pane2 = findFragmentById(R.id.pane2Container) as FileListFragment?`. 두 창 사용인데 `pane2 == null`이면(#5 판이 저장한 상태 — 개발 빌드끼리만 생김) 새 창 2를 만들어 `childFragmentManager.commitNow { add(R.id.pane2Container, pane2) }` — 이어지는 단계가 창 2의 뷰모델·LiveData를 읽으므로 즉시 실행.
   4. `panes = listOfNotNull(pane1, pane2)`.
+  4-1. `viewModel.setPaneMode(PaneMode(false, 0))` — 호스트 범위 뷰모델에 남은 이전 구성(회전 전)의 값을 지운다. 새 뷰의 K4는 첫 측정에서 다시 알린다(`reportedMode`가 새 뷰에서 `null`). 그 사이 창의 `updateSpanCount`는 한 창 공식을 쓴다 — 이전 구성의 엉뚱한 창 너비로 열 수를 정하지 않는다(검수 1회차 `[판단]` 4, PM 결정 2026-10-29).
   5. K4 연결: `binding.dualPaneLayout.isSwipeEnabled = isDualPaneEnabled`, `persistentDrawerView = if (binding.persistentDrawerLayout != null) binding.navigationFragment else null`, `isPersistentDrawerOpen = Settings.FILE_LIST_PERSISTENT_DRAWER_OPEN.valueCompat`(첫 측정 전에 목표 상태가 있게), `listener = 아래 구현`, `activePane = viewModel.activePane`.
   6. `viewModel.activePaneLiveData.observe(viewLifecycleOwner) { binding.dualPaneLayout.activePane = it }`.
   7. 뒤로 가기(4장): ① 창 전달 콜백 — `isEnabled`는 `viewModel.activePaneLiveData.switchMap { panes[it].backPressedEnabledLiveData }` 관찰(기존 `H:132-134`의 고정 대상을 바꿈), `handleOnBackPressed`는 `activePane.paneOnBackPressedDispatcher.onBackPressed()`(기존 `H:128-130` 그대로) ② 서랍 콜백(기존 `H:136-138`) ③ **검색 접기 콜백(신규, F1 ④)** — `isEnabled`는 `viewModel.activePaneLiveData.switchMap { panes[it].searchViewExpandedLiveData }`, `handleOnBackPressed`는 `activePane.collapseSearchView()`. 셋 다 `addOnBackPressedCallback`(같은 소유자 `viewLifecycleOwner`), 이 순서로.
@@ -346,7 +351,7 @@ interface Listener {
 #### `private fun updateSpanCount()` (수정, 기존 `F:595-606`)
 - **추적**: HLD K5(F3) / REQ-2-03
 - **알고리즘**: `LIST -> 1`. `GRID ->` `val mode = dualPaneViewModel.paneMode`; `widthDp = if (mode.isDualPane) mode.paneWidthDp else <기존 식: screenWidthDp - (고정 메뉴 열림이면 navigation_max_width)>`; `(widthDp / 180).coerceAtLeast(2)`.
-- **이유**: 두 창 모드에서 `screenWidthDp`는 창 너비의 두 배라 열이 너무 많다(HLD K5). 한 창 모드는 기존 식을 그대로 둬 LLD-A F3이 지적한 "실제 서랍 너비·인셋 때문에 열 수가 바뀌는 화면"을 만들지 않는다. 두 창 모드의 창 너비는 K4가 목표 상태로 계산한 값이라 고정 메뉴 애니메이션 중에 흔들리지 않는다 → 설계 피드백 FB-5(PM 확인).
+- **이유**: 두 창 모드에서 `screenWidthDp`는 창 너비의 두 배라 열이 너무 많다(HLD K5). 한 창 모드는 기존 식을 그대로 둬 LLD-A F3이 지적한 "실제 서랍 너비·인셋 때문에 열 수가 바뀌는 화면"을 만들지 않는다. 두 창 모드의 창 너비는 K4가 목표 상태로 계산한 값이라 고정 메뉴 애니메이션 중에 흔들리지 않는다 → 설계 피드백 FB-5(PM 승인 2026-10-29).
 - 호출 시점: 기존 두 곳(보기 방식 `F:590`, 고정 메뉴 설정 `F:321-323`) + `paneModeLiveData` 변경.
 
 #### 그대로 두는 것 (확인 목록)
@@ -401,8 +406,8 @@ interface Listener {
 
 ## 5. 테스트 설계
 
-### 5.1 단위 테스트 (조건부)
-저장소에 단위 테스트 소스·의존성이 없다(SRS C-3). 순수 함수 `isDualPaneWidth`·`computeAvailableWidthPx`(2.3 companion)를 단위 테스트하려면 `testImplementation 'junit:junit:4.13.2'`와 `app/src/test/java/...` 추가가 필요하다 → **라이브러리 승인 요청**(PROCESS_ROLES 10장, FB-6). 승인되면 아래를 `DualPaneLayoutTest`로 넣고 `./gradlew testDebugUnitTest`로 돌린다. 승인되지 않으면 T-B04로 경계를 수동 확인한다.
+### 5.1 단위 테스트 (필수)
+SRS C-3의 시험 의존성은 오너가 승인했다(FB-6, 2026-10-29). `app/build.gradle`에 `testImplementation 'junit:junit:4.13.2'`를 더하고, 순수 함수 `isDualPaneWidth`·`computeAvailableWidthPx`(2.3, 파일 수준)를 `app/src/test/java/me/zhanghai/android/files/filelist/DualPaneLayoutTest.kt`(JUnit 4)로 시험한다. 실행: `JAVA_HOME="/c/Program Files/Android/Android Studio/jbr" ./gradlew testDebugUnitTest --console=plain 2>&1 | tail -n 30` → `BUILD SUCCESSFUL`, 결과 `app/build/test-results/testDebugUnitTest/*.xml`에서 5건 통과. T-B04는 실기 경계 확인으로 그대로 한다.
 
 | 테스트 | 대상 함수 | 경우 | 기대 결과 |
 |---|---|---|---|
@@ -422,7 +427,7 @@ LLD-A 5.1과 같다(빌드 명령, 기준 APK = develop a76055e 빌드, `adb log
 ### 5.3 시험 목록
 | 테스트 | 대상 함수 | 경우 | 절차 | 기대 결과 |
 |---|---|---|---|---|
-| T-B00 빌드 | 전체 | 정상 | 빌드 | `BUILD SUCCESSFUL`, 새 경고 보고 |
+| T-B00 빌드·단위 | 전체, U-01~U-05 | 정상 | `assembleDebug`, `testDebugUnitTest` | 둘 다 `BUILD SUCCESSFUL`, U 5건 통과, 새 경고 보고 |
 | T-B01 창 2 생성 | 호스트 `onActivityCreated` 2 | 정상 | C1 시작 → `dumpsys activity top` | `FileListHostFragment` > `FileListFragment` 2개·`NavigationFragment` |
 | T-B02 선택 모드 한 창(A1) | `isPickIntent`, K4 (e) | 경계 | `GET_CONTENT`·`OPEN_DOCUMENT_TREE`·`CREATE_DOCUMENT`로 시작(LLD-A T-04 명령) → C1에서 쓸기, C2(가로)에서 화면 | 창 1개만, 쓸기 무반응(K4 (e)로 인식 안 함, 혹시 불려도 `togglePane()`은 `isDualPaneEnabled=false`라 무시), 가로에서도 한 창, 결과 반환 기준과 같음. K3 `setActivePane`의 범위 밖 값·선택 모드 무시 갈래는 화면으로 만들 수 없으므로 코드 검수의 줄 대조로 확인 |
 | T-B03 창별 상태(REQ-2-02) | K5 기존 | 정상 | SRS REQ-2-02 검증 절차 그대로(C1·C3) | SRS 기대대로 |
@@ -430,7 +435,7 @@ LLD-A 5.1과 같다(빌드 명령, 기준 APK = develop a76055e 빌드, `adb log
 | T-B05 재판단·상태 유지(REQ-2-04) | `onMeasure`, `onPersistentDrawerOpenChanged` | 정상·경계 | 두 창 경로·선택·복사 목록을 다르게 둔 뒤 C1↔C2 회전 ×3(빠르게 포함, `Orientation_Transitions`), C3 분할 경계 끌기, C4 고정 메뉴 토글 ×3 | 모드가 기대대로 바뀌고 두 창 경로·선택·검색어·복사 목록·스크롤 위치 유지. 고정 메뉴 애니메이션 중 모드가 깜박이지 않음 |
 | T-B06 숨은 창 유지(D8) | K4 가시성 | 경계 | C1 창 2에서 하위 폴더·스크롤 → 쓸기로 창 1 → 다시 창 2 | 경로·스크롤 그대로(목록 다시 읽지 않음 — 진행 표시 없음) |
 | T-B07 모드 전환과 활성 창(REQ-2-05) | K4 `activePane`, `onMeasure` 5 | 정상 | SRS REQ-2-05 절차 | 기대대로 |
-| T-B08 한 창 쓸기(REQ-2-06) | `updateSwipe`, `finishSwipe`, `togglePane` | 정상·경계 | C1: 목록 위·빈 폴더(빈 화면)·오류 화면에서 오른쪽→왼쪽 쓸기 ×2. 경계: 짧게(슬롭 넘고 48dp 미만) 천천히 → 무반응, 짧고 빠르게(플링) → 전환. 세로로 시작한 뒤 가로로 꺾기 → 무반응(세로 스크롤만) | 1→2→1. 빈 화면에서도 됨(3.3-5 경로) |
+| T-B08 한 창 쓸기(REQ-2-06) | `updateSwipe`, `finishSwipe`, `togglePane` | 정상·경계 | C1: 목록 위·빈 폴더(빈 화면)·오류 화면에서 오른쪽→왼쪽 쓸기 ×2. 경계: 짧게(슬롭 넘고 48dp 미만) 천천히 → 무반응, 짧고 빠르게(플링) → 전환. 세로로 시작한 뒤 가로로 꺾기 → 무반응(세로 스크롤만). 마키: 설정에서 파일 이름 줄임을 "흐르게(마키)"로 두고 긴 이름 파일 글자 위에서 시작해 쓸기 → 전환 | 1→2→1. 빈 화면·마키 글자 위에서도 됨(3.3-5 경로, 제외 (d)는 `ViewGroup`만) |
 | T-B09 두 창 쓸기(REQ-2-07) | 같음 | 정상 | C2: 창 1 활성에서 쓸기 → 창 2 활성 → 쓸기 → 창 1 (활성 표시가 아직 없으므로 툴바 메뉴 "새로 고침" 대신 **탐색 서랍 항목으로 이동**해 어느 창이 움직이는지로 확인) | 교대로 바뀜 |
 | T-B10 탭 활성화(REQ-2-07) | `dispatchTouchEvent` | 정상·경계 | C2 창 1 활성: 창 2의 빈 곳·breadcrumb·파일을 각각 탭 → 매번 서랍 "다운로드"로 확인. 파일 탭은 파일도 열림. 창 2를 세로 스크롤·fastscroll 끌기 → 활성 그대로 | 탭은 활성화 + 원래 동작, 스크롤은 활성 안 바뀜 |
 | T-B11 길게 누르기·접근성 클릭 | `longPressRunnable`, `onRequestSendAccessibilityEvent` | 경계 | C2 창 1 활성: 창 2 파일 길게 누르기 → 선택 생김, 바로 뒤로 → 선택 해제(창 2가 활성이었음). 길게 누른 채 왼쪽으로 끌기 → 활성 다시 안 바뀜. TalkBack 켜고 창 2 파일 두 번 탭 → 이후 뒤로 가기·서랍 이동이 창 2에(R10) | 기대대로 |
@@ -453,13 +458,13 @@ LLD-A 5.1과 같다(빌드 명령, 기준 APK = develop a76055e 빌드, `adb log
 ## 6. 설계 피드백
 SRS·HLD는 고치지 않았다. 아래는 설계팀·PM에 넘길 것이다(동작 영향과 결정 필요 여부 표시).
 
-- **FB-1 (문서 정정, 동작 영향 없음) HLD D2 ①의 전제가 틀림**: `setSupportActionBar`는 `ToolbarWidgetWrapper(toolbar, false)`로 감싸 `actionBarStyle`을 툴바에 **적용하지 않는다**(3장 ① 근거). LLD-A F1 ①도 같은 오해였다. 지원 액션바를 빼도 툴바 모양은 바뀌지 않으므로 ①은 조치 없이 유지된다. HLD D2의 ① 문구를 "적용하지 않음(유지할 것 없음 — 확인은 캡처 비교)"으로 고치기를 권한다.
-- **FB-2 (문서 정정, 동작은 HLD 의도대로) HLD 3.3-1(a) API 29 미만 서술**: `WindowInsetsCompat.getInsets(Type.systemGestures())`는 API 29 미만에서 0이 아니라 시스템 창 인셋을 돌려준다(androidx.core 1.16.0). LLD는 `SDK_INT < Q`면 제외 영역 없음으로 명시 분기해 HLD의 의도를 지킨다(2.3 `isInSystemGestureArea`). HLD의 "버전 분기 없이" 문구 정정을 권한다.
-- **FB-3 (PM 확인 요청 — 보이는 동작) 검색 펼침 + 열고 닫는 서랍 열림에서 뒤로 가기 순서**: 4.1·4.2. API 33 이상의 상태 의존 순서를 "검색 접기 먼저"로 통일한다(API 33 미만의 지금 동작과 같음). 대안: "서랍 먼저"로 통일(검색 콜백을 창 디스패처 맨 위에 두면 됨 — 그 경우 API 33 미만에서 달라짐). 권고: 검색 먼저(지금 대부분 경우와 같음).
-- **FB-4 (범위 정리) K3 `panePaths`를 #7·#9로**: LLD-A 4장은 #6에 `panePaths`를 두었으나 이 단계에 소비자가 없어 첫 소비자(#7 K7 반대쪽 경로, #9 대상 경로)에서 더한다. HLD 변경 아님.
-- **FB-5 (PM 확인 요청) F3 격자 열 수 공식**: 두 창 모드만 창 너비(K4 목표 상태 기준), 한 창 모드는 지금 공식 유지(2.5). HLD K5 "창 너비로 계산"을 두 창 모드에 적용하고, 한 창 모드에는 LLD-A F3(보이는 변화 회피)을 따른 해석이다.
-- **FB-6 (라이브러리 승인 요청) 단위 테스트 의존성**: `testImplementation 'junit:junit:4.13.2'`(5.1). 승인 안 되면 수동 T-B04만.
-- **검수 1회차 `[판단]` — PM 결정 대기(문서에 아직 반영하지 않음)**: (1) 쓸기 제외 (d)가 `canScrollHorizontally`만 봐서 마키 한 줄 이름(`file_item_list.xml`, `FileListAdapter.kt:228-231`) 위 쓸기가 막힐 수 있음 — 개발팀 권고: 판정 대상을 실제 가로 스크롤 컨테이너(`HorizontalScrollView`·`RecyclerView`·`ViewPager` 계열, 즉 `TextView`가 아닌 것)로 좁히고 T-B08에 이름 글자 위 쓸기를 추가. (4) `paneMode`가 호스트 범위라 회전 직후 첫 프레임에 이전 구성의 값으로 열 수를 계산할 수 있음 — 권고: 호스트가 `onActivityCreated`에서 `viewModel.setPaneMode(PaneMode(false, 0))`로 되돌려 K4의 첫 측정 전에는 창이 한 창 공식(기존 식)을 쓰게 한다(한 프레임 동안 두 창 모드에서 열 수가 기존 식 값일 수 있으나 이전 구성의 엉뚱한 값은 쓰지 않음). 또는 한 프레임 차이를 수용. (6) FB-4 `panePaths` 소유 이슈 — 권고: #7로 정하고 #9 본문에 "#7의 `panePaths` 사용" 명시. (7) FB-1·FB-2 HLD 정정은 설계팀 몫(차단 아님).
+- **FB-1 (문서 정정, 동작 영향 없음 — 설계팀 `design/2-hld-v4.8`에서 처리) HLD D2 ①의 전제가 틀림**: `setSupportActionBar`는 `ToolbarWidgetWrapper(toolbar, false)`로 감싸 `actionBarStyle`을 툴바에 **적용하지 않는다**(3장 ① 근거). LLD-A F1 ①도 같은 오해였다. 지원 액션바를 빼도 툴바 모양은 바뀌지 않으므로 ①은 조치 없이 유지된다. HLD D2의 ① 문구를 "적용하지 않음(유지할 것 없음 — 확인은 캡처 비교)"으로 고치기를 권한다.
+- **FB-2 (문서 정정, 동작은 HLD 의도대로 — 설계팀 `design/2-hld-v4.8`에서 처리) HLD 3.3-1(a) API 29 미만 서술**: `WindowInsetsCompat.getInsets(Type.systemGestures())`는 API 29 미만에서 0이 아니라 시스템 창 인셋을 돌려준다(androidx.core 1.16.0). LLD는 `SDK_INT < Q`면 제외 영역 없음으로 명시 분기해 HLD의 의도를 지킨다(2.3 `isInSystemGestureArea`). HLD의 "버전 분기 없이" 문구 정정을 권한다.
+- **FB-3 (결정됨: "검색 접기 먼저"로 통일, PM 2026-10-29) 검색 펼침 + 열고 닫는 서랍 열림에서 뒤로 가기 순서**: 4.1·4.2. API 33 이상의 상태 의존 순서를 "검색 접기 먼저"로 통일한다(API 33 미만의 지금 동작과 같음). 대안: "서랍 먼저"로 통일(검색 콜백을 창 디스패처 맨 위에 두면 됨 — 그 경우 API 33 미만에서 달라짐). 권고: 검색 먼저(지금 대부분 경우와 같음).
+- **FB-4 (결정됨: #7 소유, PM 2026-10-29) K3 `panePaths`**: LLD-A 4장은 #6에 두었으나 이 단계에 소비자가 없다. #7(K7 반대쪽 경로)이 만들고 #9가 쓴다(PM이 #9에 메모). #6 범위 밖. HLD 변경 아님.
+- **FB-5 (결정됨: 승인, PM 2026-10-29) F3 격자 열 수 공식**: 두 창 모드만 창 너비(K4 목표 상태 기준), 한 창 모드는 지금 공식 유지(2.5). HLD K5 "창 너비로 계산"을 두 창 모드에 적용하고, 한 창 모드에는 LLD-A F3(보이는 변화 회피)을 따른 해석이다.
+- **FB-6 (결정됨: 승인, 오너 2026-10-29) 단위 테스트 의존성**: `testImplementation 'junit:junit:4.13.2'`, U-01~U-05 필수(1장 8·9행, 5.1).
+- **검수 1회차 `[판단]` 결정(PM 2026-10-29, PR #17 코멘트 6473369587)**: (1) 쓸기 제외 (d)를 `ViewGroup`인 가로 스크롤 컨테이너로 좁히고 T-B08에 마키 경우 추가 — 2.3 `isExcludedFromSwipe` (d), 5.3 T-B08에 반영. (4) 호스트 `onActivityCreated`에서 `paneMode` 초기화 — 2.4 4-1에 반영. (6) `panePaths`는 #7 소유 — FB-4. (7) FB-1·FB-2의 HLD 정정은 설계팀이 별도 PR(`design/2-hld-v4.8`)로 한다 — 이 LLD는 HLD를 고치지 않는다.
 - **결정 기록(LLD 재량, HLD가 맡긴 것)**: 쓸기 확정 거리 48dp 또는 플링(2.3), fastscroll 띠 48dp(R2), 길게 누르기 시간에 비활성 창 활성화(HLD 3.4), 비활성 창의 speed dial·붙여넣기 막대는 숨기지 않음(R6).
 
 ## 7. 위험 처리 (HLD 6장)
@@ -478,3 +483,4 @@ SRS·HLD는 고치지 않았다. 아래는 설계팀·PM에 넘길 것이다(동
 |---|---|---|---|---|
 | 2026-10-29 | v1 | 최초 작성 | 이슈 #6 LLD 단계(F1·F3 포함) | PM |
 | 2026-10-29 | v1.1 | `isLongPressed` 삭제, 길게 누르기 선후 근거 정정(`super` 전 `postDelayed`), `Args.paneIndex` 기본값 제거, T-B02(K3 무시 갈래), T-B04(600dp 경계를 세로로), T-B15(3버튼 인셋 기록) 보강, 6장에 `[판단]` 대기 항목 | LLD 1회차 검수 `[기계]` 2·3·5·8·9 | 검수팀 |
+| 2026-10-29 | v1.2 | PM 결정 반영: FB-3·FB-5 결정 표기, FB-4 `panePaths` #7 소유, FB-6 JUnit 승인 → 1장 8·9행(`app/build.gradle`, `DualPaneLayoutTest.kt`, 합계 9개)·5.1 필수·T-B00, 순수 함수를 파일 수준으로, 제외 (d)를 `ViewGroup`으로 좁힘·T-B08 마키, 호스트 `paneMode` 초기화(2.4 4-1), 6장 결정 기록 | PR #17 코멘트 6473369587 "PM 결정" | PM |
