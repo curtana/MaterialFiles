@@ -12,6 +12,7 @@ import android.view.KeyEvent
 import android.view.View
 import androidx.activity.result.contract.ActivityResultContract
 import androidx.fragment.app.commit
+import androidx.fragment.app.commitNow
 import java8.nio.file.Path
 import me.zhanghai.android.files.app.AppActivity
 import me.zhanghai.android.files.file.MimeType
@@ -20,7 +21,7 @@ import me.zhanghai.android.files.util.extraPath
 import me.zhanghai.android.files.util.putArgs
 
 class FileListActivity : AppActivity() {
-    private lateinit var fragment: FileListFragment
+    private lateinit var fragment: FileListHostFragment
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -28,19 +29,37 @@ class FileListActivity : AppActivity() {
         // Calls ensureSubDecor().
         findViewById<View>(android.R.id.content)
         if (savedInstanceState == null) {
-            fragment = FileListFragment().putArgs(FileListFragment.Args(intent))
+            fragment = FileListHostFragment().putArgs(FileListHostFragment.Args(intent))
             supportFragmentManager.commit { add(android.R.id.content, fragment) }
         } else {
-            fragment = supportFragmentManager.findFragmentById(android.R.id.content)
-                as FileListFragment
+            fragment = restoreHostFragment()
         }
+    }
+
+    // State saved by an older version of the app may have a different fragment here, which can't
+    // be restored into the current layout, so replace it with a new host fragment.
+    private fun restoreHostFragment(): FileListHostFragment {
+        val restoredFragment = supportFragmentManager.findFragmentById(android.R.id.content)
+        if (restoredFragment is FileListHostFragment) {
+            return restoredFragment
+        }
+        val hostFragment = FileListHostFragment().putArgs(FileListHostFragment.Args(intent))
+        // This must be executed now, because FragmentActivity.onStart() creates the views of the
+        // restored fragments before executing pending transactions.
+        supportFragmentManager.commitNow {
+            if (restoredFragment != null) {
+                remove(restoredFragment)
+            }
+            add(android.R.id.content, hostFragment)
+        }
+        return hostFragment
     }
 
     override fun onKeyShortcut(keyCode: Int, event: KeyEvent): Boolean {
         if (fragment.onKeyShortcut(keyCode, event)) {
             return true
         }
-        return super.onKeyUp(keyCode, event)
+        return super.onKeyShortcut(keyCode, event)
     }
 
     companion object {

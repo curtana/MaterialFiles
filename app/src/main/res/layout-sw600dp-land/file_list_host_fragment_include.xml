@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<merge xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <me.zhanghai.android.files.ui.PersistentDrawerLayout
+        android:id="@+id/persistentDrawerLayout"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:fitsSystemWindows="true">
+
+        <me.zhanghai.android.files.ui.NavigationFrameLayout
+            android:id="@+id/navigationFragment"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:layout_gravity="start"
+            android:background="?colorSurface" />
+
+        <!-- Must not fit system windows, so that the insets reach the pane unconsumed. -->
+        <FrameLayout
+            android:id="@+id/paneContainer"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+    </me.zhanghai.android.files.ui.PersistentDrawerLayout>
+</merge>
