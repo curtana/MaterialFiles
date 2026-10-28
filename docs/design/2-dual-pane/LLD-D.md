@@ -4,7 +4,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 검수 통과(v1.2, PR #16 3회차) — F1·F5 PM 결정 대기 |
+| 상태 | 결정 반영(v1.3) — F1 오너 확정, F3 오너 승인, F5 PM 승인(PR #16 코멘트 6473368985·정정 6473374204). v1.2 검수 통과, v1.3 바뀐 절 재검수 |
 | 근거 | SRS v4.7, HLD v4.7 (`docs/design/2-dual-pane/`), LLD-A v1.4(구조·확장 지점 4장) |
 | 기준 코드 | `origin/develop` a76055e (#5 화면/창 분리 머지 뒤). HLD의 `FileListFragment.kt` 줄 번호는 #5 이전 기준이라 이 문서는 a76055e에서 다시 찾은 줄을 쓴다(6장 F2). |
 | 이슈 | #8 (하위 이슈 D, 상위 #2, 선행 #5) |
@@ -41,9 +41,11 @@
 | 3 | `app/src/main/java/me/zhanghai/android/files/filelist/FileListFragment.kt` | 수정 | `pasteFiles` → `confirmPasteFiles`(확인 창 열기), 리스너 `copyMoveFiles` 구현, 인터페이스 선언 추가. | K5 |
 | 4 | `app/src/main/res/values/strings.xml` | 수정 | 확인 창 문자열(2.4). | K9 |
 | 5 | `app/src/main/res/values-ko/strings.xml` | 수정 | 같은 문자열의 한국어(SRS C-4). | K9 |
+| 6 | `app/build.gradle` | 수정 | `dependencies`에 `testImplementation 'junit:junit:4.13.2'` 한 줄(F3 승인). 다른 설정은 바꾸지 않는다. | — |
+| 7 | `app/src/test/java/me/zhanghai/android/files/filelist/CopyMoveConfirmationTest.kt` | 신규 | 2.1 순수 함수의 JVM 단위 시험 U-01~U-05(3.2). | K6 |
 
-- 5개(신규 2, 수정 3). `provider/`·`filejob/`·JNI·`app/build.gradle`·레이아웃은 건드리지 않는다. 새 권한·설정 키·런타임 의존성 없음.
-- 단위 테스트(3.2)는 테스트 의존성 승인이 있을 때만 더한다(SRS C-3, 6장 F3). 승인되면 `app/build.gradle`(`testImplementation`)과 `app/src/test/.../CopyMoveConfirmationTest.kt`가 늘어 7개가 된다 — 그때는 구현 착수 전에 범위를 알린다(PROCESS_ROLES 11-1).
+- 7개(신규 3, 수정 4) — 5개 초과라 이 표로 범위를 알린다(PROCESS_ROLES 11-1, PM이 F3 승인과 함께 확인). `provider/`·`filejob/`·JNI·레이아웃은 건드리지 않는다. `app/build.gradle`은 테스트 의존성 한 줄만(APK에 들어가지 않음). 새 권한·설정 키·런타임 의존성 없음.
+- 단위 테스트(3.2)는 **필수**다(F3 오너 승인 2026-10-29). 실행: `JAVA_HOME="/c/Program Files/Android/Android Studio/jbr" ./gradlew testDebugUnitTest --console=plain 2>&1 | tail -n 30`.
 - 바꾸지 않지만 관계있는 것: `ConfirmDeleteFilesDialogFragment.kt`(같은 모양의 본보기, `:21-65`), `util/DialogFragmentExtensions.kt:11-13`(`show(fragment)` = 자식 FragmentManager), `FileListViewModel.kt:195-220`(`pasteState`·`clearPasteState`), `:154-174`(`selectFiles`), `PasteState.kt`.
 
 ## 2. 함수 명세
@@ -52,7 +54,7 @@
 
 ### 2.1 `CopyMoveConfirmation.kt` (신규, 순수 로직)
 
-모든 함수는 입출력이 없고 메인 스레드에서 부른다(HLD 3.6-1 "계산 시점", `Stability_ANR`). Android UI·프레임워크 기능(리소스·Context·직렬화)을 쓰지 않는다 — 인자 타입 `FileItemSet`·`FileItem`이 `Parcelable`을 구현하고 `FileItem`이 `java.text.CollationKey`를 품지만 이 함수들은 `path`만 읽는다(단위 시험 가능성은 3.2의 미확인 조건을 따른다).
+모든 함수는 입출력이 없고 메인 스레드에서 부른다(HLD 3.6-1 "계산 시점", `Stability_ANR`). Android UI·프레임워크 기능(리소스·Context·직렬화)을 쓰지 않는다 — 인자 타입 `FileItemSet`·`FileItem`이 `Parcelable`을 구현하고 `FileItem`이 `java.text.CollationKey`를 품지만 이 함수들은 `path`만 읽는다(JVM 단위 시험 대상, 3.2).
 
 #### `me.zhanghai.android.files.filelist.getCopyMoveType(copy: Boolean, files: Collection<FileItem>): CopyMoveType`
 - **추적**: HLD K6, 3.6 "종류 결정" / REQ-2-15, SRS A4
@@ -69,7 +71,7 @@
 - **출력**: 경로에 이름 조각 `..`가 하나라도 있으면 **그대로**(`this`), 없으면 `normalize()`.
 - **오류**: 없음(아래 확인 범위 안에서 `normalize()`는 던지지 않는다).
 - **알고리즘**: `if ((0 until nameCount).any { getName(it).toString() == ".." }) this else normalize()`.
-- **왜 `..`는 정규화하지 않는가**(HLD R9-3 → 6장 F1, PM 결정 필요): `normalize()`는 문자열 처리라 `심볼릭링크/..`를 실제 위치와 다른 경로로 바꾼다. Android에서 `/sdcard`는 심볼릭 링크(`/storage/self/primary`)라, 경로 입력으로 `/sdcard/..`를 열면 목록은 실제 부모(`/storage/self`)의 내용인데 `normalize()`는 `/`를 돌려준다 — 작업에 넘기면 엉뚱한 폴더가 대상·원본이 된다. `.`만 지우는 것은 심볼릭 링크와 무관하게 같은 폴더를 가리키므로 안전하다. `..`가 있는 경로를 그대로 넘기면 작업 결과는 지금과 같고, 판정도 같은 값으로 하므로 안내와 결과는 여전히 일치한다.
+- **왜 `..`는 정규화하지 않는가**(HLD R9-3 → 6장 F1, 오너 확정 2026-10-29): `normalize()`는 문자열 처리라 `심볼릭링크/..`를 실제 위치와 다른 경로로 바꾼다. Android에서 `/sdcard`는 심볼릭 링크(`/storage/self/primary`)라, 경로 입력으로 `/sdcard/..`를 열면 목록은 실제 부모(`/storage/self`)의 내용인데 `normalize()`는 `/`를 돌려준다 — 작업에 넘기면 엉뚱한 폴더가 대상·원본이 된다. `.`만 지우는 것은 심볼릭 링크와 무관하게 같은 폴더를 가리키므로 안전하다. `..`가 있는 경로를 그대로 넘기면 작업 결과는 지금과 같고, 판정도 같은 값으로 하므로 안내와 결과는 여전히 일치한다.
 - **기존 코드와의 관계**: 새 함수. `makePathListForJob`(기존 `:1118-1119`, 삭제 `:928`·압축 `:950`도 씀)은 바꾸지 않는다(HLD 3.6-1).
 
 #### `class CopyMoveConfirmation` + `fun createCopyMoveConfirmation(files: FileItemSet, targetDirectory: Path): CopyMoveConfirmation`
@@ -262,18 +264,22 @@ class ConfirmCopyMoveDialogFragment : AppCompatDialogFragment() {
 | T-21 자기 하위로(SRS A9) | `createCopyMoveConfirmation`, `copyMoveFiles` | 경계 | `lld8`에서 폴더 `a` 복사 → `a` 안으로 들어가 붙여넣기. 같은 절차로 잘라내기 | 확인 창(같은 폴더 안내 없음 — `a`의 부모 `lld8` ≠ 대상 `lld8/a`) → 실행 → 기존 "자기 안으로" 오류 창(`FileJobs.kt:1196-1235`). 기준 APK와 같은 오류 창 |
 | T-22 중복 열림 방지(M1) | `show` 알고리즘 2·4 | 경계 | **1차 확인은 코드 검수**: `show`의 태그 검사(알고리즘 2)와 `showNow`(알고리즘 4)를 줄 대조한다 — 확인 창이 뜨면 키·터치가 창으로 가므로 기기 입력만으로는 가드가 없어도 통과할 수 있다. 보조 기기 시험: 복사 목록이 있는 막대에서 (a) 붙여넣기 단추를 빠르게 두 번 (b) 한 셸 명령으로 Ctrl+V를 연속 입력(`adb shell "input keycombination 113 50; input keycombination 113 50"`) → 뜬 창에서 실행 | 코드: 두 줄이 명세대로. 기기: 확인 창은 하나만 뜨고(실행 뒤 다른 창이 남지 않음), 작업 알림·결과가 한 번분(사본이 두 번 생기지 않음), `adb shell dumpsys activity top`에 `ConfirmCopyMoveDialogFragment` 하나 |
 
+- 단위 시험 U-01~U-05는 필수이며 `testDebugUnitTest`가 모두 통과해야 한다(3.2).
 - 판정: 0.3의 차이(확인 창, T-11) 외에 기준 APK와 다른 결과가 있으면 실패.
 - `OTHER_PANE` 갈래(`copyMoveFiles`의 선택 해제)는 진입점이 #9에서 생기므로 #9의 시험에서 확인한다. 이 단계는 코드 검수의 줄 대조로 확인한다.
 - 기록: 구현 PR 코멘트에 시험별 결과(통과/실패/미확인)와 캡처 파일 이름, 캡처는 `$MAIN_REPO/_workspace/`.
 
-### 3.2 단위 시험 (테스트 의존성 승인 시에만 — SRS C-3, 6장 F3)
-대상은 2.1의 순수 함수. 경로는 시험용 `ByteStringListPath` 하위 클래스(가짜 파일 시스템 두 개 — 같은 클래스·다른 파일 시스템 비교용)로 만든다. 이 하위 클래스가 JVM 단위 시험에서 Android 스텁 없이 만들어지는지는 미확인 — 안 되면 3.1로만 확인한다.
+### 3.2 단위 시험 (필수 — F3 오너 승인, SRS C-3)
+대상은 2.1의 순수 함수. 파일 `app/src/test/java/me/zhanghai/android/files/filelist/CopyMoveConfirmationTest.kt`(JUnit 4). 시험 대역:
+- 경로: 시험 파일 안의 `TestPath : ByteStringListPath<TestPath>`(구분자 `/`, `createPath`는 생성자 호출, `uriScheme`은 `"test"`, `defaultDirectory`는 루트) + 가짜 `java8.nio.file.FileSystem` 객체 두 개(`fsA`, `fsB` — 같은 클래스·다른 파일 시스템 비교용, 쓰지 않는 메서드는 `throw UnsupportedOperationException()`). `isArchivePath`는 `this is ArchivePath`(`provider/archive/ArchivePath.kt:110-111`)라 압축 경로를 만들려면 실제 압축 파일 시스템(입출력)이 필요하다. 그래서 **U-01은 이동·일반 복사 두 경우만 JVM에서** 확인하고, 압축 두 경우(전부·일부)는 3.1 T-04(a)(b)로 확인한다(시험용 판정 주입처럼 제품 코드를 시험 때문에 바꾸지 않는다).
+- 항목: `FileItem(path, Collator.getInstance().getCollationKey(name), <가짜 BasicFileAttributes>, null, null, false, MimeType.DIRECTORY 또는 일반 MIME)`.
+- `ByteStringListPath`·`ByteString`은 `android.os.Parcelable`(인터페이스)만 참조하고 시험 경로에서 `Parcel`을 쓰지 않는다 — JVM의 스텁 `android.jar`로 로드될 것으로 본다. **로드·생성이 실패하면**(스텁 `RuntimeException("Stub!")` 등) 우회 설정(`unitTests.returnDefaultValues` 등)을 임의로 넣지 말고 멈춰 PM에게 `BLOCKED`로 보고한다(필수 시험이므로 건너뛰지 않는다).
 
 | 테스트 | 대상 함수 | 경우 | 기대 결과 |
 |---|---|---|---|
-| U-01 | `getCopyMoveType` | copy·일반 / copy·전부 압축 / copy·일부 압축 / move·압축 | COPY / EXTRACT / COPY / MOVE |
+| U-01 | `getCopyMoveType` | (JVM) copy·일반 / move·일반 — (T-04로) copy·전부 압축 / copy·일부 압축 | COPY / MOVE — EXTRACT / COPY |
 | U-02 | `toCopyMoveJobPath` | `/a/b`, `/a/./b`, `/a/b/../c`, `/` | `/a/b`, `/a/b`, `/a/b/../c`(그대로), `/` |
-| U-03 | `createCopyMoveConfirmation` 같은 폴더 | 전부 같음 / 일부(1/2) / 없음 / 대상 `/a/.` / 대상 `/x/../a` / 다른 파일 시스템의 같은 문자열 경로 | ALL / SOME(1) / NONE / ALL / NONE / NONE — 마지막 경우는 수동 시험 대응이 없다(두 파일 시스템에 같은 문자열 경로를 만들기 어려움). 단위 시험이 없으면 `Path.equals` 계약(`ByteStringListPath.kt:248-260`)의 코드 검수로 갈음 |
+| U-03 | `createCopyMoveConfirmation` 같은 폴더 | 전부 같음 / 일부(1/2) / 없음 / 대상 `/a/.` / 대상 `/x/../a` / 다른 파일 시스템의 같은 문자열 경로 | ALL / SOME(1) / NONE / ALL / NONE / NONE — 마지막 경우는 수동 시험 대응이 없고 이 단위 시험(`fsA`/`fsB`)이 맡는다 |
 | U-04 | 같은 함수 위치 요약 | 위치 1곳 / 2곳(삽입 순서 첫 항목) / 같은 위치 3개 | other 0 / first = 첫 항목 위치·other 1 / other 0 |
 | U-05 | 같은 함수 `sources` | 순서가 섞인 3개 | `toUri()` 정렬, 각 원소 = `toCopyMoveJobPath()` 값, `sameDirectoryCount`가 이 값으로 계산됨 |
 
@@ -289,17 +295,17 @@ class ConfirmCopyMoveDialogFragment : AppCompatDialogFragment() {
 |---|---|
 | R9(1) | HLD대로 둔다 — 심볼릭 링크·마운트 별칭은 풀지 않는다(안내가 안 나올 수 있음, 작업은 기존 처리). |
 | R9(2) | **닫음** — 2.1 "provider별 `normalize()` 확인": 목록 경로의 `normalize()`는 모두 입출력 없는 기반 구현, 압축 풀기 더미 루트 값은 바뀌지 않음. |
-| R9(3) | **완화안 적용, PM 결정 필요(F1)** — `..` 조각이 있는 경로는 정규화하지 않고 그대로 판정·작업에 쓴다(2.1 `toCopyMoveJobPath`). |
+| R9(3) | **완화안 적용 — 오너 확정(F1, 2026-10-29)** — `..` 조각이 있는 경로는 정규화하지 않고 그대로 판정·작업에 쓴다(2.1 `toCopyMoveJobPath`). |
 | R11 | **버튼 높이 닫음**(테마 값, 2.2) — 실측 T-16(a). **Esc**: API 28 이상 프레임워크 처리 확인(소스), API 27 이하 미확인 — T-06(d), 실패 시 키 리스너 추가(2.2). 전체 폭은 T-16(b). |
 
 ## 6. 설계 피드백
 설계 문서(SRS·HLD)는 고치지 않았다.
 
-- **F1 (PM 결정 필요) HLD 3.6-1·D11의 "작업에도 같은 `normalize()` 값" → `..`가 있는 경로는 정규화하지 않음으로 좁힘**: HLD R9 대응 칸은 "(3)이 실제로 생기면 `..`가 남은 경로에서는 정규화·안내를 하지 않는 쪽으로 좁히는 안을 LLD가 PM에게 올린다"고 정했다. 실제로 생긴다: Android의 `/sdcard`는 심볼릭 링크라 경로 입력으로 `/sdcard/..`를 열면 목록은 `/storage/self`의 내용인데 `normalize()`는 `/`를 준다 — HLD대로면 그 화면에 붙여넣기한 작업의 대상이 `/`가 되고, 그 화면에서 복사한 항목(`/sdcard/../primary`)은 없는 경로 `/primary`가 원본이 된다. 이 LLD의 안: 경로에 `..` 조각이 있으면 그 경로는 **정규화하지 않고 원래 값으로 판정하고 작업에도 원래 값을 넘긴다**(`.`만 있는 경로는 정규화). HLD가 적은 "정규화·안내를 하지 않음"과의 차이: 안내를 끄지 않고 원래 값의 `==`로 판정한다 — 작업 코드(`FileJobs.kt:750`)도 같은 `==`를 쓰므로 "안내와 결과가 같다"는 HLD 3.6-1의 원칙이 유지되고, `..` 경로의 동작은 지금과 같다. 잃는 것: `/a/b/..`처럼 링크가 없는 `..` 경로에서 같은 폴더 안내·사본 생성이 되지 않는다(지금도 같은 파일 판정으로 아무 변화 없이 끝남, `LinuxCopyMove.kt:46-49`). 바뀌는 범위는 2.1 `toCopyMoveJobPath` 한 함수다. **PM이 볼 차이 두 가지**(검수 1회차): ① HLD R9 문구는 "`..` 경로에서는 안내하지 않음"인데 이 안은 원래 값 `==`로 안내를 **낸다**(작업 판정과 같은 식이라 결과와 일치) ② 이 안을 채택하면 링크 없는 `..` 경로에서 REQ-2-21 안내와 SRS A7의 사본 생성이 일어나지 않는다 — SRS A7에 "`..`가 섞인 경로(직접 입력으로만 생김)는 지금 동작 유지"를 적어야 한다(설계팀). PM이 HLD 원안(모두 정규화)을 고르면 그 함수를 `normalize()` 한 줄로 바꾸고 T-12 기대 결과를 바꾼다. 설계팀이 HLD 3.6-1·D11·R9 문구를 맞춰야 한다(PM 결정 뒤).
-- **F2 HLD 줄 번호(문서만)**: HLD의 `FileListFragment.kt` 인용(`:1167-1179` 붙여넣기, `:1181-1182` `makePathListForJob`, `:991` 삭제, `:1013` 압축, `:874-875`·`:1096-1101` 읽기 전용, `:1082` 압축 판단 등)은 #5 이전 줄이다. a76055e에서는 `:1104-1116`, `:1118-1119`, `:928`, `:950`, `:811-812`·`:1033-1038`, `:1019` 등이다. 동작 영향 없음 — 릴리스 문서 동기화 때 맞추면 된다.
-- **F3 (PM 결정 필요) 단위 시험 의존성**: HLD 3.6-1은 같은 폴더 판정을 "단위 테스트 대상(SRS C-3)"으로 둔다. 저장소에 테스트 의존성이 없어 넣으려면 라이브러리 승인(PROCESS_ROLES 10장)이 필요하다 — 요청 후보 `testImplementation 'junit:junit:4.13.2'`(EPL-1.0, 테스트 전용·APK에 들어가지 않음). 승인되지 않으면 3.1 수동 시험만으로 확인한다(T-08·T-09·T-11·T-12가 판정 경우를 덮음). #6(너비 판단)도 같은 결정을 쓴다.
+- **F1 (결정됨: LLD 안 확정, 오너 2026-10-29 — PR #16 코멘트 6473374204, 앞선 realpath 결정은 철회) HLD 3.6-1·D11의 "작업에도 같은 `normalize()` 값" → `..`가 있는 경로는 정규화하지 않음으로 좁힘**: HLD R9 대응 칸은 "(3)이 실제로 생기면 `..`가 남은 경로에서는 정규화·안내를 하지 않는 쪽으로 좁히는 안을 LLD가 PM에게 올린다"고 정했다. 실제로 생긴다: Android의 `/sdcard`는 심볼릭 링크라 경로 입력으로 `/sdcard/..`를 열면 목록은 `/storage/self`의 내용인데 `normalize()`는 `/`를 준다 — HLD대로면 그 화면에 붙여넣기한 작업의 대상이 `/`가 되고, 그 화면에서 복사한 항목(`/sdcard/../primary`)은 없는 경로 `/primary`가 원본이 된다. 이 LLD의 안: 경로에 `..` 조각이 있으면 그 경로는 **정규화하지 않고 원래 값으로 판정하고 작업에도 원래 값을 넘긴다**(`.`만 있는 경로는 정규화). HLD가 적은 "정규화·안내를 하지 않음"과의 차이: 안내를 끄지 않고 원래 값의 `==`로 판정한다 — 작업 코드(`FileJobs.kt:750`)도 같은 `==`를 쓰므로 "안내와 결과가 같다"는 HLD 3.6-1의 원칙이 유지되고, `..` 경로의 동작은 지금과 같다. 잃는 것: `/a/b/..`처럼 링크가 없는 `..` 경로에서 같은 폴더 안내·사본 생성이 되지 않는다(지금도 같은 파일 판정으로 아무 변화 없이 끝남, `LinuxCopyMove.kt:46-49`). 바뀌는 범위는 2.1 `toCopyMoveJobPath` 한 함수다. **PM이 볼 차이 두 가지**(검수 1회차): ① HLD R9 문구는 "`..` 경로에서는 안내하지 않음"인데 이 안은 원래 값 `==`로 안내를 **낸다**(작업 판정과 같은 식이라 결과와 일치) ② 이 안을 채택하면 링크 없는 `..` 경로에서 REQ-2-21 안내와 SRS A7의 사본 생성이 일어나지 않는다 — SRS A7에 "`..`가 섞인 경로(직접 입력으로만 생김)는 지금 동작 유지"를 적어야 한다(설계팀). PM이 HLD 원안(모두 정규화)을 고르면 그 함수를 `normalize()` 한 줄로 바꾸고 T-12 기대 결과를 바꾼다. **결정**: 이 안 그대로. SRS A7·HLD 3.6-1·D11·R9 문구는 설계팀이 별도 PR(`design/2-hld-v4.8`)로 맞춘다 — 이 LLD는 SRS·HLD를 고치지 않는다.
+- **F2 HLD 줄 번호(문서만)**: HLD의 `FileListFragment.kt` 인용(`:1167-1179` 붙여넣기, `:1181-1182` `makePathListForJob`, `:991` 삭제, `:1013` 압축, `:874-875`·`:1096-1101` 읽기 전용, `:1082` 압축 판단 등)은 #5 이전 줄이다. a76055e에서는 `:1104-1116`, `:1118-1119`, `:928`, `:950`, `:811-812`·`:1033-1038`, `:1019` 등이다. 동작 영향 없음. **결정**(PM): 설계팀이 HLD 갱신(`design/2-hld-v4.8`) 때 함께 맞춘다.
+- **F3 (결정됨: 승인, 오너 2026-10-29) 단위 시험 의존성**: HLD 3.6-1은 같은 폴더 판정을 "단위 테스트 대상(SRS C-3)"으로 둔다. 저장소에 테스트 의존성이 없어 넣으려면 라이브러리 승인(PROCESS_ROLES 10장)이 필요하다 — 요청 후보 `testImplementation 'junit:junit:4.13.2'`(EPL-1.0, 테스트 전용·APK에 들어가지 않음). **결정**: `testImplementation 'junit:junit:4.13.2'` 승인, U-01~U-05 필수(1장 6·7행, 3.2). #6(너비 판단)도 같은 의존성을 쓸 수 있다.
 - **F4 확인**: HLD K6의 "출처" 인자는 `Origin { PASTE, OTHER_PANE }`, 리스너는 `copyMoveFiles(...)` 하나로 정했다(이름만, 동작 영향 없음). HLD K6은 인자에 "작업 종류(`CopyMoveType`)"를 두는데, 진입 API `show`는 `copy: Boolean`을 받아 안에서 종류를 계산하고(2.1 `getCopyMoveType`) `Args`에는 `CopyMoveType`으로 담는다 — 호출자가 압축 판정을 따로 하지 않게 하려는 것이며 저장되는 값은 HLD와 같다.
-- **F5 (PM 확인) 중복 열림 방지(검수 1회차 M1, `[판단]`)**: 2.2 `show`에 태그 검사 + `showNow`를 더했다. HLD에 없는 동작이지만 확인 창 도입이 만드는 이중 실행 회귀를 막는 것이고 사용자에게 보이는 동작은 "창 하나"뿐이다. PM 확인을 요청한다.
+- **F5 (결정됨: 승인, PM 2026-10-29) 중복 열림 방지(검수 1회차 M1, `[판단]`)**: 2.2 `show`에 태그 검사 + `showNow`를 더했다. HLD에 없는 동작이지만 확인 창 도입이 만드는 이중 실행 회귀를 막는 것이고 사용자에게 보이는 동작은 "창 하나"뿐이다. **결정**: 승인.
 
 ## 7. 변경 이력
 | 일자 | 버전 | 변경 | 사유 | 요청자 |
@@ -307,3 +313,4 @@ class ConfirmCopyMoveDialogFragment : AppCompatDialogFragment() {
 | 2026-10-29 | v1 | 최초 작성 | 이슈 #8 LLD 단계 | PM |
 | 2026-10-29 | v1.1 | 2.2 `show`에 빈 입력 계약·중복 열림 방지(태그 + `showNow`)와 T-22, T-21(자기 하위 A9), T-03을 3개로, 2.1 의존 서술 정정, 48dp 테마 연결 줄, U-03 마지막 경우의 수동 대응 없음 명시, F1에 HLD 문구 차이·SRS A7 영향, F4 보강, F5 | LLD 1회차 검수 M1·m1~m5 | 검수팀 |
 | 2026-10-29 | v1.2 | 2.2 클래스 골격에 companion(`TAG`·`show`), `show` 입력·전제를 빈 입력 허용으로, T-22 1차 확인을 코드 검수로·기기 입력을 한 셸 연속으로, 4장 #6 행 표기 | LLD 2회차 검수 n1~n3 | 검수팀 |
+| 2026-10-29 | v1.3 | 결정 반영: 상태, F1(LLD 안 확정)·F2·F3(JUnit 승인)·F5(승인) 결정 기록, 1장 변경 파일 7개(`app/build.gradle`, 단위 시험 파일), 3.2 단위 시험 필수화와 시험 대역·실패 시 처리, U-01 범위(압축 경우는 T-04), U-03 마지막 경우를 단위 시험이 맡음, 5장 R9(3) | PR #16 PM·오너 결정(코멘트 6473368985, 정정 6473374204) | PM |
