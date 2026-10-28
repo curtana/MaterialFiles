@@ -75,7 +75,7 @@
 | `UI_Secondary_Elements` | AQ2, 시험 T-Layout_Flow | 대화상자·메뉴 같은 보조 요소가 모든 화면 유형·상태에서 알맞게 배치된다(큰 화면에서 버튼·입력란을 전체 폭으로 늘이지 않음, 서랍은 큰 화면에서 펼친 레일 등). | 권장 | 예(이슈 #2) | 복사·이동 확인 창을 큰 화면에서 전체 폭으로 늘이지 않는다. 확인: C2·C4에서 확인 창 모양. |
 | `Touch_Targets` | AQ2, 시험 T-Touch_Targets | 터치 대상이 48dp 이상이고 어떤 표시 크기에서도 가려지지 않는다. | 권장 | 예(이슈 #2) | `Touch_Target_Size`와 같이 충족. 두 창 모드에서 좁아진 창의 버튼이 가려지지 않는지 확인. |
 | `Keyboard_Navigation` | AQ2, 시험 T-Keyboard_Navigation | 주요 작업 흐름을 Tab·방향키로 끝낼 수 있다. | 권장 | 예(이슈 #2) | 창 전환·반대쪽 복사를 키보드로 할 수 있는지 검토. 확인: 외부 키보드 시험. |
-| `Keyboard_Shortcuts` | AQ2, 시험 T-Keyboard_Shortcuts | 선택·잘라내기·복사·붙여넣기·실행 취소·다시 실행에 단축키가 있다. | 권장 | 예(앱 전반) | 선택·잘라내기·복사·붙여넣기 단축키 있음(코드 확인: Ctrl+A·X·C `res/menu/file_list_select.xml:57`·`:16`·`:24`, Ctrl+V `res/menu/file_list_paste.xml:16`, 처리 경로 `FileListFragment.kt:547-567`. 실기는 #5 T-11), 실행 취소·다시 실행 없음(해당 메뉴 항목 없음). 이슈 #12. |
+| `Keyboard_Shortcuts` | AQ2, 시험 T-Keyboard_Shortcuts | 선택·잘라내기·복사·붙여넣기·실행 취소·다시 실행에 단축키가 있다. | 권장 | 예(앱 전반) | 선택·잘라내기·복사·붙여넣기 단축키 있음 — 선택 툴바·붙여넣기 막대가 떠 있을 때만 받는다(코드 확인: Ctrl+A·X·C `res/menu/file_list_select.xml:57`·`:16`·`:24`, Ctrl+V `res/menu/file_list_paste.xml:16`, 처리 경로 `FileListFragment.kt:547-567`. 그 밖에 툴바 메뉴 Ctrl+L·R·A·H `res/menu/file_list.xml:84`·`:91`·`:98`·`:105`, 선택 모드 Ctrl+A `file_list_pick.xml:30`. 실기는 #5 T-11), 실행 취소·다시 실행 없음(해당 메뉴 항목 없음). 이슈 #12. |
 | `Keyboard_Exit` | AQ2, 시험 T-Keyboard_Exit | Esc로 대화상자·메뉴 닫기, 검색 지우기, 선택 해제 등 현재 동작을 빠져나온다. | 권장 | 예(이슈 #2) | 확인 창이 Esc로 취소되고 취소는 아무것도 바꾸지 않는지(SRS REQ-2-15). |
 | `Context_Menus` | AQ2, 시험 T-Context_Menus | 오른쪽 클릭(트랙패드 보조 탭)으로 컨텍스트 메뉴가 열린다. | 권장 | 예(앱 전반) | 기존 지원 여부 미확인. |
 
@@ -141,4 +141,4 @@
 | 2026-10-28 | v0.3 | 오너 결정 기록: 필수/권장 분류 승인, `Network_Security_Traffic` 편차 등록(평문 통신 유지), WSC-3 폰 가로 두 창 유지. | PM |
 | 2026-10-28 | v0.4 | 머리 상태 표기를 판과 맞춤. 2.2 `Mouse_Trackpad_Basic`·2.3 A11P-1·RTL-5 행의 상태 표현을 결정 사항으로 정리. 4장 #2 행의 REQ ID 열을 SRS v4.4(브랜치 `design/2-dual-pane`, PR #3) 기준으로 채움. 접근성 행 비고를 결정 사항(A11P-1 → REQ-2-20)으로 고침 | 설계팀 |
 | 2026-10-28 | v0.5 | 오너 결정 Q7~Q9 반영(편차 행 서술을 기존 동작 기준으로 정리 포함): 3장 편차 등록부에 "해소 이슈" 열 추가와 `State_Preservation` 편차 행(해소 #11), 2.1 `State_Preservation` 행의 "오너 확인" 표현 정리, 2.2 `Responsive_adaptive_layouts` 비고를 "편차 아님(오너 결정)"으로 | 설계팀 |
-| 2026-10-28 | v0.6 | 2.2 `Keyboard_Shortcuts` 비고를 코드 확인 결과로 갱신(선택·잘라내기·복사·붙여넣기 있음, 실행 취소·다시 실행 없음 — 이슈 #12 PM 분류) | 설계팀 |
+| 2026-10-28 | v0.6 | 2.2 `Keyboard_Shortcuts` 비고를 코드 확인 결과로 갱신(받는 조건·툴바 단축키 병기 포함, 선택·잘라내기·복사·붙여넣기 있음, 실행 취소·다시 실행 없음 — 이슈 #12 PM 분류) | 설계팀 |
