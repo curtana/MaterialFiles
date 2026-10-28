@@ -2,8 +2,8 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 개정 중(v4.3, 규격 근거 반영) |
-| 근거 | SRS v4.3 (`docs/design/2-dual-pane/SRS.md`, 요구사항 정리 v2 반영). HLD v3까지는 SRS v3 기준 |
+| 상태 | 개정 중(v4.4, 규격 근거 반영) |
+| 근거 | SRS v4.4 (`docs/design/2-dual-pane/SRS.md`, 요구사항 정리 v2 반영). HLD v3까지는 SRS v3 기준 |
 | 기준 코드 | `origin/develop` 3d87794 |
 
 ## 1. 구조 개요
@@ -63,6 +63,7 @@ graph TD
 | 상태 | 자리 | 수명 |
 |---|---|---|
 | 창별 경로·뒤로 가기 기록·검색·선택 | 각 창의 `FileListViewModel`(`TrailLiveData` `:27`, 검색 `:43-62`, 선택 `:144-193`) | 창 프래그먼트 범위. 회전·크기 변경(액티비티 재생성, 매니페스트에 `configChanges` 없음 `AndroidManifest.xml:60-64`)을 넘어 유지. 프로세스 종료 시 사라짐(SRS A6, 지금과 같음). |
+| 목록 스크롤 위치 | 각 창의 `RecyclerView`·`GridLayoutManager` 뷰 상태 | 한 창 모드의 숨은 창은 `GONE`일 뿐 뷰가 살아 있어 그대로 유지(D8). 화면 재생성(회전·크기 변경) 때는 프래그먼트 뷰 상태 저장·복원(`RecyclerView` 기본 동작, 지금과 같음)에 맡긴다. 목록이 비동기로 다시 차므로 복원이 실제로 되는지는 LLD에서 확인(SRS 5장 `Config_Changes`, 권장). 폴더 이동 기록 안의 위치는 기존 `TrailLiveData` 대기 상태(`FileListViewModel.kt:30-31`)가 맡는다. |
 | 활성 창, 경로 게시판, 모드, 권한 요청 진행 상태 | K3 `DualPaneViewModel` | 호스트 프래그먼트 범위. 위와 같음. 프로세스 종료 뒤 처음 값(창 1 활성). 두 창 사용 여부는 저장하지 않고 Intent에서 매번 계산(K3 설명). |
 | 복사 목록 | K8 (프로세스 전역) | 지금과 같음. |
 | 확인 창 내용 | K6 인자(Parcelable) | 다이얼로그 프래그먼트 복원으로 회전 뒤 유지(REQ-2-15). |
@@ -79,7 +80,7 @@ graph TD
 
 K4의 `onInterceptTouchEvent`에서 인식한다:
 1. `ACTION_DOWN`에서 다음이면 이 제스처를 **인식 대상에서 뺀다**:
-   - (a) 시스템 제스처 영역 안(`GN-1`·`GN-3`, `Back_Gesture_Nav`): API 29 이상 `WindowInsets.getSystemGestureInsets()`의 왼쪽·오른쪽·아래쪽 띠(뒤로 가기·홈 제스처)와 `getMandatorySystemGestureInsets()`의 띠(앱이 끌 수 없는 홈·빠른 전환 영역, 주로 아래쪽). 둘 중 하나라도 걸리면 뺀다. 인셋은 K4가 `onApplyWindowInsets`로 받아 둔다(창 크기 변경·회전 때 다시 받음). 시스템 제스처 제외 영역(`setSystemGestureExclusionRects`, `GN-2`)은 요청하지 않으므로 크기 한도(`GN-4`)와 무관하고, 기존 `DrawerLayout`의 자동 제외는 그대로 둔다. API 28 이하는 해당 없음(인셋이 0).
+   - (a) 시스템 제스처 영역 안(`GN-1`·`GN-3`, `Back_Gesture_Nav`): API 29 이상에서 `getSystemGestureInsets()`의 왼쪽·오른쪽·아래쪽 띠(뒤로 가기·홈 제스처 인식 영역). 앱이 끌 수 없는 필수 제스처 영역(`getMandatorySystemGestureInsets()`, `GN-3`)은 이 인셋에 포함되는 부분 영역이라 같은 검사로 함께 빠진다 — 별도 검사는 하지 않는다. API 29 미만에서는 이 API가 없으므로 `WindowInsetsCompat.getInsets(Type.systemGestures())`(미만에서는 0을 돌려줌)로 버전 분기 없이 받는다. 인셋은 K4가 `onApplyWindowInsets`로 받아 둔다(창 크기 변경·회전 때 다시 받음). 인셋은 창 기준이고 터치 좌표는 K4 기준이라 좌표 변환(K4의 창 안 위치 반영)이 필요하다 — 방식은 LLD. 시스템 제스처 제외 영역(`setSystemGestureExclusionRects`, `GN-2`)은 요청하지 않으므로 크기 한도(`GN-4`)와 무관하고, 기존 `DrawerLayout`의 자동 제외는 그대로 둔다.
    - (b) 창의 앱바 영역(툴바·선택 툴바·breadcrumb) 안. breadcrumb는 `HorizontalScrollView`다(`filelist/BreadcrumbLayout.kt:27`).
    - (c) 창 목록의 fastscroll 터치 띠(목록 끝(end) 가장자리, 너비는 LLD에서 라이브러리 `me.zhanghai.android.fastscroll:library:1.3.0` `app/build.gradle:198`의 실제 터치 영역으로 정한다) 안.
    - (d) 그 밖에 손가락 아래 자손 뷰가 그 방향으로 가로 스크롤할 수 있을 때(`canScrollHorizontally`).
@@ -184,7 +185,7 @@ K6 "취소"/닫기 → 아무것도 바꾸지 않음
 | R4 | `FileListFragment` 수정 범위가 크다(화면 단위 코드 이동, 툴바 메뉴 방식 변경, 뒤로 가기 조건). 5개 파일을 넘는다. | PROCESS_ROLES 11-1에 따라 구현 착수 전 범위를 알린다. LLD에서 함수 단위로 나눈다. |
 | R5 | 두 창이 각자 목록을 적재·감시해 자원 사용이 늘 수 있다(SRS 3.4). | 측정은 LLD·구현 검수에서. 이번 범위에서 최적화하지 않는다. |
 | R6 | 두 창 모드에서 붙여넣기 막대·speed dial이 창마다 보인다(REQ-2-13이 두 창 모두 같은 내용을 요구). 화면이 붐빌 수 있다. | 요구대로 둔다. 비활성 창 speed dial 숨김 같은 표시 조정은 LLD 재량(요구 변경이 아닌 범위). |
-| R7 | (닫힘) SRS v3 열린 질문 Q1~Q6은 요구사항 정리 v2에서 모두 결정됐다(Q1·Q2·Q5 확정, Q3→REQ-2-20·K7·D10, Q4→REQ-2-21·K6·3.6-1, Q6→PM이 `docs/STANDARDS_TRACEABILITY.md` 별도 작성). 남은 것: 규격 문서가 들어오면 창 표시의 터치 대상 크기(SRS 3.3) 등 조항을 반영해야 할 수 있다. | 규격 문서 머지 뒤 SRS 5장 갱신 + 관련 절(K7) 재검수. |
+| R7 | (닫힘) SRS v3 열린 질문 Q1~Q6은 요구사항 정리 v2에서 모두 결정됐다. 남았던 규격 문서 반영(창 표시 터치 대상 크기 등)은 `docs/STANDARDS_TRACEABILITY.md` v0.3 머지 뒤 SRS v4.3 5장·HLD v4.3(3.9 터치 대상·대비)으로 처리했다. 규격 반영에서 새로 생긴 PM 확인 사항은 SRS 4.3 Q7~Q9. | 없음. |
 | R8 | (결정됨) 고정 메뉴 화면에서 앱바 위치가 바뀌는 D2 결과를 오너가 수용했다(요구사항 v2 결정 R8). 대안(호스트 상단 띠)은 쓰지 않는다. | 없음. |
 | R9 | (1) 같은 폴더 판정이 심볼릭 링크·마운트 별칭을 풀지 않아, 별칭 경로로 같은 실제 폴더에 복사·이동하면 안내가 나오지 않을 수 있다(3.6-1). 이때 작업은 기존 처리(로컬은 같은 파일 조기 반환·충돌 창)대로다. (2) 작업에 넘기는 경로에 `normalize()`를 더하는 것이 모든 provider(로컬·압축·SMB·SFTP·WebDAV 등)에서 입출력 없는 순수 처리이고 압축 풀기용 경로(`createDummyArchiveRoot`, `FileListFragment.kt:995-998`)의 값을 바꾸지 않는지 미확인. (3) `normalize()`는 문자열 처리라 `심볼릭링크/..`가 섞인 경로(직접 입력 이동으로만 생김, `PathDialogFragment.kt:36-52`)를 실제 위치와 다른 경로로 바꿀 수 있다 — 그런 경로에서 복사·이동하면 화면의 폴더와 다른 곳이 대상·원본이 될 수 있다. | LLD에서 provider별 `normalize()` 구현 확인과 경계 시험(`..` 경로, `심볼릭링크/..` 경로, 별칭, 압축 풀기). 바꾸는 provider가 있으면 그 경로는 정규화하지 않고 판정도 `==`로 한다(안내·결과 일치 유지). (3)이 실제로 생기면 `..`가 남은 경로에서는 정규화·안내를 하지 않는 쪽으로 좁히는 안을 LLD가 PM에게 올린다. |
 | R10 | 두 창 모드 TalkBack 활성화는 3.9의 두 경로(창 표시 컨트롤의 클릭 동작, 자손 `TYPE_VIEW_CLICKED` 수신)로 정했다. 남은 위험: 클릭 동작이 없는 요소(목록 빈 곳)에 초점만 둔 경우는 활성화되지 않는다 — 창 표시 컨트롤이 대체 경로다. | LLD에서 TalkBack 시험(두 창 모드, 각 요소 두 번 탭 → 활성 창 이동). |
@@ -200,3 +201,4 @@ K6 "취소"/닫기 → 아무것도 바꾸지 않음
 | 2026-10-28 | v4.1 | 3.6-1 작업에도 판정과 같은 `normalize()` 값을 넘김(근거 정정: `LinuxCopyMove.kt:49-52`·`:250-254`, "자기 위로" `:1237-`), K6·D11·R9 갱신, 3.9 전환 뒤 초점을 새 창 컨트롤로 옮김(live region 제거), 두 창 모드 TalkBack 활성화 경로 확정(창 표시 클릭 동작 + 자손 `TYPE_VIEW_CLICKED`), R10 갱신, 인용 범위 정정 | HLD v4 검수 M1·n2~n4 | 검수팀 |
 | 2026-10-28 | v4.2 | 정규화를 복사·이동 호출에만 한정(삭제·압축 제외), D11 대안 (d)와 문자열 정규화 한계, R9-3(`심볼릭링크/..`), 3.9 초점 이동을 레이아웃 뒤 `post`로, 두 창 모드 창 표시를 비활성 창일 때 누를 수 있는 활성화 컨트롤로 K7에 맞춤, K4·3.4에 접근성 클릭 수신, K9 문구, 추적 REQ-2-07에 K7 | HLD v4 2회차 검수 N1~N4 | 검수팀 |
 | 2026-10-28 | v4.3 | 규격 추적표 v0.3 반영: 3.3-1(a)에 하단·필수 제스처 영역(`getMandatorySystemGestureInsets`, GN-1·3) 추가와 GN-2·4 관계, 3.9 터치 대상 48dp·대비·색 외 구분·키보드·마우스, K4 RTL-1·RTL-5(A2 오너 결정), K6 전체 폭 금지·Esc·BidiFormatter, K7 BidiFormatter·3.9 참조, R11 추가 | 규격 추적표 v0.3 머지(PR #4) | PM |
+| 2026-10-28 | v4.4 | 규격 반영 검수 m2·m8·m10·m11: 3.1 목록 스크롤 위치 행, 3.3-1(a) 인셋 서술 정리(필수 인셋은 부분 영역, `WindowInsetsCompat`, 좌표 변환은 LLD), R7 닫음, 근거를 SRS v4.4로 | 규격 반영 검수(pr3_std) | 검수팀 |

@@ -1,6 +1,6 @@
 # 규격 추적표 — Android app quality guidelines
 
-- 상태: 초안 v0.2 (2026-10-28, PM 보조 작성). 조항 해석·필수 여부 판정은 오너 승인 사항이다(PROCESS_ROLES 부록 S).
+- 상태: v0.4 (2026-10-28. v0.1~v0.2 PM 보조 작성, v0.3 오너 결정 기록, v0.4 4장 #2 행 REQ ID — 5장 이력). 조항 해석·필수 여부 판정은 오너 승인 사항이다(PROCESS_ROLES 부록 S).
 - 작성 규칙: 원문 문장은 옮기지 않고 한국어 요지만 적는다. 아래 근거 문서에서 직접 확인하지 못한 내용은 "원문 판독 필요"로 둔다.
 - 결과 로직을 바꾸는 PR은 이 표를 같은 PR에서 고친다(부록 S).
 
@@ -70,7 +70,7 @@
 | `Multi-Window_Functionality` | AQ3, 시험 T-Multi-Window_Functionality | 멀티 윈도 모드에서 모든 기능이 동작한다. | 권장 | 예(이슈 #2) | 분할 화면에서 창 너비에 따라 한 창·두 창을 다시 판단(SRS REQ-2-03·04). 확인: SRS C3. |
 | `Multi-Resume` | AQ3, 시험 T-Multi-Window_Focus, T-Multi-Window_Resources | 포커스를 잃어도 UI를 계속 갱신하고, 배타 자원(카메라·마이크)은 포커스에 따라 놓고 다시 잡는다. | 권장 | 일부(앱 전반) | 파일 작업 진행 표시가 포커스 없는 상태에서도 갱신되는지. 배타 자원은 해당 없음. |
 | `Keyboard_Input` | AQ3, 시험 T-Keyboard_Input | 외부 키보드로 글자 입력이 되고, 물리·가상 키보드 전환에 앱이 다시 시작하지 않는다. | 권장 | 예(앱 전반) | 검색·이름 바꾸기 입력. 확인: 외부 키보드 연결·분리 시험. |
-| `Mouse_Trackpad_Basic` | AQ3, 시험 T-Mouse_Trackpad_Basic | 마우스·트랙패드로 클릭, 선택, 목록의 세로·가로 스크롤 같은 기본 조작이 된다. | 권장 | 예(이슈 #2) | 쓸기 전용 창 전환은 포인터로 하기 어려우므로 누르는 전환 수단을 함께 둔다. 브랜치 `design/2-dual-pane`의 SRS v4가 창 표시 누르기 전환(REQ-2-20, Q3 결정)을 넣었다(develop 미머지). |
+| `Mouse_Trackpad_Basic` | AQ3, 시험 T-Mouse_Trackpad_Basic | 마우스·트랙패드로 클릭, 선택, 목록의 세로·가로 스크롤 같은 기본 조작이 된다. | 권장 | 예(이슈 #2) | 쓸기 전용 창 전환은 포인터로 하기 어려우므로 누르는 전환 수단을 함께 둔다. 창 표시 누르기 전환으로 충족하기로 결정됨(REQ-2-20, 요구사항 v2 결정 Q3 — SRS는 PR #3, develop 미머지). |
 | `Responsive_adaptive_layouts` | AQ2, 시험 T-Layout_Flow | 창 크기 등급에 따라 레이아웃이 반응·적응하고, 알맞은 곳에 다중 창(multi-pane) 레이아웃을 쓴다. 옛 액티비티 기반 앱은 Activity embedding을 쓰도록 안내한다. | 권장 | 예(이슈 #2) | 두 창 레이아웃이 이 조항의 다중 창 레이아웃에 해당한다. Activity embedding을 쓰지 않는 방식이면 편차 여부를 오너가 판단. |
 | `UI_Secondary_Elements` | AQ2, 시험 T-Layout_Flow | 대화상자·메뉴 같은 보조 요소가 모든 화면 유형·상태에서 알맞게 배치된다(큰 화면에서 버튼·입력란을 전체 폭으로 늘이지 않음, 서랍은 큰 화면에서 펼친 레일 등). | 권장 | 예(이슈 #2) | 복사·이동 확인 창을 큰 화면에서 전체 폭으로 늘이지 않는다. 확인: C2·C4에서 확인 창 모양. |
 | `Touch_Targets` | AQ2, 시험 T-Touch_Targets | 터치 대상이 48dp 이상이고 어떤 표시 크기에서도 가려지지 않는다. | 권장 | 예(이슈 #2) | `Touch_Target_Size`와 같이 충족. 두 창 모드에서 좁아진 창의 버튼이 가려지지 않는지 확인. |
@@ -93,7 +93,7 @@
 | A11Y-1 | A11Y | 조작 요소의 터치 대상은 최소 48×48dp, 가능하면 더 크게. 마우스·트랙패드처럼 정밀한 입력은 더 작아도 된다. | 권장 | 예(이슈 #2) | `Touch_Target_Size`와 같이 충족. |
 | A11Y-2 | A11Y | 의미 있는 요소마다 생김새가 아닌 목적을 말하는 설명을 붙이고, "버튼" 같은 중복 말을 피하며, 목록 안에서는 설명이 서로 달라야 한다. 장식 요소는 접근성 서비스에서 숨긴다. | 권장 | 예(이슈 #2) | 창 표시는 "창 1, 활성"처럼 목적을 읽게(SRS 3.3). 확인: TalkBack 수동 확인. |
 | A11Y-3 | A11Y | 글자 대비 목표: 18sp 미만(굵게는 14sp 미만) 4.5:1 이상, 나머지 3:1 이상. | 권장 | 예(이슈 #2) | `Visual_Contrast`와 같이 충족. |
-| A11P-1 | A11P | 끌기·목록 항목 쓸기처럼 제스처로만 할 수 있는 동작은 접근성 서비스(TalkBack, Voice Access, Switch Access)에 동작(action)으로 노출해 그 사용자도 실행할 수 있게 한다. | 권장 | 예(이슈 #2) | 쓸기 창 전환에 대응하는 접근성 동작 또는 누르는 전환 수단을 둔다. SRS v4(브랜치 `design/2-dual-pane`, develop 미머지)가 Q3을 "추가"로 결정해 REQ-2-20(창 표시 누르기 전환·화면 낭독)을 넣었다 — 이 조항의 충족 수단 후보. Views API 이름은 Views판 문서 원문 판독 필요. |
+| A11P-1 | A11P | 끌기·목록 항목 쓸기처럼 제스처로만 할 수 있는 동작은 접근성 서비스(TalkBack, Voice Access, Switch Access)에 동작(action)으로 노출해 그 사용자도 실행할 수 있게 한다. | 권장 | 예(이슈 #2) | 쓸기 창 전환에 대응하는 접근성 동작 또는 누르는 전환 수단을 둔다. REQ-2-20(창 표시 누르기 전환·동작 설명, 요구사항 v2 결정 Q3)으로 충족하기로 결정됨(SRS는 PR #3, develop 미머지). 두 창 모드 활성화는 REQ-2-07. Views API 이름은 Views판 문서 원문 판독 필요. |
 | A11P-2 | A11P | 색만으로 구분하지 말고 모양·크기, 글자·무늬, 소리·진동 같은 다른 단서를 함께 쓴다. | 권장 | 예(이슈 #2) | 활성 창 표시에 색 외 형태 차이를 쓴다(SRS 3.3, REQ-2-08). |
 | A11P-3 | A11P | 동작에 클릭·길게 누르기 설명(label)을 붙이면 TalkBack이 일반적인 제스처 안내 대신 그 설명을 읽는다. 관련 요소는 묶어서 한 번에 읽게 할 수 있다. | 권장 | 예(이슈 #2) | 창 표시를 눌러 전환하는 수단을 두면 그 동작 설명을 붙인다. |
 | A11P-4 | — | TalkBack 시험 절차 | 원문 판독 필요 | 원문 판독 필요 | 원문 판독 필요(접근성 시험 문서 미판독, 1장). |
@@ -101,7 +101,7 @@
 | RTL-2 | RTL | 방향별 리소스는 `-ldrtl`/`-ldltr` 한정자로, 단순 drawable은 `android:autoMirrored`로 반전한다. 방향에 따라 뜻이 바뀌는 그림은 직접 반전한다. | 권장 | 예(이슈 #2) | 새 화살표·전환 아이콘을 넣으면 반전 처리. |
 | RTL-3 | RTL | 문장에 끼워 넣는 글자(주소·번호 등)는 `BidiFormatter.unicodeWrap()`으로 감싸 표시 순서가 깨지지 않게 한다. | 권장 | 예(이슈 #2) | 확인 창의 "원래 위치 → 대상 경로"와 반대쪽 경로 표시에 적용 검토. |
 | RTL-4 | RTL | 레이아웃 방향 변경은 `onRtlPropertiesChanged()`에서 처리하고, 개발자 옵션 "RTL 레이아웃 방향 강제"로 LTR 언어에서도 미리 볼 수 있다. | 권장 | 예 | 확인 방법으로 사용. |
-| RTL-5 | — | RTL에서 쓸기 제스처 방향을 반전해야 하는지 | 원문 판독 필요 | 원문 판독 필요 | 확인한 RTL 문서는 화면 배치 방향만 다루고 제스처 방향은 다루지 않는다. SRS A2(제스처 반전, SRS v4에서 Q2 결정으로 확정)는 규격 근거가 확인되지 않은 요구사항 결정으로 본다(원문 판독 필요). |
+| RTL-5 | — | RTL에서 쓸기 제스처 방향을 반전해야 하는지 | 원문 판독 필요 | 원문 판독 필요 | 확인한 RTL 문서는 화면 배치 방향만 다루고 제스처 방향은 다루지 않는다. SRS A2(제스처 반전)는 요구사항 v2 결정 Q2(오너)로 확정된 요구사항 결정이며 규격 근거는 확인되지 않았다(원문 판독 필요). |
 
 ### 2.4 미판독 영역
 
@@ -127,7 +127,7 @@
 | #2 두 창 파일 목록 — 시스템 뒤로 가기·제스처 충돌 | `Back_Button_Nav`, `Back_Gesture_Nav`, GN-1, GN-2, GN-3, GN-4 | REQ-2-02, REQ-2-09, REQ-2-10, REQ-2-11 | 제외 영역을 요청하지 않으면 GN-4는 영향 없음 |
 | #2 — 큰 화면·창 크기·멀티 윈도 | `Fullscreen_Display`, `Consistent_UX`, `Display_State_Parity`, `Multi-Window_Functionality`, `Responsive_adaptive_layouts`, WSC-1, WSC-2, WSC-3 | REQ-2-03, REQ-2-04, REQ-2-05, REQ-2-06, REQ-2-12, REQ-2-17, REQ-2-20 | WSC-3: 폰 가로도 두 창 유지(오너 결정, 3장) |
 | #2 — 상태 유지(회전·구성 변경) | `State_Preservation`, `Orientation_Transitions`, `Config_Changes`, `Config_Combinations` | REQ-2-04, REQ-2-05, REQ-2-15, REQ-2-18 (SRS A6) | |
-| #2 — 접근성(터치 대상·쓸기 대체·TalkBack·색 외 구분) | `Touch_Target_Size`, `Touch_Targets`, `Visual_Contrast`, `Content_Description`, `Theme_Support`, `Mouse_Trackpad_Basic`, `Keyboard_Navigation`, A11Y-1, A11Y-2, A11Y-3, A11P-1, A11P-2, A11P-3, A11P-4 | REQ-2-07, REQ-2-08, REQ-2-17, REQ-2-20 (SRS 3.3) | A11P-1은 REQ-2-20(창 표시 누르기 전환·동작 설명, 요구사항 v2 결정 Q3)으로 충족하기로 결정됨. 두 창 모드 활성화는 REQ-2-07 |
+| #2 — 접근성(터치 대상·쓸기 대체·TalkBack·색 외 구분) | `Touch_Target_Size`, `Touch_Targets`, `Visual_Contrast`, `Content_Description`, `Theme_Support`, `Mouse_Trackpad_Basic`, `Keyboard_Navigation`, A11Y-1, A11Y-2, A11Y-3, A11P-1, A11P-2, A11P-3, A11P-4 | REQ-2-07, REQ-2-08, REQ-2-15, REQ-2-17, REQ-2-20 (SRS 3.3) | A11P-1은 REQ-2-20(창 표시 누르기 전환·동작 설명, 요구사항 v2 결정 Q3)으로 충족하기로 결정됨. 두 창 모드 활성화는 REQ-2-07 |
 | #2 — 확인 대화상자 | `UI_Secondary_Elements`, `Keyboard_Exit` | REQ-2-14, REQ-2-15, REQ-2-21 | 복사·이동 전 확인 창 자체를 요구하는 조항은 확인한 문서에 없다 — 확인 창은 규격 요구가 아닌 요구사항 결정이다 |
 | #2 — RTL | RTL-1, RTL-2, RTL-3, RTL-4, RTL-5 | REQ-2-06, REQ-2-07, REQ-2-11의 방향(SRS A2), REQ-2-15·17의 경로 표시 (SRS 3.5) | RTL-5는 원문 판독 필요 |
 
@@ -138,4 +138,4 @@
 | 2026-10-28 | v0.1 | 초안. CQ(2026-10-20 판), AQ·AQ3·AQ2(2026-10-21 판), GN·WSC·A11Y·A11P·RTL(2026-10-23 판) 근거로 작성. | PM 보조 |
 | 2026-10-28 | v0.2 | 검수 1회차(PR #4, 조건부 통과) 경미 지적 반영: 필수/권장 기준의 원문 서술 정정, `Fullscreen_Display` 시험 ID 추가, 2.1 수록 범위·미수록 CQ 항목 명시, GN-1 의무 서술 완화, SRS v4 결정(REQ-2-20, Q2·Q3) 참조. | PM 보조 |
 | 2026-10-28 | v0.3 | 오너 결정 기록: 필수/권장 분류 승인, `Network_Security_Traffic` 편차 등록(평문 통신 유지), WSC-3 폰 가로 두 창 유지. | PM |
-| 2026-10-28 | v0.4 | 4장 #2 행의 REQ ID 열을 SRS v4.3(브랜치 `design/2-dual-pane`, PR #3) 기준으로 채움. 접근성 행 비고를 결정 사항(A11P-1 → REQ-2-20)으로 고침 | 설계팀 |
+| 2026-10-28 | v0.4 | 머리 상태 표기를 판과 맞춤. 2.2 `Mouse_Trackpad_Basic`·2.3 A11P-1·RTL-5 행의 상태 표현을 결정 사항으로 정리. 4장 #2 행의 REQ ID 열을 SRS v4.4(브랜치 `design/2-dual-pane`, PR #3) 기준으로 채움. 접근성 행 비고를 결정 사항(A11P-1 → REQ-2-20)으로 고침 | 설계팀 |
