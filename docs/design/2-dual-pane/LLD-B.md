@@ -122,7 +122,7 @@ class DualPaneLayout @JvmOverloads constructor(
 | `private var isDualPane = false` | 지금 모드 |
 | `private var reportedMode: PaneMode?` | 마지막으로 알린 값 |
 | `private var lastInsets: WindowInsets?` | 2.3 `dispatchApplyWindowInsets` |
-| 제스처 상태 `downX`, `downY`, `downPane`, `activePointerId`, `swipeState`(`IDLE`/`EXCLUDED`/`IGNORED`/`DRAGGING`), `isTap`, `isLongPressed`, `isDisallowIntercept`, `velocityTracker` | 2.3 제스처 함수들 |
+| 제스처 상태 `downX`, `downY`, `downPane`, `activePointerId`, `swipeState`(`IDLE`/`EXCLUDED`/`IGNORED`/`DRAGGING`), `isTap`, `isDisallowIntercept`, `velocityTracker` | 2.3 제스처 함수들 |
 | 상수: `touchSlop = ViewConfiguration.get(context).scaledTouchSlop`, `minFlingVelocity = scaledMinimumFlingVelocity`, `swipeMinDistance = dpToDimensionPixelSize(SWIPE_MIN_DISTANCE_DP)`, `fastScrollTouchWidth = dpToDimensionPixelSize(FAST_SCROLL_TOUCH_WIDTH_DP)` | |
 
 #### `DualPaneLayout.Listener` (중첩 인터페이스)
@@ -192,13 +192,13 @@ interface Listener {
 - **책임**: 탭(슬롭 안의 DOWN→UP)과 길게 누르기로 활성 창을 정하고, 자식 전달 **전에** 활성화한다. 속도 추적.
 - **알고리즘**:
   - `velocityTracker.addMovement(ev)`.
-  - `ACTION_DOWN`: 상태 초기화(`swipeState = IDLE`, `isTap = true`, `isLongPressed = false`, `isDisallowIntercept = false`), `downX/downY/activePointerId` 기록, `downPane = findPaneIndexAt(ev.x, ev.y)`(보이는 자식 중 좌표를 담은 것, 없으면 −1). `isDualPane && downPane >= 0 && downPane != activePane`이면 `postDelayed(longPressRunnable, ViewConfiguration.getLongPressTimeout())`. 그다음 `swipeState = if (isExcludedFromSwipe(ev)) EXCLUDED else IDLE`.
+  - `ACTION_DOWN`: 상태 초기화(`swipeState = IDLE`, `isTap = true`, `isDisallowIntercept = false`), `downX/downY/activePointerId` 기록, `downPane = findPaneIndexAt(ev.x, ev.y)`(보이는 자식 중 좌표를 담은 것, 없으면 −1). `isDualPane && downPane >= 0 && downPane != activePane`이면 `postDelayed(longPressRunnable, ViewConfiguration.getLongPressTimeout())`. 그다음 `swipeState = if (isExcludedFromSwipe(ev)) EXCLUDED else IDLE`.
   - `ACTION_MOVE`: 첫 포인터의 `|dx|` 또는 `|dy|`가 `touchSlop`을 넘으면 `isTap = false`, `removeCallbacks(longPressRunnable)`.
   - `ACTION_UP`: `removeCallbacks(longPressRunnable)`. `isTap && swipeState != DRAGGING && isDualPane && downPane >= 0`이면 **`super.dispatchTouchEvent(ev)` 전에** `listener?.onPaneActivated(downPane)`(K3에서 같은 값이면 무시).
   - `ACTION_CANCEL`: `removeCallbacks(longPressRunnable)`, `isTap = false`.
   - `return super.dispatchTouchEvent(ev)`. UP·CANCEL 뒤에 `velocityTracker.clear()`.
-- `longPressRunnable`: `isTap`이 아직 참이면 `isLongPressed = true`, `swipeState = IGNORED`(길게 누른 뒤 끌어도 쓸기로 보지 않음), `listener?.onPaneActivated(downPane)`.
-- **길게 누르기 결정**(HLD 3.4가 LLD에 맡긴 것): 비활성 창에서 슬롭 안에 머문 채 길게 누르기 시간이 지나면 **그 창을 활성으로 한다**. 이유: 길게 누르기는 선택을 시작하고(`FileListAdapter.kt:246-252`), 그 선택에 작용하는 뒤로 가기·키보드 단축키·#9 반대쪽 명령은 활성 창 기준이다 — 선택이 비활성 창에 생기면 뒤로 가기로 선택을 풀 수 없다. 목록 항목의 길게 누르기 판정은 스크롤 컨테이너 안이라 `tapTimeout + longPressTimeout` 뒤에 실행되므로(`View.onTouchEvent`), K4의 `longPressTimeout` 활성화가 항상 먼저다 → 선택은 이미 활성인 창에서 시작된다. 접근성 서비스는 터치 없이 클릭을 보내므로 이 경로와 무관(아래 `onRequestSendAccessibilityEvent`).
+- `longPressRunnable`: `isTap`이 아직 참이면 `swipeState = IGNORED`(길게 누른 뒤 끌어도 쓸기로 보지 않음), `listener?.onPaneActivated(downPane)`.
+- **길게 누르기 결정**(HLD 3.4가 LLD에 맡긴 것): 비활성 창에서 슬롭 안에 머문 채 길게 누르기 시간이 지나면 **그 창을 활성으로 한다**. 이유: 길게 누르기는 선택을 시작하고(`FileListAdapter.kt:246-252`), 그 선택에 작용하는 뒤로 가기·키보드 단축키·#9 반대쪽 명령은 활성 창 기준이다 — 선택이 비활성 창에 생기면 뒤로 가기로 선택을 풀 수 없다. K4는 DOWN을 받은 `dispatchTouchEvent`에서 **`super.dispatchTouchEvent(ev)`를 부르기 전에** `postDelayed(longPressRunnable, longPressTimeout)`을 건다. 자식 뷰의 길게 누르기 판정(`View`의 길게 누르기 확인 콜백)은 그 뒤 `super` 안에서 같은 지연 이상으로 걸린다(스크롤 컨테이너 안이면 누름 확인 지연 뒤에 건다). 같은 메인 루퍼에서 만기 시각이 같거나 늦고 먼저 걸린 메시지가 먼저 실행되므로 K4의 활성화가 항상 먼저다 → 선택은 이미 활성인 창에서 시작된다. 구현은 이 호출 순서(`postDelayed` → `super`)를 지켜야 한다. 접근성 서비스는 터치 없이 클릭을 보내므로 이 경로와 무관(아래 `onRequestSendAccessibilityEvent`).
 - **기존 코드와의 관계**: 자식 클릭 처리는 그대로(`super`). 탭에서 활성화한 뒤 UP이 넘어가므로 그 UP으로 실행되는 클릭(파일 열기, 툴바 메뉴)은 이미 활성인 창에서 실행된다(HLD 3.4).
 
 ##### `DualPaneLayout.onInterceptTouchEvent(ev: MotionEvent): Boolean` (override)
@@ -299,7 +299,7 @@ interface Listener {
 ### 2.5 K5 `FileListFragment` (수정 — 창)
 
 #### `Args` (수정, 기존 `F:1405-1406`)
-- `class Args(val intent: Intent, val paneIndex: Int = 0) : ParcelableArgs` — HLD K5 "인자에 창 번호". 이 단계는 호스트가 넣기만 하고, 읽는 곳은 #7(K7 창 번호 표시)이다(LLD-A 4장 계획). 기본값 0은 기존 호출(`H:106`)과 이전 판 저장 상태 복원을 위해.
+- `class Args(val intent: Intent, val paneIndex: Int) : ParcelableArgs` — HLD K5 "인자에 창 번호". 이 단계는 호스트가 넣기만 하고, 읽는 곳은 #7(K7 창 번호 표시)이다(LLD-A 4장 계획). 기본값을 두지 않는다 — 호출하는 곳은 호스트 두 곳(2.4-2·3)뿐이고 모두 명시한다(Parcelize는 복원 때 기본값을 쓰지 않으므로 기본값이 복원 호환을 주지도 않는다).
 
 #### `dualPaneViewModel` (신규 private 필드)
 - `private val dualPaneViewModel by viewModels<DualPaneViewModel>({ requireParentFragment() })` — HLD K3의 창 쪽 접근(`util/FragmentViewModelLazy.kt:15-19`). 호스트가 같은 키로 먼저 만들어 둔다(`H:81`, 호스트 `onActivityCreated`가 자식보다 먼저).
@@ -424,9 +424,9 @@ LLD-A 5.1과 같다(빌드 명령, 기준 APK = develop a76055e 빌드, `adb log
 |---|---|---|---|---|
 | T-B00 빌드 | 전체 | 정상 | 빌드 | `BUILD SUCCESSFUL`, 새 경고 보고 |
 | T-B01 창 2 생성 | 호스트 `onActivityCreated` 2 | 정상 | C1 시작 → `dumpsys activity top` | `FileListHostFragment` > `FileListFragment` 2개·`NavigationFragment` |
-| T-B02 선택 모드 한 창(A1) | `isPickIntent`, K4 (e) | 경계 | `GET_CONTENT`·`OPEN_DOCUMENT_TREE`·`CREATE_DOCUMENT`로 시작(LLD-A T-04 명령) → C1에서 쓸기, C2(가로)에서 화면 | 창 1개만, 쓸기 무반응, 가로에서도 한 창, 결과 반환 기준과 같음 |
+| T-B02 선택 모드 한 창(A1) | `isPickIntent`, K4 (e) | 경계 | `GET_CONTENT`·`OPEN_DOCUMENT_TREE`·`CREATE_DOCUMENT`로 시작(LLD-A T-04 명령) → C1에서 쓸기, C2(가로)에서 화면 | 창 1개만, 쓸기 무반응(K4 (e)로 인식 안 함, 혹시 불려도 `togglePane()`은 `isDualPaneEnabled=false`라 무시), 가로에서도 한 창, 결과 반환 기준과 같음. K3 `setActivePane`의 범위 밖 값·선택 모드 무시 갈래는 화면으로 만들 수 없으므로 코드 검수의 줄 대조로 확인 |
 | T-B03 창별 상태(REQ-2-02) | K5 기존 | 정상 | SRS REQ-2-02 검증 절차 그대로(C1·C3) | SRS 기대대로 |
-| T-B04 너비 판단(REQ-2-03) | `onMeasure`, `isDualPaneWidth`, `computeAvailableWidthPx` | 정상·경계 | C1 → 한 창, C2 → 두 창. C4(`wm size 1700x1300`, `wm density 320`, 가로): 고정 메뉴 펼침 → 한 창, 접음 → 두 창. 경계: `wm size`로 화면 너비를 599dp·600dp로(밀도 160에서 599px·600px 너비, 열고 닫는 서랍 화면이 되게 짧은 변 < 600) | 기대대로. 600dp는 두 창, 599dp는 한 창 |
+| T-B04 너비 판단(REQ-2-03) | `onMeasure`, `isDualPaneWidth`, `computeAvailableWidthPx` | 정상·경계 | C1 → 한 창, C2 → 두 창. C4(`wm size 1700x1300`, `wm density 320`, 가로): 고정 메뉴 펼침 → 한 창, 접음 → 두 창. 경계: 폰 AVD를 **세로**로 두고 `adb shell wm density 160` + `adb shell wm size 600x1000` → 너비 600dp, 이어서 `wm size 599x1000` → 599dp(세로라 `layout-sw600dp-land`가 아닌 열고 닫는 서랍 변형이 쓰임 — 짧은 변이 600이어도 `-land` 한정자가 맞지 않음). 끝나면 `wm size reset`·`wm density reset` | 기대대로. 600dp는 두 창, 599dp는 한 창 |
 | T-B05 재판단·상태 유지(REQ-2-04) | `onMeasure`, `onPersistentDrawerOpenChanged` | 정상·경계 | 두 창 경로·선택·복사 목록을 다르게 둔 뒤 C1↔C2 회전 ×3(빠르게 포함, `Orientation_Transitions`), C3 분할 경계 끌기, C4 고정 메뉴 토글 ×3 | 모드가 기대대로 바뀌고 두 창 경로·선택·검색어·복사 목록·스크롤 위치 유지. 고정 메뉴 애니메이션 중 모드가 깜박이지 않음 |
 | T-B06 숨은 창 유지(D8) | K4 가시성 | 경계 | C1 창 2에서 하위 폴더·스크롤 → 쓸기로 창 1 → 다시 창 2 | 경로·스크롤 그대로(목록 다시 읽지 않음 — 진행 표시 없음) |
 | T-B07 모드 전환과 활성 창(REQ-2-05) | K4 `activePane`, `onMeasure` 5 | 정상 | SRS REQ-2-05 절차 | 기대대로 |
@@ -437,7 +437,7 @@ LLD-A 5.1과 같다(빌드 명령, 기준 APK = develop a76055e 빌드, `adb log
 | T-B12 활성 창 추종(REQ-2-09) | 호스트 `observeCurrentPath`, 뒤로 가기 ①③ | 정상 | C2: 창 1 `lldA/a`, 창 2 기본 디렉터리. 창 2 활성 → 서랍 열기: 선택 표시가 창 2 경로 → 뒤로 → 창 2만 상위로. 창 1 활성 → 뒤로 → 창 1만. 창 1에서 선택 후 창 2 활성 → 뒤로 → 창 2 상위로(창 1 선택 그대로) | 기대대로 |
 | T-B13 단축키·메뉴 키(F1 ②③) | 창 `onKeyShortcut`, `onMenuKeyEvent`, 액티비티 `dispatchKeyEvent` | 정상 | LLD-A T-11·T-12 절차를 C1(한 창)에서 기준과 비교. C2에서 창 2 활성 → Ctrl+R·Ctrl+H·Ctrl+L·메뉴 키 → 창 2 툴바에서 일어남 | 한 창은 기준과 같음. 두 창은 활성 창에서만 |
 | T-B14 서랍 제스처(REQ-2-10, R1) | (FullDraggableContainer 그대로) | 정상·경계 | C1·C2: 목록 위 아무 곳·빈 화면에서 왼쪽→오른쪽 → 서랍 열림. 서랍 연 채 오른쪽→왼쪽 → 서랍만 닫힘, 창·활성 그대로. C4 메뉴 단추로 고정 메뉴 펼침·접힘. RTL 강제에서 방향 반대로 반복 | 기대대로. 쓸기 방향이 RTL에서 반전(A2) |
-| T-B15 충돌 회피(REQ-2-11) | `isExcludedFromSwipe`, `isInSystemGestureArea`, `requestDisallowInterceptTouchEvent` | 경계 | 제스처 내비게이션(API 36): 오른쪽 가장자리에서 안쪽으로 → 뒤로 가기만. 왼쪽 가장자리 → 뒤로 가기만. 아래 가장자리에서 대각선 → 홈·전환만. 긴 경로 breadcrumb 오른쪽→왼쪽 끌기·짧은 경로 breadcrumb 위 쓸기 → 경로 표시줄만(창 그대로). 툴바 위 쓸기 → 무반응. fastscroll 끌기(긴 목록) → 목록만. 당겨서 새로 고침 → 그대로. 3버튼 내비게이션에서 화면 가장자리 근처 쓸기 → 전환됨(제외 영역 없음) | 기대대로 |
+| T-B15 충돌 회피(REQ-2-11) | `isExcludedFromSwipe`, `isInSystemGestureArea`, `requestDisallowInterceptTouchEvent` | 경계 | 제스처 내비게이션(API 36): 오른쪽 가장자리에서 안쪽으로 → 뒤로 가기만. 왼쪽 가장자리 → 뒤로 가기만. 아래 가장자리에서 대각선 → 홈·전환만. 긴 경로 breadcrumb 오른쪽→왼쪽 끌기·짧은 경로 breadcrumb 위 쓸기 → 경로 표시줄만(창 그대로). 툴바 위 쓸기 → 무반응. fastscroll 끌기(긴 목록) → 목록만. 당겨서 새로 고침 → 그대로. 3버튼 내비게이션: 시험할 때만 `isInSystemGestureArea`에 `systemGestures` 인셋 값을 찍는 임시 `Log.d`를 넣고(커밋 전에 지움) 값을 기록한 뒤, 그 값 밖의 가장자리 근처에서 쓸기 | 기대대로. 3버튼 갈래: 기록한 인셋 띠 안에서 시작한 쓸기는 무반응, 띠 밖은 전환(인셋이 0이면 가장자리까지 전환). 값을 못 얻으면 미확인 |
 | T-B16 창 2 시작 경로(REQ-2-18·19) | 호스트 2 | 정상 | SRS REQ-2-18·19 절차 + 압축 파일 열기 | 창 1 = Intent 경로·압축 루트, 창 2 = 기본 디렉터리 |
 | T-B17 검색 뒤로 가기(F1 ④) | 호스트 ③, 창 `collapseSearchView` | 정상·경계 | C1: (1) 검색 펼침(키보드 닫음) → 뒤로 → 접힘 (2) 하위 폴더 + 검색 펼침 + 서랍 열기 → 뒤로 → 검색 접힘, 다시 뒤로 → 서랍 닫힘 (3) C2: 창 1 검색 펼침, 창 2 활성 → 뒤로 → 창 2 상위 폴더(창 1 검색 그대로) | (1) 기준과 같음 (2) 4.2 순서. 기준(API 36)의 결과도 함께 적어 0.3의 차이 여부를 보고 (3) 기대대로 |
 | T-B18 홈 단추(F1 ⑤) | 창 `setNavigationOnClickListener` | 정상 | C1 메뉴 아이콘 → 서랍 열림. C4 → 고정 메뉴 토글. TalkBack에서 아이콘 설명 | 기준과 같음("탐색 서랍 열기") |
@@ -459,6 +459,7 @@ SRS·HLD는 고치지 않았다. 아래는 설계팀·PM에 넘길 것이다(동
 - **FB-4 (범위 정리) K3 `panePaths`를 #7·#9로**: LLD-A 4장은 #6에 `panePaths`를 두었으나 이 단계에 소비자가 없어 첫 소비자(#7 K7 반대쪽 경로, #9 대상 경로)에서 더한다. HLD 변경 아님.
 - **FB-5 (PM 확인 요청) F3 격자 열 수 공식**: 두 창 모드만 창 너비(K4 목표 상태 기준), 한 창 모드는 지금 공식 유지(2.5). HLD K5 "창 너비로 계산"을 두 창 모드에 적용하고, 한 창 모드에는 LLD-A F3(보이는 변화 회피)을 따른 해석이다.
 - **FB-6 (라이브러리 승인 요청) 단위 테스트 의존성**: `testImplementation 'junit:junit:4.13.2'`(5.1). 승인 안 되면 수동 T-B04만.
+- **검수 1회차 `[판단]` — PM 결정 대기(문서에 아직 반영하지 않음)**: (1) 쓸기 제외 (d)가 `canScrollHorizontally`만 봐서 마키 한 줄 이름(`file_item_list.xml`, `FileListAdapter.kt:228-231`) 위 쓸기가 막힐 수 있음 — 개발팀 권고: 판정 대상을 실제 가로 스크롤 컨테이너(`HorizontalScrollView`·`RecyclerView`·`ViewPager` 계열, 즉 `TextView`가 아닌 것)로 좁히고 T-B08에 이름 글자 위 쓸기를 추가. (4) `paneMode`가 호스트 범위라 회전 직후 첫 프레임에 이전 구성의 값으로 열 수를 계산할 수 있음 — 권고: K4가 판단 결과를 `post` 없이 측정 직후 리스너로 넘기되 K2가 `setPaneMode`만 하고(관찰자는 다음 메시지에서 실행되는 LiveData 특성상 측정 중 뷰 변경 없음), 또는 호스트 `onActivityCreated`에서 `paneMode`를 `PaneMode(false, 0)`으로 초기화. (6) FB-4 `panePaths` 소유 이슈 — 권고: #7로 정하고 #9 본문에 "#7의 `panePaths` 사용" 명시. (7) FB-1·FB-2 HLD 정정은 설계팀 몫(차단 아님).
 - **결정 기록(LLD 재량, HLD가 맡긴 것)**: 쓸기 확정 거리 48dp 또는 플링(2.3), fastscroll 띠 48dp(R2), 길게 누르기 시간에 비활성 창 활성화(HLD 3.4), 비활성 창의 speed dial·붙여넣기 막대는 숨기지 않음(R6).
 
 ## 7. 위험 처리 (HLD 6장)
@@ -476,3 +477,4 @@ SRS·HLD는 고치지 않았다. 아래는 설계팀·PM에 넘길 것이다(동
 | 일자 | 버전 | 변경 | 사유 | 요청자 |
 |---|---|---|---|---|
 | 2026-10-29 | v1 | 최초 작성 | 이슈 #6 LLD 단계(F1·F3 포함) | PM |
+| 2026-10-29 | v1.1 | `isLongPressed` 삭제, 길게 누르기 선후 근거 정정(`super` 전 `postDelayed`), `Args.paneIndex` 기본값 제거, T-B02(K3 무시 갈래), T-B04(600dp 경계를 세로로), T-B15(3버튼 인셋 기록) 보강, 6장에 `[판단]` 대기 항목 | LLD 1회차 검수 `[기계]` 2·3·5·8·9 | 검수팀 |
