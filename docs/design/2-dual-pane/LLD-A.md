@@ -17,7 +17,7 @@
 - **한다**: 지금 `FileListFragment` 하나가 가진 화면 단위 책임(서랍 두 종류, `NavigationFragment`와 그 `Listener`, 고정 메뉴 열림 설정에 따른 서랍 열고 닫기, 서랍 뒤로 가기 콜백, 툴바 메뉴 단추(서랍 열기) 처리, 저장소·알림 권한 요청 흐름 전체)을 새 `FileListHostFragment`(K2)로 옮긴다. 권한 요청 진행 상태는 새 `DualPaneViewModel`(K3 기본)로 옮긴다. `FileListActivity`(K1)는 호스트를 붙이고 단축키를 호스트 → 활성 창으로 넘기며, #10을 고친다.
 - **창은 하나다**. 호스트는 창 컨테이너 하나(`R.id.paneContainer`)에 `FileListFragment` 하나를 붙인다. 활성 창은 늘 창 1(인덱스 0)이다.
 - **하지 않는다(#6~#9 몫)**: `DualPaneLayout`·너비 판단·쓸기·탭 활성화·RTL 반전(K4, #6), 창 2 생성·선택 모드 판단(`isDualPaneEnabled`)·`togglePane()`·`paneMode`·`panePaths`(K3 나머지, #6), 창 표시 줄(K7, #7), 확인 창(K6, #8), 반대쪽 복사·이동(#9). 이들이 붙을 자리는 4장.
-- **이 단계에서 미루는 K5 항목**(설계 피드백 F1·F3, PM 확인 필요): HLD D2의 "툴바 자체 메뉴(`MenuHost`)로 바꾸기"와 "격자 열 수를 창 너비로 계산"은 창이 하나인 이 단계에서 하면 **사용자에게 보이는 변화가 생긴다**(근거 F1·F3). 이 단계는 지금처럼 창 툴바를 `setSupportActionBar`로 지정하고 열 수 공식도 그대로 둔다. 두 항목은 창 2가 생기는 #6에서 한다.
+- **이 단계에서 미루는 K5 항목**(설계 피드백 F1·F3, **PM 결정으로 #6으로 미룸 확정** — 2026-10-28, #5 코멘트 "🗂 PM 결정 — LLD-A"): HLD D2의 "툴바 자체 메뉴(`MenuHost`)로 바꾸기"와 "격자 열 수를 창 너비로 계산"은 창이 하나인 이 단계에서 하면 **사용자에게 보이는 변화가 생긴다**(근거 F1·F3). 이 단계는 지금처럼 창 툴바를 `setSupportActionBar`로 지정하고 열 수 공식도 그대로 둔다. 두 항목은 창 2가 생기는 #6에서 한다.
 
 ### 0.2 추적 — 이 단계의 몫
 | REQ | 이 단계의 몫 | 확인 |
@@ -29,13 +29,13 @@
 
 ### 0.3 사용자에게 보이는 변화
 - 열고 닫는 서랍 화면(폰 세로·가로, `layout/`): **없음**.
-- 고정 메뉴 화면(`layout-sw600dp-land/`, 짧은 변 600dp 이상 가로): **배치가 바뀐다** — 앱바·붙여넣기/선택 하단 막대·speed dial이 창 안으로 들어가 고정 메뉴 오른쪽 영역에만 놓이고, 고정 메뉴는 화면 위·아래 끝까지 닿는다. 화면/창 분리 자체의 결과라(앱바·하단 막대가 창 단위 부품, 서랍이 화면 단위 부품) 피할 수 없다. 앱바가 창 안으로 들어가고 고정 메뉴가 화면 위쪽까지 닿는 것은 HLD D2가 적었고 오너가 수용했다(R8). 새로 확인받을 것은 하단 막대·speed dial 위치, 고정 메뉴가 아래 끝까지 닿는 것, 초점·읽기 순서 변화(고정 메뉴가 앱바보다 앞 순서가 됨), 그리고 "이 변화가 #5에서 생긴다"는 점이다 → 설계 피드백 F2, **PM 확인 필요**.
+- 고정 메뉴 화면(`layout-sw600dp-land/`, 짧은 변 600dp 이상 가로): **배치가 바뀐다** — 앱바·붙여넣기/선택 하단 막대·speed dial이 창 안으로 들어가 고정 메뉴 오른쪽 영역에만 놓이고, 고정 메뉴는 화면 위·아래 끝까지 닿는다. 화면/창 분리 자체의 결과라(앱바·하단 막대가 창 단위 부품, 서랍이 화면 단위 부품) 피할 수 없다. 앱바가 창 안으로 들어가고 고정 메뉴가 화면 위쪽까지 닿는 것은 HLD D2가 적었고 오너가 수용했다(R8). 새로 확인받을 것은 하단 막대·speed dial 위치, 고정 메뉴가 아래 끝까지 닿는 것, 초점·읽기 순서 변화(고정 메뉴가 앱바보다 앞 순서가 됨), 그리고 "이 변화가 #5에서 생긴다"는 점이다 → 설계 피드백 F2. **오너 수용(2026-10-28, #5 코멘트 "🗂 PM 결정 — LLD-A")** — 이 단계의 "보이는 변화 없음"에 대한 유일한 예외: 앱바·하단 막대·speed dial이 창 영역 안으로, 고정 메뉴가 화면 위·아래 끝까지, 초점·읽기 순서에서 고정 메뉴가 앱바보다 앞.
 
 ## 1. 변경 파일 (R4 범위 공지 — PROCESS_ROLES 11-1, 5개 초과)
 
 | # | 파일 | 신규/수정 | 요지 | 구성요소 |
 |---|---|---|---|---|
-| 1 | `app/src/main/java/me/zhanghai/android/files/filelist/FileListActivity.kt` | 수정 | `FileListHostFragment`를 붙인다. `onKeyShortcut`을 호스트로 넘기고 처리되지 않으면 `super.onKeyShortcut`(#10). | K1 |
+| 1 | `app/src/main/java/me/zhanghai/android/files/filelist/FileListActivity.kt` | 수정 | `FileListHostFragment`를 붙인다(복원된 프래그먼트가 다른 타입이면 교체 — m1). `onKeyShortcut`을 호스트로 넘기고 처리되지 않으면 `super.onKeyShortcut`(#10). | K1 |
 | 2 | `app/src/main/java/me/zhanghai/android/files/filelist/FileListHostFragment.kt` | 신규 | 화면 단위 책임(서랍·탐색 서랍·권한·뒤로 가기 순서). | K2 |
 | 3 | `app/src/main/java/me/zhanghai/android/files/filelist/DualPaneViewModel.kt` | 신규 | 호스트 범위 뷰모델: `activePane`(0), 권한 요청 진행 상태 두 개. | K3(기본) |
 | 4 | `app/src/main/java/me/zhanghai/android/files/filelist/FileListFragment.kt` | 수정 | 화면 단위 코드 제거, 창 전용 뒤로 가기 디스패처, 호스트 `Listener`, 공개 함수 정리. | K5 |
@@ -60,10 +60,30 @@
 - **추적**: HLD K1 / REQ-2-01, REQ-2-19
 - **책임**: 화면 루트로 `FileListHostFragment`를 붙인다.
 - **입력·전제**: 메인 스레드. `intent`는 시작 Intent(다른 앱의 열기·선택 요청 포함).
-- **출력·사후조건**: `savedInstanceState == null`이면 `FileListHostFragment().putArgs(FileListHostFragment.Args(intent))`를 `android.R.id.content`에 `add`. 아니면 `supportFragmentManager.findFragmentById(android.R.id.content) as FileListHostFragment`. 필드 `fragment`의 타입은 `FileListHostFragment`.
-- **오류**: 복원 시 다른 클래스가 그 자리에 있으면 `ClassCastException` — 기존과 같은 패턴(`FileListActivity.kt:34-35`). 앱 업데이트를 넘는 상태 복원(이전 판 `FileListFragment` 저장 상태)은 3장 T-17로 확인.
-- **알고리즘**: 기존 `FileListActivity.kt:25-37`에서 `FileListFragment` → `FileListHostFragment`, `FileListFragment.Args` → `FileListHostFragment.Args`만 바꾼다. `findViewById<View>(android.R.id.content)`(ensureSubDecor) 줄은 그대로.
+- **출력·사후조건**: `savedInstanceState == null`이면 `FileListHostFragment().putArgs(FileListHostFragment.Args(intent))`를 `android.R.id.content`에 `add`. 아니면 `fragment = restoreHostFragment()`(아래). 필드 `fragment`의 타입은 `FileListHostFragment`. 어느 경우든 `onCreate`가 끝나면 `android.R.id.content`에는 `FileListHostFragment` 하나만 있다.
+- **오류**: 없음 — 복원 자리의 타입이 다른 경우는 `restoreHostFragment()`가 교체로 처리한다(기존 `FileListActivity.kt:34-35`의 무조건 `as` 캐스트를 대체).
+- **알고리즘**: 기존 `FileListActivity.kt:25-37`에서 `FileListFragment` → `FileListHostFragment`, `FileListFragment.Args` → `FileListHostFragment.Args`로 바꾸고, `else` 분기(`:33-36`)를 `fragment = restoreHostFragment()`로 바꾼다. `findViewById<View>(android.R.id.content)`(ensureSubDecor) 줄은 그대로.
 - **기존 코드와의 관계**: `FileListActivity.kt:23`, `:30-36` 대체.
+
+#### `FileListActivity.restoreHostFragment(): FileListHostFragment` (private, 신규 — 검수 m1, PM 결정 2026-10-28)
+- **추적**: HLD K1 / REQ-2-01, `State_Preservation`(크래시 없는 복원), LLD 5장 T-17
+- **책임**: 저장 상태에서 복원된 `android.R.id.content`의 프래그먼트가 `FileListHostFragment`면 그대로 쓰고, 아니면(이전 판 앱이 저장한 `FileListFragment`, 또는 없음) 그것을 제거하고 새 호스트로 바꾼다.
+- **입력·전제**: `onCreate`의 `super.onCreate(savedInstanceState)` **뒤**, `savedInstanceState != null`일 때만 부른다. 메인 스레드. 이 시점에 복원된 프래그먼트는 `CREATED` 상태다 — `FragmentActivity.onCreate`가 상태 복원 후 `dispatchCreate()`만 하고, 뷰 생성(`onCreateView`·`onActivityCreated`)은 `onStart`의 `dispatchActivityCreated()`에서 일어난다. 그래서 이전 판 프래그먼트의 뷰는 아직 없다.
+- **왜 필요한가(교체하지 않으면)**: 이전 판(759c331 이전 구조)이 저장한 상태에는 `android.R.id.content`에 `FileListFragment`가, 그 자식으로 `R.id.navigationFragment` 자리의 `NavigationFragment`가 있다. 복원하면 새 판의 `FileListFragment`(창) 클래스로 다시 만들어지는데, ① 새 창 레이아웃에는 `R.id.navigationFragment`가 없어 `onStart`에서 자식 `NavigationFragment`의 컨테이너를 찾지 못해 `IllegalArgumentException("No view found for id …")`, ② 창의 `listener`(`requireParentFragment()`)가 부모가 없어 `IllegalStateException`, ③ 기존 `as FileListHostFragment` 캐스트가 `ClassCastException`이 된다(정적 분석, 실기 미확인 — T-17).
+- **출력·사후조건**: 돌려준 호스트가 `android.R.id.content`의 유일한 프래그먼트. 교체한 경우 이전 프래그먼트와 그 자식들(`NavigationFragment`, 열려 있던 대화상자 프래그먼트 등)은 뷰가 만들어지기 전에 `onDestroy`·`onDetach`까지 끝나고, 그 `ViewModelStore`(창 `FileListViewModel`)는 비워진다(`onCleared` → 목록 `LiveData` 닫힘, `FileListViewModel.kt:236-238`).
+- **오류**: 없음. `commitNow`는 `onCreate` 안(상태 저장 전, 다른 트랜잭션 실행 중이 아님)이라 허용된다.
+- **알고리즘**:
+  1. `val restored = supportFragmentManager.findFragmentById(android.R.id.content)`
+  2. `if (restored is FileListHostFragment) return restored`
+  3. `val host = FileListHostFragment().putArgs(FileListHostFragment.Args(intent))`
+  4. `supportFragmentManager.commitNow { if (restored != null) remove(restored); add(android.R.id.content, host) }` — 반드시 `commitNow`. `FragmentActivity.onStart`는 첫 시작 때 `dispatchActivityCreated()`(복원된 프래그먼트의 뷰 생성)를 **먼저** 하고 그 뒤에 `execPendingActions()`를 부르므로(fragment 1.8.8 바이트코드), `commit`이면 교체가 실행되기 전에 이전 프래그먼트의 뷰가 만들어져 위 ①·②의 크래시가 그대로 난다.
+  5. `return host`
+- **상태 손실 범위**(교체될 때만 — 정상 회전·재생성에서는 2에서 돌아가므로 손실 없음):
+  - 잃는 것: 이전 화면의 현재 경로·뒤로 가기 기록·검색어·선택·스크롤 위치, 열려 있던 대화상자(이름 바꾸기·새로 만들기·근거 대화상자 등 — 그 입력값 포함), 권한 요청 진행 상태(호스트 뷰모델은 새것이라 처음 값 false → 다음 `onResume`에서 필요하면 다시 묻는다).
+  - 잃지 않는 것: 액티비티 `intent`(복원된 액티비티가 그대로 가짐 → 새 호스트 → 창 1이 시작 경로를 지금 규칙(기존 `FileListFragment.kt:282-342`)으로 다시 정한다: 런처로 연 화면은 설정의 기본 디렉터리, 경로 Intent로 연 화면은 그 경로, 선택 모드 Intent는 선택 모드 그대로), 설정 값, 책갈피.
+  - 복사 목록(`PasteState`, 프로세스 전역)은 앱 업데이트로 프로세스가 이미 끝났으므로 원래 비어 있다 — 이 함수와 무관.
+  - 이 손실은 프로세스 종료 뒤 경로가 복원되지 않는 기존 동작(SRS A6, 편차 #11)과 같은 수준이다.
+- **기존 코드와의 관계**: `FileListActivity.kt:33-36`(`else` 분기의 무조건 캐스트) 대체. 같은 저장소에 비슷한 방어 패턴은 없다(새 함수).
 
 #### `FileListActivity.onKeyShortcut(keyCode: Int, event: KeyEvent): Boolean` (수정, #10)
 - **추적**: HLD K1 / REQ-2-09, #10
@@ -406,7 +426,7 @@ class FileListHostFragment : Fragment(), FileListFragment.Listener, NavigationFr
 | T-14 고정 메뉴 배치(C4) | sw600dp-land 레이아웃 4개 | 정상(의도된 변화) | C4에서 시작·고정 메뉴 펼침/접힘·붙여넣기 막대(복사 후)·speed dial 열기를 기준과 나란히 캡처 | 0.3대로만 다르다: 앱바·하단 막대·speed dial이 고정 메뉴 오른쪽 영역에. 고정 메뉴 맨 위 항목이 상태 표시줄에 가리지 않고, 맨 아래 항목이 내비게이션 막대에 가리지 않음. 목록 마지막 항목이 하단 막대·내비게이션 막대에 가리지 않음. 같은 확인을 (a) 3버튼 내비게이션과 제스처 내비게이션(`adb shell cmd overlay enable com.android.internal.systemui.navbar.threebutton` / `...navbar.gestural`) (b) 개발자 옵션 "RTL 레이아웃 방향 강제"(`adb shell settings put global debug.force_rtl 1` 후 앱 재시작, 끝나면 0) (c) 왼쪽 인셋이 있는 구성(기기를 반대 가로 방향으로 돌려 3버튼 내비게이션 막대가 왼쪽에 오게 — 태블릿형 sw600dp 구성은 막대가 하단에 남을 수 있으므로, 그때는 개발자 옵션 "디스플레이 컷아웃 시뮬레이션" 오버레이로 왼쪽 인셋을 만들고, 그래도 인셋이 생기지 않으면 **미확인**으로 적는다)에서 반복 — 기준 APK와 0.3의 차이 외에 같음 |
 | T-15 격자 열 수 | 창 `updateSpanCount`, 호스트 `onPersistentDrawerOpenChanged` | 경계 | 격자 보기로 바꾼 뒤 C1·C2·C4(고정 메뉴 펼침/접힘)에서 한 줄 열 수 비교, C4에서 펼침↔접힘 전환 직후 | 기준과 같은 열 수, 전환 직후 바로 바뀜 |
 | T-16 회전·상태 유지 | 전체 | 경계 | 하위 폴더 + 선택 2개 + 검색 펼침(검색어 입력) + 복사 목록 있는 상태에서 회전 ×2, 서랍 연 채로 회전 | 경로·선택·검색어·붙여넣기 막대·스크롤 위치가 기준과 같게 유지 |
-| T-17 앱 업데이트 뒤 복원 | `FileListActivity.onCreate` 복원 분기 | 오류 | 개발자 옵션 "활동 유지 안 함" 켬(`adb shell settings put global always_finish_activities 1`) → `baseline.apk`로 하위 폴더 연 뒤 홈 → `adb install -r feature.apk` → 최근 앱에서 복귀. 끝나면 `... always_finish_activities 0` | 크래시 없음(새로 시작하거나 정상 복원). 크래시가 나면 원인(이전 판 저장 상태의 `FileListFragment` 복원)과 함께 보고 — 대응(복원 분기에서 타입이 다르면 새로 만들기)은 PM 판단 |
+| T-17 앱 업데이트 뒤 복원 | `FileListActivity.onCreate` 복원 분기 | 오류 | 개발자 옵션 "활동 유지 안 함" 켬(`adb shell settings put global always_finish_activities 1`) → `baseline.apk`로 하위 폴더 연 뒤 홈 → `adb install -r feature.apk` → 최근 앱에서 복귀. 끝나면 `... always_finish_activities 0` | **크래시 없음 + 기본 폴더로 시작**(런처로 연 화면이므로 설정의 기본 디렉터리, 이전에 열었던 하위 폴더가 아님). `adb logcat -b crash -d` 비어 있음. `dumpsys activity top`에 `FileListHostFragment` > `FileListFragment`·`NavigationFragment`만 있고 이전 판 `FileListFragment`가 `android.R.id.content`에 남아 있지 않음. 업데이트 후 저장 상태가 아예 넘어오지 않아(시스템이 버림) 처음부터 시작해도 기대 결과는 같다 — 이때는 "복원 분기 미발동"으로 적고, 같은 절차를 `adb shell am kill` 없이 `always_finish_activities` 상태에서 baseline→feature 순으로 한 번 더 시도한다. 정상 회전(T-16)에서는 교체가 일어나지 않아야 한다(상태 유지) |
 | T-18 새 작업·복사 목록 공유 | (변경 없음 확인) | 정상 | 넘침 메뉴 "새 작업" → 새 화면에서 파일 복사 → 원래 화면으로 돌아와 붙여넣기 막대 | 기준과 같이 공유됨(HLD D6) |
 | T-19 프로세스 종료 | (변경 없음 확인, A6 편차) | 경계 | 하위 폴더에서 홈 → `adb shell am kill me.zhanghai.android.files` → 복귀 | 기준과 같음(기본 디렉터리 또는 Intent 경로에서 다시 시작 — 편차 #11) |
 
@@ -416,15 +436,15 @@ class FileListHostFragment : Fragment(), FileListFragment.Listener, NavigationFr
 ## 6. 설계 피드백
 설계 문서(SRS·HLD)는 고치지 않았다. PM·설계팀 확인이 필요한 것은 "질문"으로 표시했다.
 
-- **F1 (질문) HLD D2를 #5에서 하면 보이는 변화가 생긴다 → #6으로 미룸**: `setSupportActionBar`는 메뉴 호스팅만이 아니라 툴바에 다음을 한다(appcompat 1.7.1 바이트코드 확인): ① `ToolbarWidgetWrapper` 생성자가 테마 `actionBarStyle`의 `titleTextStyle`·`subtitleTextStyle`·`contentInsetStart/End`·`height`·`popupTheme`·`displayOptions`를 툴바에 적용(창 레이아웃의 `app:subtitleTextAppearance` 등을 덮어씀 — 그래서 지원 액션바를 빼면 제목·부제목 글꼴·여백이 바뀔 수 있음) ② 툴바 메뉴의 단축키(`file_list.xml:84-105` Ctrl+L·R·A·H)를 `AppCompatDelegateImpl.onKeyShortcut`이 처리 ③ 메뉴 키(`AppCompatActivity.dispatchKeyEvent` → `ActionBar.onMenuKeyEvent`)로 넘침 메뉴 열기 ④ 검색 펼침의 뒤로 가기 접기(API 33 미만 `AppCompatDelegateImpl.onBackPressed` → `collapseActionView`, API 33 이상 `Toolbar.setBackInvokedCallbackEnabled(true)`) ⑤ 내비게이션 아이콘 → `android.R.id.home` ⑥ 액티비티 제목 → 툴바 제목. HLD D2·K5는 이를 다루지 않는다. 창이 하나인 #5에서는 지원 액션바가 틀리지 않으므로(D2의 이유는 창이 둘일 때의 문제) 유지하고, D2는 창 2가 생기는 #6에서 하되 HLD에 ①~⑥의 동등성(특히 ① 글꼴 유지 방법)을 적어 달라. **PM 확인: #5에서 D2를 미루는 것.**
-- **F2 (질문) 고정 메뉴 화면의 배치 변화는 #5에서 생긴다(D2가 아니라 분리 자체의 결과)**: 서랍(화면 단위)과 앱바·하단 막대·speed dial(창 단위)을 나누는 순간 생긴다. 앱바가 창 안으로 들어가고 고정 메뉴가 화면 위쪽까지 닿는 것은 HLD 5장 D2가 이미 적었고 오너가 수용했다(R8). D2·R8에 없는 것: ① 하단 막대·speed dial — 지금은 고정 메뉴까지 덮는 전체 폭(`layout-sw600dp-land/file_list_fragment_include.xml:10-14`, `:41-43`)이고 분리 뒤에는 창 영역에만 있다 ② 고정 메뉴가 화면 아래 끝까지 닿는다 ③ 초점(Tab)·화면 낭독 순서에서 고정 메뉴가 앱바보다 앞이 된다(뷰 계층 순서). 이슈 #5 본문의 "사용자에게 보이는 동작 변화 없음"의 예외로 ①~③을 받아들일지 **PM(필요하면 오너) 확인**.
-- **F3 격자 열 수를 창 너비로(HLD K5)는 #6으로**: 창이 하나일 때 창 너비 기준으로 바꾸면 고정 메뉴 실제 너비(320dp보다 작을 수 있음, `navigation/NavigationRecyclerView.kt:53-60`)·시스템 인셋 때문에 지금(`screenWidthDp` − 320dp, `:660-665`)과 열 수가 달라지는 화면이 생긴다. 두 창에서만 필요하므로 #6에서 바꾼다.
+- **F1 (결정됨: #6으로 미룸, PM 2026-10-28) HLD D2를 #5에서 하면 보이는 변화가 생긴다 → #6으로 미룸**: `setSupportActionBar`는 메뉴 호스팅만이 아니라 툴바에 다음을 한다(appcompat 1.7.1 바이트코드 확인): ① `ToolbarWidgetWrapper` 생성자가 테마 `actionBarStyle`의 `titleTextStyle`·`subtitleTextStyle`·`contentInsetStart/End`·`height`·`popupTheme`·`displayOptions`를 툴바에 적용(창 레이아웃의 `app:subtitleTextAppearance` 등을 덮어씀 — 그래서 지원 액션바를 빼면 제목·부제목 글꼴·여백이 바뀔 수 있음) ② 툴바 메뉴의 단축키(`file_list.xml:84-105` Ctrl+L·R·A·H)를 `AppCompatDelegateImpl.onKeyShortcut`이 처리 ③ 메뉴 키(`AppCompatActivity.dispatchKeyEvent` → `ActionBar.onMenuKeyEvent`)로 넘침 메뉴 열기 ④ 검색 펼침의 뒤로 가기 접기(API 33 미만 `AppCompatDelegateImpl.onBackPressed` → `collapseActionView`, API 33 이상 `Toolbar.setBackInvokedCallbackEnabled(true)`) ⑤ 내비게이션 아이콘 → `android.R.id.home` ⑥ 액티비티 제목 → 툴바 제목. HLD D2·K5는 이를 다루지 않는다. 창이 하나인 #5에서는 지원 액션바가 틀리지 않으므로(D2의 이유는 창이 둘일 때의 문제) 유지하고, D2는 창 2가 생기는 #6에서 하되 HLD에 ①~⑥의 동등성(특히 ① 글꼴 유지 방법)을 적어 달라. **PM 결정(2026-10-28): #6으로 미룸.**
+- **F2 (결정됨: 오너 수용, 2026-10-28) 고정 메뉴 화면의 배치 변화는 #5에서 생긴다(D2가 아니라 분리 자체의 결과)**: 서랍(화면 단위)과 앱바·하단 막대·speed dial(창 단위)을 나누는 순간 생긴다. 앱바가 창 안으로 들어가고 고정 메뉴가 화면 위쪽까지 닿는 것은 HLD 5장 D2가 이미 적었고 오너가 수용했다(R8). D2·R8에 없는 것: ① 하단 막대·speed dial — 지금은 고정 메뉴까지 덮는 전체 폭(`layout-sw600dp-land/file_list_fragment_include.xml:10-14`, `:41-43`)이고 분리 뒤에는 창 영역에만 있다 ② 고정 메뉴가 화면 아래 끝까지 닿는다 ③ 초점(Tab)·화면 낭독 순서에서 고정 메뉴가 앱바보다 앞이 된다(뷰 계층 순서). 이슈 #5 본문의 "사용자에게 보이는 동작 변화 없음"의 예외로 ①~③을 받아들일지 확인을 요청했고, **오너가 수용했다**(#5 코멘트 "🗂 PM 결정 — LLD-A").
+- **F3 (결정됨: #6으로 미룸, PM 2026-10-28) 격자 열 수를 창 너비로(HLD K5)는 #6으로**: 창이 하나일 때 창 너비 기준으로 바꾸면 고정 메뉴 실제 너비(320dp보다 작을 수 있음, `navigation/NavigationRecyclerView.kt:53-60`)·시스템 인셋 때문에 지금(`screenWidthDp` − 320dp, `:660-665`)과 열 수가 달라지는 화면이 생긴다. 두 창에서만 필요하므로 #6에서 바꾼다.
 - **F4 창 레이아웃 파일 이름**: HLD K5의 `res/layout/file_list_pane_fragment.xml` 대신 기존 `file_list_fragment*.xml`을 창 레이아웃으로 쓴다(1장). 문서만 맞추면 된다.
 - **F5 R3 방식**: HLD 3.5의 두 방식 대신 "창 전용 디스패처 + 호스트 전달 콜백"을 골랐다(3.2·3.3 근거 — 등록 시점 방식은 `ON_START` 순서 때문에 효과가 없음). HLD 3.5·R3에 반영을 권한다.
 - **F6 HLD K2 서술 보강**: 고정 메뉴 열림 설정은 호스트(서랍 열고 닫기)와 창(열 수, 기존 `:577`) **둘 다** 관찰한다. 또 HLD 1.1·3.8의 줄 번호는 759c331에서도 맞다.
 - **F7 #10의 실제 영향**: 2.1 분석대로 관찰 가능한 차이는 없을 것으로 본다(미확인, T-11로 확인). #10 본문의 "영향(미확인)"을 구현 PR에서 결과로 닫는다.
 
-설계팀 문의: 위 F1·F2는 PM 판단 사항이라 PM 보고로 올린다. F4~F6은 문서 반영 요청(동작 영향 없음).
+결정 기록: F1·F3은 #6으로 미룸(PM), F2는 오너 수용, 검수 m1은 방어 코드 추가(PM, 2.1 `restoreHostFragment`) — 모두 2026-10-28 #5 코멘트 "🗂 PM 결정 — LLD-A". F4~F6은 문서 반영 요청(동작 영향 없음).
 
 ## 7. 위험 처리 (HLD 6장)
 | ID | 이 단계 처리 |
@@ -435,7 +455,7 @@ class FileListHostFragment : Fragment(), FileListFragment.Listener, NavigationFr
 | R4 | **닫음** — 1장에 변경 파일 10개·범위 명시(5개 초과 공지). 구현 착수 전 PM에게 이 표로 알린다. |
 | R5 | #6(B)로 이월(창이 하나라 해당 없음). |
 | R6 | #6(B)·#7(C)로 이월. |
-| R7·R8 | 닫힘(HLD). 단 R8의 범위는 F2 질문. |
+| R7·R8 | 닫힘(HLD). R8 범위 확장(F2)도 오너 수용(2026-10-28). |
 | R9 | #8(D)로 이월. |
 | R10 | #7(C)로 이월. |
 | R11 | #8(D)로 이월. |
@@ -446,3 +466,4 @@ class FileListHostFragment : Fragment(), FileListFragment.Listener, NavigationFr
 | 2026-10-28 | v1 | 최초 작성 | 이슈 #5 LLD 단계(#10 흡수) | PM |
 | 2026-10-28 | v1.1 | 0.3·F2 서술 정정(D2·R8이 이미 다룬 것과 새로 확인할 것 구분), T-01·T-13·T-14 보강, R3 표기 "방식 확정" | LLD 1회차 검수 m2·m3·m4 | 검수팀 |
 | 2026-10-28 | v1.2 | T-14(c) 왼쪽 인셋 구성 방법 보강 | LLD 2회차 검수 n1 | 검수팀 |
+| 2026-10-28 | v1.3 | PM 결정 반영: 0.1(F1·F3 확정), 0.3(F2 오너 수용), 2.1 `restoreHostFragment` 신규(m1)와 `onCreate` 갱신, 1장 표 1행, T-17 기대 결과, 6장 F1~F3 결정 표기, 7장 R8 | #5 "🗂 PM 결정 — LLD-A" | PM |
