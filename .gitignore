@@ -8,3 +8,7 @@
 /signing.properties
 .DS_Store
 *.iml
+_workspace/
+.claude/settings.local.json
+.claude/settings.local.json.bak-*
+.claude/tools/stop-*

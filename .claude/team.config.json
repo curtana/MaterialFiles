@@ -1,0 +1,46 @@
+{
+  "project_name": "MeterialFiles",
+  "project_desc": "Material Design open-source file manager for Android (NIO2 backend, root/NAS/archive support)",
+  "language": "Kotlin (Android, Gradle)",
+  "user_shell": "PowerShell",
+  "manager_python": "/c/Python314/python",
+  "sub_python_posix": "",
+  "sub_python_win": "",
+  "test_cmd": "JAVA_HOME=\"/c/Program Files/Android/Android Studio/jbr\" ./gradlew assembleDebug --console=plain 2>&1 | tail -n 30",
+  "test_one_cmd": "JAVA_HOME=\"/c/Program Files/Android/Android Studio/jbr\" ./gradlew :app:compileDebugKotlin --console=plain 2>&1 | tail -n 30",
+  "main_branch": "master",
+  "integration_branch": "develop",
+  "feature_prefix": "feature/",
+  "critical_paths": "file system backend (app/src/main/java/me/zhanghai/android/files/provider/), file jobs (filejob/), JNI (app/src/main/jni/), build config (app/build.gradle)",
+  "out_dir": "_workspace",
+  "tmp_root_win": "G:\\tmp\\MeterialFiles",
+  "tmp_root_posix": "/g/tmp/MeterialFiles",
+  "tasks_root_posix": "/c/Users/curta/AppData/Local/Temp/claude/G--workspace-MeterialFiles",
+  "process_filter": "MeterialFiles|[\\\\/]wt-|/g/tmp/MeterialFiles",
+  "process_exclude": "",
+  "disk_letter": "G:",
+  "worktree_prefix": "wt-",
+
+  "golden": false,
+  "workspace_only_roles": null,
+
+  "standards": true,
+  "standards_name": "Android app quality guidelines (Core App Quality + Play policy)",
+  "standards_docs": "docs/STANDARDS_TRACEABILITY.md",
+
+  "holdout": false,
+  "holdout_path": "",
+
+  "analyst": true,
+  "watcher": false,
+
+  "release": "tag+build",
+  "tag_format": "v<X.Y.Z>",
+  "build_cmd": "JAVA_HOME=\"/c/Program Files/Android/Android Studio/jbr\" ./gradlew assembleRelease --console=plain",
+  "build_artifact": "app/build/outputs/apk/release/",
+  "suite_allow_min": 30,
+
+  "shared_permissions": true,
+  "auto_merge_pr": true,
+  "python_repl_deny": true
+}
