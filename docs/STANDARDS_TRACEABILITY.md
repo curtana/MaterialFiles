@@ -124,12 +124,12 @@
 
 | 이슈 | 관련 조항 ID | REQ ID | 비고 |
 |---|---|---|---|
-| #2 두 창 파일 목록 — 시스템 뒤로 가기·제스처 충돌 | `Back_Button_Nav`, `Back_Gesture_Nav`, GN-1, GN-2, GN-3, GN-4 | (설계팀이 SRS 개정 시 채움) | 제외 영역을 요청하지 않으면 GN-4는 영향 없음 |
-| #2 — 큰 화면·창 크기·멀티 윈도 | `Fullscreen_Display`, `Consistent_UX`, `Display_State_Parity`, `Multi-Window_Functionality`, `Responsive_adaptive_layouts`, WSC-1, WSC-2, WSC-3 | (설계팀이 SRS 개정 시 채움) | WSC-3: 폰 가로도 두 창 유지(오너 결정, 3장) |
-| #2 — 상태 유지(회전·구성 변경) | `State_Preservation`, `Orientation_Transitions`, `Config_Changes`, `Config_Combinations` | (설계팀이 SRS 개정 시 채움) | |
-| #2 — 접근성(터치 대상·쓸기 대체·TalkBack·색 외 구분) | `Touch_Target_Size`, `Touch_Targets`, `Visual_Contrast`, `Content_Description`, `Theme_Support`, `Mouse_Trackpad_Basic`, `Keyboard_Navigation`, A11Y-1, A11Y-2, A11Y-3, A11P-1, A11P-2, A11P-3, A11P-4 | (설계팀이 SRS 개정 시 채움) | A11P-1이 SRS 4.3 Q3에 해당 |
-| #2 — 확인 대화상자 | `UI_Secondary_Elements`, `Keyboard_Exit` | (설계팀이 SRS 개정 시 채움) | 복사·이동 전 확인 창 자체를 요구하는 조항은 확인한 문서에 없다 — 확인 창은 규격 요구가 아닌 요구사항 결정이다 |
-| #2 — RTL | RTL-1, RTL-2, RTL-3, RTL-4, RTL-5 | (설계팀이 SRS 개정 시 채움) | RTL-5는 원문 판독 필요 |
+| #2 두 창 파일 목록 — 시스템 뒤로 가기·제스처 충돌 | `Back_Button_Nav`, `Back_Gesture_Nav`, GN-1, GN-2, GN-3, GN-4 | REQ-2-02, REQ-2-09, REQ-2-10, REQ-2-11 | 제외 영역을 요청하지 않으면 GN-4는 영향 없음 |
+| #2 — 큰 화면·창 크기·멀티 윈도 | `Fullscreen_Display`, `Consistent_UX`, `Display_State_Parity`, `Multi-Window_Functionality`, `Responsive_adaptive_layouts`, WSC-1, WSC-2, WSC-3 | REQ-2-03, REQ-2-04, REQ-2-05, REQ-2-06, REQ-2-12, REQ-2-17, REQ-2-20 | WSC-3: 폰 가로도 두 창 유지(오너 결정, 3장) |
+| #2 — 상태 유지(회전·구성 변경) | `State_Preservation`, `Orientation_Transitions`, `Config_Changes`, `Config_Combinations` | REQ-2-04, REQ-2-05, REQ-2-15, REQ-2-18 (SRS A6) | |
+| #2 — 접근성(터치 대상·쓸기 대체·TalkBack·색 외 구분) | `Touch_Target_Size`, `Touch_Targets`, `Visual_Contrast`, `Content_Description`, `Theme_Support`, `Mouse_Trackpad_Basic`, `Keyboard_Navigation`, A11Y-1, A11Y-2, A11Y-3, A11P-1, A11P-2, A11P-3, A11P-4 | REQ-2-07, REQ-2-08, REQ-2-17, REQ-2-20 (SRS 3.3) | A11P-1은 REQ-2-20(창 표시 누르기 전환·동작 설명, 요구사항 v2 결정 Q3)으로 충족하기로 결정됨. 두 창 모드 활성화는 REQ-2-07 |
+| #2 — 확인 대화상자 | `UI_Secondary_Elements`, `Keyboard_Exit` | REQ-2-14, REQ-2-15, REQ-2-21 | 복사·이동 전 확인 창 자체를 요구하는 조항은 확인한 문서에 없다 — 확인 창은 규격 요구가 아닌 요구사항 결정이다 |
+| #2 — RTL | RTL-1, RTL-2, RTL-3, RTL-4, RTL-5 | REQ-2-06, REQ-2-07, REQ-2-11의 방향(SRS A2), REQ-2-15·17의 경로 표시 (SRS 3.5) | RTL-5는 원문 판독 필요 |
 
 ## 5. 변경 이력
 
@@ -138,3 +138,4 @@
 | 2026-10-28 | v0.1 | 초안. CQ(2026-10-20 판), AQ·AQ3·AQ2(2026-10-21 판), GN·WSC·A11Y·A11P·RTL(2026-10-23 판) 근거로 작성. | PM 보조 |
 | 2026-10-28 | v0.2 | 검수 1회차(PR #4, 조건부 통과) 경미 지적 반영: 필수/권장 기준의 원문 서술 정정, `Fullscreen_Display` 시험 ID 추가, 2.1 수록 범위·미수록 CQ 항목 명시, GN-1 의무 서술 완화, SRS v4 결정(REQ-2-20, Q2·Q3) 참조. | PM 보조 |
 | 2026-10-28 | v0.3 | 오너 결정 기록: 필수/권장 분류 승인, `Network_Security_Traffic` 편차 등록(평문 통신 유지), WSC-3 폰 가로 두 창 유지. | PM |
+| 2026-10-28 | v0.4 | 4장 #2 행의 REQ ID 열을 SRS v4.3(브랜치 `design/2-dual-pane`, PR #3) 기준으로 채움. 접근성 행 비고를 결정 사항(A11P-1 → REQ-2-20)으로 고침 | 설계팀 |
