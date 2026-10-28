@@ -2,7 +2,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 개정 중(v4.7, LLD-A 피드백 반영) |
+| 상태 | 검수 통과(v4.7, SRS v4.7 기준) |
 | 근거 | SRS v4.7 (`docs/design/2-dual-pane/SRS.md`, 요구사항 정리 v2 반영). HLD v3까지는 SRS v3 기준 |
 | 기준 코드 | `origin/develop` 3d87794 |
 
