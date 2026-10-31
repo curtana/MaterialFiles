@@ -370,7 +370,8 @@ class DualPaneLayout @JvmOverloads constructor(
             it.computeCurrentVelocity(1000)
             it.getXVelocity(activePointerId) * swipeSign
         } ?: 0f
-        if (distance >= swipeMinDistance || (distance > touchSlop && velocity >= minFlingVelocity)) {
+        if (distance >= swipeMinDistance ||
+            (distance > touchSlop && velocity >= minFlingVelocity)) {
             listener?.onSwipeToTogglePane()
         }
     }
