@@ -212,7 +212,6 @@ dependencies {
     }
     // Also a dependency of jCIFS-NG.
     implementation 'org.slf4j:slf4j-android:1.7.36'
-    testImplementation 'junit:junit:4.13.2'
 
     testImplementation 'junit:junit:4.13.2'
 
