@@ -65,6 +65,7 @@ import me.zhanghai.android.files.file.extension
 import me.zhanghai.android.files.file.fileProviderUri
 import me.zhanghai.android.files.file.isApk
 import me.zhanghai.android.files.file.isImage
+import me.zhanghai.android.files.filejob.CopyMoveType
 import me.zhanghai.android.files.filejob.FileJobService
 import me.zhanghai.android.files.filelist.FileSortOptions.By
 import me.zhanghai.android.files.filelist.FileSortOptions.Order
@@ -124,7 +125,8 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
     ConfirmReplaceFileDialogFragment.Listener, OpenApkDialogFragment.Listener,
     ConfirmDeleteFilesDialogFragment.Listener, CreateArchiveDialogFragment.Listener,
     RenameFileDialogFragment.Listener, CreateFileDialogFragment.Listener,
-    CreateDirectoryDialogFragment.Listener, NavigateToPathDialogFragment.Listener {
+    CreateDirectoryDialogFragment.Listener, NavigateToPathDialogFragment.Listener,
+    ConfirmCopyMoveDialogFragment.Listener {
     private val args by args<Args>()
     private val argsPath by lazy { args.intent.extraPath }
 
@@ -1133,7 +1135,7 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
                 true
             }
             R.id.action_paste -> {
-                pasteFiles(currentPath)
+                confirmPasteFiles(currentPath)
                 true
             }
             else -> false
@@ -1146,18 +1148,33 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
         }
     }
 
-    private fun pasteFiles(targetDirectory: Path) {
+    private fun confirmPasteFiles(targetDirectory: Path) {
         val pasteState = viewModel.pasteState
-        if (viewModel.pasteState.copy) {
-            FileJobService.copy(
-                makePathListForJob(pasteState.files), targetDirectory, requireContext()
-            )
-        } else {
-            FileJobService.move(
-                makePathListForJob(pasteState.files), targetDirectory, requireContext()
-            )
+        if (pasteState.files.isEmpty()) {
+            return
         }
-        viewModel.clearPasteState()
+        ConfirmCopyMoveDialogFragment.show(
+            pasteState.copy, pasteState.files, targetDirectory,
+            ConfirmCopyMoveDialogFragment.Origin.PASTE, this
+        )
+    }
+
+    override fun copyMoveFiles(
+        type: CopyMoveType,
+        sources: List<Path>,
+        targetDirectory: Path,
+        files: FileItemSet,
+        origin: ConfirmCopyMoveDialogFragment.Origin
+    ) {
+        if (type == CopyMoveType.MOVE) {
+            FileJobService.move(sources, targetDirectory, requireContext())
+        } else {
+            FileJobService.copy(sources, targetDirectory, requireContext())
+        }
+        when (origin) {
+            ConfirmCopyMoveDialogFragment.Origin.PASTE -> viewModel.clearPasteState()
+            ConfirmCopyMoveDialogFragment.Origin.OTHER_PANE -> viewModel.selectFiles(files, false)
+        }
     }
 
     private fun makePathListForJob(files: FileItemSet): List<Path> =
