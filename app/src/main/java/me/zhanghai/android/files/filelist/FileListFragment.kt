@@ -139,6 +139,10 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
     private val _backPressedEnabledLiveData = MutableLiveData(false)
     val backPressedEnabledLiveData: LiveData<Boolean> = _backPressedEnabledLiveData
 
+    // Mirrors the view model, because the host accesses this before this pane is attached.
+    private val _searchViewExpandedLiveData = MutableLiveData(false)
+    val searchViewExpandedLiveData: LiveData<Boolean> = _searchViewExpandedLiveData
+
     /**
      * Holds this pane's back pressed callbacks; the host forwards back presses to the active pane.
      */
@@ -311,6 +315,7 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
         viewModel.currentPathLiveData.observe(viewLifecycleOwner) { onCurrentPathChanged(it) }
         viewModel.searchViewExpandedLiveData.observe(viewLifecycleOwner) {
             onSearchViewExpandedChanged(it)
+            _searchViewExpandedLiveData.value = it
         }
         viewModel.breadcrumbLiveData.observe(viewLifecycleOwner) {
             binding.breadcrumbLayout.setData(it)
@@ -410,9 +415,6 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
             menuBinding.searchItem.collapseActionView()
         }
     }
-
-    val searchViewExpandedLiveData: LiveData<Boolean>
-        get() = viewModel.searchViewExpandedLiveData
 
     // The navigation icon is handled by its own click listener.
     private fun onToolbarMenuItemSelected(item: MenuItem): Boolean {
