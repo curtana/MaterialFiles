@@ -28,16 +28,17 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.OnBackPressedDispatcher
-import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SearchView
 import androidx.appcompat.widget.Toolbar
 import androidx.core.content.pm.ShortcutInfoCompat
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.drawable.IconCompat
 import androidx.core.util.Consumer
+import androidx.core.view.MenuProvider
 import androidx.core.view.isVisible
 import androidx.core.view.updatePaddingRelative
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
@@ -129,6 +130,9 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
 
     private val viewModel by viewModels { { FileListViewModel() } }
 
+    // Created by the host before its panes.
+    private val dualPaneViewModel by viewModels<DualPaneViewModel>({ requireParentFragment() })
+
     private val listener: Listener
         get() = requireParentFragment() as Listener
 
@@ -164,12 +168,6 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
         viewModel.search(query)
     }
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-
-        setHasOptionsMenu(true)
-    }
-
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -182,9 +180,12 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
     override fun onActivityCreated(savedInstanceState: Bundle?) {
         super.onActivityCreated(savedInstanceState)
 
-        val activity = requireActivity() as AppCompatActivity
+        val activity = requireActivity()
         activity.setTitle(R.string.file_list_title)
-        activity.setSupportActionBar(binding.toolbar)
+        // The toolbar isn't set as the support action bar, because there can be two panes; it's
+        // the menu host of this pane instead.
+        binding.toolbar.setTitle(R.string.file_list_title)
+        binding.toolbar.setNavigationOnClickListener { listener.onNavigationIconClicked() }
         overlayActionMode = OverlayToolbarActionMode(binding.overlayToolbar)
         bottomActionMode = PersistentBarLayoutToolbarActionMode(
             binding.persistentBarLayout, binding.bottomBarLayout, binding.bottomToolbar
@@ -249,6 +250,7 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
             var path = argsPath
             val intent = args.intent
             var pickOptions: PickOptions? = null
+            // The pick actions must be kept in sync with FileListHostFragment.isPickIntent().
             when (val action = intent.action) {
                 Intent.ACTION_GET_CONTENT, Intent.ACTION_OPEN_DOCUMENT,
                 Intent.ACTION_CREATE_DOCUMENT -> {
@@ -322,6 +324,7 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
                 updateSpanCount()
             }
         }
+        dualPaneViewModel.paneModeLiveData.observe(viewLifecycleOwner) { updateSpanCount() }
         viewModel.sortOptionsLiveData.observe(viewLifecycleOwner) { onSortOptionsChanged(it) }
         viewModel.viewSortPathSpecificLiveData.observe(viewLifecycleOwner) {
             onViewSortPathSpecificChanged(it)
@@ -334,14 +337,32 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
         Settings.FILE_LIST_SHOW_HIDDEN_FILES.observe(viewLifecycleOwner) {
             onShowHiddenFilesChanged(it)
         }
+        // The menu items read live data values that are only available when the live data are
+        // active, so the menu is created when started, after the observers above become active.
+        // Observers of the same owner are started in the order they are added.
+        viewLifecycleOwner.lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onStart(owner: LifecycleOwner) {
+                owner.lifecycle.removeObserver(this)
+                // This only removes the menu provider when destroyed, so that the menu isn't
+                // recreated whenever stopped and restarted.
+                binding.toolbar.addMenuProvider(menuProvider, owner)
+            }
+        })
     }
 
-    override fun onCreateOptionsMenu(menu: Menu, inflater: MenuInflater) {
-        super.onCreateOptionsMenu(menu, inflater)
+    private val menuProvider = object : MenuProvider {
+        override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
+            menuBinding = MenuBinding.inflate(menu, menuInflater)
+            menuBinding.viewSortItem.subMenu!!.setGroupDividerEnabledCompat(true)
+            setUpSearchView()
+            // The toolbar doesn't call MenuProvider.onPrepareMenu().
+            updateViewSortMenuItems()
+            updateSelectAllMenuItem()
+            updateShowHiddenFilesMenuItem()
+        }
 
-        menuBinding = MenuBinding.inflate(menu, inflater)
-        menuBinding.viewSortItem.subMenu!!.setGroupDividerEnabledCompat(true)
-        setUpSearchView()
+        override fun onMenuItemSelected(menuItem: MenuItem): Boolean =
+            onToolbarMenuItemSelected(menuItem)
     }
 
     private fun setUpSearchView() {
@@ -384,26 +405,18 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
         }
     }
 
-    private fun collapseSearchView() {
+    fun collapseSearchView() {
         if (this::menuBinding.isInitialized && menuBinding.searchItem.isActionViewExpanded) {
             menuBinding.searchItem.collapseActionView()
         }
     }
 
-    override fun onPrepareOptionsMenu(menu: Menu) {
-        super.onPrepareOptionsMenu(menu)
+    val searchViewExpandedLiveData: LiveData<Boolean>
+        get() = viewModel.searchViewExpandedLiveData
 
-        updateViewSortMenuItems()
-        updateSelectAllMenuItem()
-        updateShowHiddenFilesMenuItem()
-    }
-
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+    // The navigation icon is handled by its own click listener.
+    private fun onToolbarMenuItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
-            android.R.id.home -> {
-                listener.onNavigationIconClicked()
-                true
-            }
             R.id.action_view_list -> {
                 viewModel.viewType = FileViewType.LIST
                 true
@@ -490,7 +503,7 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
                 createShortcut()
                 true
             }
-            else -> super.onOptionsItemSelected(item)
+            else -> false
         }
     }
 
@@ -513,7 +526,29 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
                 return true
             }
         }
+        // The toolbar menu goes last, like when it was handled by the support action bar after
+        // the activity.
+        if (this::menuBinding.isInitialized) {
+            val menu = binding.toolbar.menu
+            menu.setQwertyMode(
+                KeyCharacterMap.load(event.deviceId).keyboardType != KeyCharacterMap.NUMERIC
+            )
+            if (menu.performShortcut(keyCode, event, 0)) {
+                return true
+            }
+        }
         return false
+    }
+
+    fun onMenuKeyEvent(event: KeyEvent): Boolean {
+        if (view == null) {
+            return false
+        }
+        // Like ToolbarActionBar.onMenuKeyEvent().
+        if (event.action == KeyEvent.ACTION_UP) {
+            binding.toolbar.showOverflowMenu()
+        }
+        return true
     }
 
     private fun onCurrentPathChanged(path: Path) {
@@ -596,9 +631,16 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
         layoutManager.spanCount = when (viewModel.viewType) {
             FileViewType.LIST -> 1
             FileViewType.GRID -> {
-                var widthDp = resources.configuration.screenWidthDp
-                if (listener.isPersistentDrawerOpen) {
-                    widthDp -= getDimensionDp(R.dimen.navigation_max_width).roundToInt()
+                val paneMode = dualPaneViewModel.paneMode
+                // In dual pane mode the screen width is twice the pane width.
+                val widthDp = if (paneMode.isDualPane) {
+                    paneMode.paneWidthDp
+                } else {
+                    var widthDp = resources.configuration.screenWidthDp
+                    if (listener.isPersistentDrawerOpen) {
+                        widthDp -= getDimensionDp(R.dimen.navigation_max_width).roundToInt()
+                    }
+                    widthDp
                 }
                 (widthDp / 180).coerceAtLeast(2)
             }
@@ -731,6 +773,7 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
             }
         }
         requireActivity().title = title
+        binding.toolbar.title = title
         updateSelectAllMenuItem()
         updateOverlayToolbar()
         updateBottomToolbar()
@@ -1391,9 +1434,8 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
         navigateToRoot(Settings.FILE_LIST_DEFAULT_DIRECTORY.valueCompat)
     }
 
-    fun observeCurrentPath(owner: LifecycleOwner, observer: (Path) -> Unit) {
-        viewModel.currentPathLiveData.observe(owner, observer)
-    }
+    val currentPathLiveData: LiveData<Path>
+        get() = viewModel.currentPathLiveData
 
     companion object {
         private const val ACTION_VIEW_DOWNLOADS =
@@ -1403,7 +1445,7 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
     }
 
     @Parcelize
-    class Args(val intent: Intent) : ParcelableArgs
+    class Args(val intent: Intent, val paneIndex: Int) : ParcelableArgs
 
     interface Listener {
         val hasPersistentDrawer: Boolean

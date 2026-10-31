@@ -13,11 +13,22 @@
             android:layout_height="match_parent"
             android:fitsSystemWindows="true">
 
-            <!-- Must not fit system windows, so that the insets reach the pane unconsumed. -->
-            <FrameLayout
-                android:id="@+id/paneContainer"
+            <!-- Must not fit system windows, so that the insets reach the panes unconsumed. -->
+            <me.zhanghai.android.files.filelist.DualPaneLayout
+                android:id="@+id/dualPaneLayout"
                 android:layout_width="match_parent"
-                android:layout_height="match_parent" />
+                android:layout_height="match_parent">
+
+                <FrameLayout
+                    android:id="@+id/paneContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent" />
+
+                <FrameLayout
+                    android:id="@+id/pane2Container"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent" />
+            </me.zhanghai.android.files.filelist.DualPaneLayout>
         </me.zhanghai.android.files.ui.IgnoreFitsSystemWindowsFullyDraggableDrawerContentLayout>
 
         <!--

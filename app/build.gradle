@@ -212,6 +212,7 @@ dependencies {
     }
     // Also a dependency of jCIFS-NG.
     implementation 'org.slf4j:slf4j-android:1.7.36'
+    testImplementation 'junit:junit:4.13.2'
 
 //#ifdef NONFREE
     implementation platform('com.google.firebase:firebase-bom:34.0.0')
