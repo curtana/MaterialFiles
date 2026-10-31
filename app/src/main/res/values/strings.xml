@@ -317,6 +317,26 @@
     <string name="file_list_paste_copy_title_format">Copying %1$,d</string>
     <string name="file_list_paste_extract_title_format">Extracting %1$,d</string>
     <string name="file_list_paste_action_extract_here">Extract here</string>
+    <string name="file_list_confirm_copy_move_copy_title" translatable="false">@string/copy</string>
+    <string name="file_list_confirm_copy_move_extract_title" translatable="false">@string/file_item_action_extract</string>
+    <string name="file_list_confirm_copy_move_move_title">Move</string>
+    <string name="file_list_confirm_copy_move_item_name_format">“%1$s”</string>
+    <plurals name="file_list_confirm_copy_move_item_count_format">
+        <item quantity="one">%1$,d item</item>
+        <item quantity="other">%1$,d items</item>
+    </plurals>
+    <plurals name="file_list_confirm_copy_move_locations_format">
+        <item quantity="one">%1$s and %2$,d other location</item>
+        <item quantity="other">%1$s and %2$,d other locations</item>
+    </plurals>
+    <string name="file_list_confirm_copy_move_from_to_format">%1$s → %2$s</string>
+    <string name="file_list_confirm_copy_move_to_format">To %1$s</string>
+    <string name="file_list_confirm_copy_move_same_directory_all">The target is the same folder as the original location.</string>
+    <plurals name="file_list_confirm_copy_move_same_directory_some_format">
+        <item quantity="one">The original location of %1$,d item is the same folder as the target.</item>
+        <item quantity="other">The original location of %1$,d items is the same folder as the target.</item>
+    </plurals>
+    <string name="file_list_confirm_copy_move_positive">Start</string>
     <string name="file_list_empty">No files</string>
     <string name="file_list_action_create_file">File</string>
     <string name="file_list_action_create_directory">Folder</string>
