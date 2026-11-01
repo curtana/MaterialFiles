@@ -4,9 +4,9 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 작성 중(v1.2 — PM 결정 반영) |
-| 근거 | SRS v4.7, HLD v4.7 (`docs/design/2-dual-pane/`), LLD-A v1.4, `docs/STANDARDS_TRACEABILITY.md`(develop) |
-| 기준 코드 | `origin/develop` a76055e (#5 머지 PR #15). 인용 줄 번호는 이 커밋 기준 |
+| 상태 | 구현됨(v1.3 — #6 구현 결과에 맞춘 정정, 이슈 #23) |
+| 근거 | SRS v4.7, HLD v4.7 (`docs/design/2-dual-pane/`), LLD-A v1.4, `docs/STANDARDS_TRACEABILITY.md`(develop). v1.3 정정 절(0.3, 2.3 `isSwipeEnabled`, 2.5 `menuProvider`·`searchViewExpandedLiveData`·`onCreate`·`onMenuKeyEvent`, 3장 ④, 4장, T-B17, FB-3)은 HLD v4.9 기준 |
+| 기준 코드 | `origin/develop` a76055e (#5 머지 PR #15). 인용 줄 번호는 이 커밋 기준. **v1.3 정정 절의 줄 번호는 #6 구현이 들어간 0cca1b4(PR #22 머지)** 기준이고 그 절에 "(0cca1b4)"로 표시한다 |
 | 이슈 | #6 (하위 이슈 B, 상위 #2). #5에서 미룬 결정 F1(툴바 `MenuHost`)·F3(격자 열 수)을 포함 |
 | HLD 구성요소 | K3(나머지), K4(신규), K2·K5·K1(이 단계 몫) |
 | 추적 REQ | REQ-2-02~07, 10, 11 (+ 창 2가 생기며 함께 성립시키는 REQ-2-01·09·18·19의 창 2 부분) |
@@ -40,7 +40,11 @@
 
 ### 0.3 사용자에게 보이는 변화
 - **의도된 변화**(요구사항): 두 창 모드, 쓸기 전환, 탭 활성화. 창 2의 붙여넣기 막대·speed dial도 창마다 보인다(HLD R6 — 이 단계는 숨기지 않는다, 7장).
-- **F1(툴바 `MenuHost`)**: 3장의 ①~⑥을 유지한다 — 한 창 모드의 툴바 모양·메뉴·단축키·메뉴 키·홈 단추·제목은 기준 APK와 같아야 한다. 단 **하나의 경계 경우**가 달라질 수 있다: API 33 이상에서 검색을 펼친 채 **열고 닫는 서랍을 연 뒤** 뒤로 가기를 누르면, 지금은 그 순간의 콜백 등록 순서에 따라 서랍이 먼저 닫히기도 하고 검색이 먼저 접히기도 한다(4.1). 이 LLD는 API 33 미만의 지금 순서(검색 접기 먼저)로 통일한다 — **PM 결정(2026-10-29, FB-3)**.
+- **F1(툴바 `MenuHost`)**: 3장의 ①~⑥을 유지한다 — 한 창 모드의 툴바 모양·메뉴·단축키·메뉴 키·홈 단추·제목은 기준 APK와 같아야 한다. 단 **뒤로 가기의 두 경우**가 기준과 다르다(v1.3 — #6 구현에서 실측, 오너 수용 PR #22 코멘트 6551291116, 4장):
+  1. **API 33 이상, 검색을 펼친 채 열고 닫는 서랍을 연 상태**: 제스처 뒤로는 기준과 같다(첫 번째에 서랍이 닫히고 두 번째에 검색이 접힌다). **뒤로 키(`KEYCODE_BACK` — 하드웨어 키·외부 키보드·`adb shell input keyevent 4`)**는 기준이 한 번에 서랍 닫기와 검색 접기를 함께 하지만, 이 LLD에서는 **서랍 → 검색 순서로 두 번** 눌러야 둘 다 닫힌다. 이유: `DrawerLayout` 1.2.0이 열릴 때 자기 `OnBackInvokedCallback`을 `PRIORITY_OVERLAY`로 등록해 액티비티 `OnBackPressedDispatcher`(호스트 콜백 ③ 검색 접기가 있는 곳)보다 먼저 받는다(4.1).
+  2. **API 33 이상, 검색 입력 키보드가 떠 있을 때**: 기준은 뒤로 한 번에 키보드를 숨기고 검색도 접는다(툴바 자체 `OnBackInvokedCallback`이 `PRIORITY_OVERLAY`라 입력기보다 먼저 받음). 이 LLD에서는 **키보드 숨김 → 검색 접기 순서로 두 번**이다 — API 33 미만 기준 동작과 같다.
+  - API 33 미만은 설계대로 "검색 접기 먼저"다(4.2) — 해당 AVD가 없어 **미확인**(PR #22 결정의 "API<33 분기는 해당 AVD 확보 시 재확인").
+  - v1.2까지의 "API 33 이상도 검색 접기 먼저로 통일"(FB-3)은 서랍 쪽 콜백 우선순위를 놓친 전제였다(6장 FB-3).
 - **F3(격자 열 수)**: 한 창 모드는 지금 공식 그대로라 변화 없음. 두 창 모드만 창 너비로 계산(2.5 `updateSpanCount`).
 
 ### 0.4 #5에서 미룬 결정의 처리 요약
@@ -117,7 +121,7 @@ class DualPaneLayout @JvmOverloads constructor(
 | 필드 | 뜻 |
 |---|---|
 | `var listener: Listener?` | 2.3 `Listener` |
-| `var isSwipeEnabled: Boolean = false` | K2가 `isDualPaneEnabled`로 넣는다. `false`면 쓸기·두 창 모드 모두 없음(제외 (e), 선택 모드). |
+| `var isSwipeEnabled: Boolean = false` (setter) | K2가 `isDualPaneEnabled`로 넣는다. `false`면 쓸기·두 창 모드 모두 없음(제외 (e), 선택 모드). 값이 바뀌면 `requestLayout()`(두 창 모드 판단 4단계가 이 값을 읽으므로 재측정 — v1.3, 구현 `DualPaneLayout.kt:37-44`(0cca1b4)). |
 | `var activePane: Int = 0` (setter) | K2가 K3 관찰로 넣는다. 한 창 모드면 가시성을 바꾸고 `requestLayout()`. |
 | `var persistentDrawerView: View?` | 고정 메뉴 화면에서만 K2가 넣는 서랍 뷰(`R.id.navigationFragment`). 열고 닫는 서랍 화면은 `null`. |
 | `var isPersistentDrawerOpen: Boolean` (setter) | 고정 메뉴의 **목표** 상태(`Settings.FILE_LIST_PERSISTENT_DRAWER_OPEN`). 바뀌면 `requestLayout()`(재판단, REQ-2-04). |
@@ -140,7 +144,7 @@ interface Listener {
 #### `companion object` 상수와 파일 수준 순수 함수
 - `const val DUAL_PANE_MIN_WIDTH_DP = 600` (REQ-2-03, WSC Compact/Medium 경계)
 - `const val SWIPE_MIN_DISTANCE_DP = 48` — 확정 거리(HLD 3.3-3 "기준 거리 값은 LLD"). 근거: 48dp 터치 대상 크기와 같은 크기로, 슬롭(약 8dp)을 넘겨 가로채기 시작한 뒤 의도한 쓸기로 볼 만큼 충분하고 화면 폭(최소 약 320dp)의 1/6 미만이라 짧은 쓸기도 된다.
-- `const val FAST_SCROLL_TOUCH_WIDTH_DP = 48` — 제외 (c) 띠 너비. 근거: fastscroll 1.3.0의 `afs_min_touch_target_size` = 48dp(라이브러리 `res/values/values.xml`), `FastScroller.isInViewTouchTarget`이 엄지·트랙 뷰를 이 최소 크기로 넓혀 판정(R2 닫음, 7장).
+- `const val FAST_SCROLL_TOUCH_WIDTH_DP = 48` — 제외 (c) 띠 너비. 근거: `FastScroller.isInViewTouchTarget`이 엄지·트랙 뷰를 `afs_min_touch_target_size`로 넓혀 판정한다. 라이브러리 값은 48dp(fastscroll 1.3.0 `res/values/values.xml`)이지만 **이 앱은 24dp로 덮어쓴다**(`res/values/dimens.xml:51-52`, 엄지 옆 팝업 메뉴 때문 — v1.3 정정). 띠 48dp는 실제 터치 영역(최소 24dp)을 덮으므로 판정은 그대로 맞고, 실제보다 넓게 빼는 만큼 쓸기 시작 영역이 줄 뿐이다(R2 닫음, 7장).
 
 - 두 순수 함수는 클래스 밖 **파일 수준** `internal fun`으로 둔다(JVM 클래스 `DualPaneLayoutKt`). 단위 테스트가 `ViewGroup`을 상속한 `DualPaneLayout` 클래스를 불러오지 않고 호출할 수 있게 하기 위해서다(로컬 JVM 시험에는 Android 프레임워크 구현이 없다). 상수는 `const`라 컴파일 때 값이 박혀 클래스 로드가 없다.
 
@@ -309,8 +313,8 @@ interface Listener {
 #### `dualPaneViewModel` (신규 private 필드)
 - `private val dualPaneViewModel by viewModels<DualPaneViewModel>({ requireParentFragment() })` — HLD K3의 창 쪽 접근(`util/FragmentViewModelLazy.kt:15-19`). 호스트가 같은 키로 먼저 만들어 둔다(`H:81`, 호스트 `onActivityCreated`가 자식보다 먼저).
 
-#### `onCreate(savedInstanceState)` (수정, 기존 `F:167-171`)
-- `setHasOptionsMenu(true)` 삭제(옵션 메뉴 경로를 쓰지 않음, F1).
+#### `onCreate(savedInstanceState)` — **삭제** (기존 `F:167-171`)
+- `setHasOptionsMenu(true)` 삭제(옵션 메뉴 경로를 쓰지 않음, F1). 본문이 이 한 줄뿐이라 override 전체를 지웠다(v1.3, 0cca1b4에 `onCreate` 없음).
 
 #### `onActivityCreated(savedInstanceState)` (수정, 기존 `F:182-337`)
 - **추적**: HLD D2, F1 ⑤⑥, F3
@@ -323,15 +327,17 @@ interface Listener {
 | 함수 | 명세 |
 |---|---|
 | `onCreateMenu(menu, menuInflater)` | 기존 `onCreateOptionsMenu`(`F:339-345`) 본문: `menuBinding = MenuBinding.inflate(menu, menuInflater)`, 그룹 구분선, `setUpSearchView()`. 이어서 기존 `onPrepareOptionsMenu`(`F:393-399`)의 세 갱신(`updateViewSortMenuItems`, `updateSelectAllMenuItem`, `updateShowHiddenFilesMenuItem`)을 부른다 — 툴바 `MenuHost`는 `onPrepareMenu`를 부르지 않는다(appcompat 1.7.1 `Toolbar`는 `MenuHostHelper.onPrepareMenu`를 호출하지 않음). 이후 갱신은 지금처럼 LiveData 관찰이 한다. |
-| `onMenuItemSelected(menuItem)` | 기존 `onOptionsItemSelected`(`F:401-495`)에서 `android.R.id.home` 갈래를 뺀 같은 `when`(홈은 ⑤의 내비게이션 클릭으로). `else -> false`. |
-- 삭제: `onCreateOptionsMenu`, `onPrepareOptionsMenu`, `onOptionsItemSelected` override.
+| `onMenuItemSelected(menuItem)` | `onToolbarMenuItemSelected(menuItem)`를 부른다. `private fun onToolbarMenuItemSelected(item: MenuItem): Boolean`(v1.3 — 구현 `F:421-512`(0cca1b4))은 기존 `onOptionsItemSelected`(`F:401-495`) 본문을 그 자리에 함수로 남기고 `android.R.id.home` 갈래를 뺀 같은 `when`이다(홈은 ⑤의 내비게이션 클릭으로). `else -> false`. 함수로 둔 이유: 같은 파일의 #8 수정과 겹치는 diff를 작게 하려고(PR #22 강조점 2). |
+- 삭제: `onCreateOptionsMenu`, `onPrepareOptionsMenu`, `onOptionsItemSelected` override(본문은 위 `onToolbarMenuItemSelected`로).
 - 메뉴 인플레이터: 툴바의 `SupportMenuInflater(toolbar.context)` — 지금 지원 액션바의 테마 컨텍스트(`ToolbarActionBar.getThemedContext()` = 툴바 컨텍스트)와 같아 `app:showAsAction`·검색 뷰 스타일(`ThemeOverlay.MaterialFiles.ActionBar`의 `searchViewStyle`, `res/values/styles.xml:61-64`)이 같다.
 
 #### `fun collapseSearchView()` (가시성 `private` → 공개, 기존 `F:387-391`)
 - 호스트의 검색 접기 콜백(2.4-7 ③)이 부른다. 본문 그대로.
 
-#### `val searchViewExpandedLiveData: LiveData<Boolean>` (신규 공개 게터)
-- `get() = viewModel.searchViewExpandedLiveData`(`FileListViewModel.kt:79`).
+#### `val searchViewExpandedLiveData: LiveData<Boolean>` (신규 공개 필드 — 창 안의 미러, v1.3)
+- `private val _searchViewExpandedLiveData = MutableLiveData(false)`, `val searchViewExpandedLiveData: LiveData<Boolean> = _searchViewExpandedLiveData`(구현 `F:144-146`(0cca1b4)). 값은 `onActivityCreated`의 기존 `viewModel.searchViewExpandedLiveData` 관찰(`F:318-321`(0cca1b4))에서 `_searchViewExpandedLiveData.value = it`으로 옮겨 적는다. 같은 파일의 `backPressedEnabledLiveData`(`F:141-142`)와 같은 방식이다.
+- **v1.2의 `get() = viewModel.searchViewExpandedLiveData`를 바꾼 이유**: 호스트(2.4-7 ③)가 `activePaneLiveData.switchMap { panes[it].searchViewExpandedLiveData }`를 관찰하는데, lifecycle 2.9의 `switchMap`은 원본에 처음 값이 있으면 **그 자리에서 바로** 변환을 부른다. 새로 시작할 때 창은 같은 `commit`으로 막 추가되어 아직 붙지 않았으므로 창의 `viewModels`가 `IllegalStateException`(Fragment … not attached to a context)을 던진다(#6 구현에서 재현, 수정 754bcc9). 미러는 창 프래그먼트 필드라 붙기 전에도 읽을 수 있다. 공개 형식(`LiveData<Boolean>`)은 같다 — PM 수용(PR #22 코멘트 6551291116).
+- 같은 이유로, 호스트가 붙기 전에 읽을 수 있는 창 공개 `LiveData`는 창 뷰모델을 직접 내주지 말고 미러로 둔다. `currentPathLiveData`(아래)는 처음 읽는 곳이 창이 붙은 뒤의 `NavigationFragment.onActivityCreated`라 그대로다.
 
 #### `val currentPathLiveData: LiveData<Path>` (신규 공개 게터) / `observeCurrentPath` 삭제
 - `get() = viewModel.currentPathLiveData`. 기존 `observeCurrentPath`(`F:1394-1396`)의 유일한 호출자였던 호스트가 `switchMap`으로 바꾸므로 삭제한다.
@@ -343,7 +349,7 @@ interface Listener {
 
 #### `fun onMenuKeyEvent(event: KeyEvent): Boolean` (신규)
 - **추적**: F1 ③
-- `if (event.action == KeyEvent.ACTION_UP) binding.toolbar.showOverflowMenu(); return true` — `ToolbarActionBar.onMenuKeyEvent`(UP에서 `openOptionsMenu` → `DecorToolbar.showOverflowMenu`, DOWN·UP 모두 `true`)와 같다.
+- `if (view == null) return false`(v1.3 — 창 뷰가 없으면 `lateinit binding`을 읽지 않고 액티비티 기본 처리로 넘긴다, 구현 `F:547-556`(0cca1b4)). 그다음 `if (event.action == KeyEvent.ACTION_UP) binding.toolbar.showOverflowMenu(); return true` — `ToolbarActionBar.onMenuKeyEvent`(UP에서 `openOptionsMenu` → `DecorToolbar.showOverflowMenu`, DOWN·UP 모두 `true`)와 같다.
 
 #### `private fun onPickOptionsChanged(pickOptions)` (수정, 기존 `F:720-738`)
 - `requireActivity().title = title`(`F:733`) 뒤에 `binding.toolbar.title = title` 추가(⑥). 액티비티 제목도 계속 바꾼다(창 제목 — 접근성 창 이름·최근 앱).
@@ -386,7 +392,7 @@ interface Listener {
 | ① 툴바 스타일(제목·부제목 글꼴, 여백, 높이, `popupTheme`, 표시 옵션) | **적용하지 않는다.** `AppCompatDelegateImpl.setSupportActionBar` → `new ToolbarActionBar(toolbar, title, callback)` → `new ToolbarWidgetWrapper(toolbar, false)`. 두 번째 인자 `style=false`면 생성자가 `actionBarStyle` 읽기 블록 전체(`titleTextStyle`·`subtitleTextStyle`·`contentInsetStart/End`·`height`·`popupTheme`·`displayOptions`)를 건너뛰고 `detectDisplayOptions()`만 한다(바이트코드 `iload_2; ifeq 452`). 툴바 글꼴·여백은 지금도 툴바 자체 스타일(`toolbarStyle`, XML `app:subtitleTextAppearance` 등 `file_list_fragment_app_bar_include.xml:27-36`)에서 온다. | 조치 없음. HLD D2 ①과 LLD-A F1 ①의 전제("지원 액션바가 `actionBarStyle`을 툴바에 적용")는 사실이 아니다 → FB-1 | T-B20(기준 APK와 툴바 캡처 비교, 밝은·어두운 테마, MDC·Material3 테마 설정 각각) |
 | ② 툴바 메뉴 단축키(Ctrl+L·R·A·H, `res/menu/file_list.xml:84-105`) | 액티비티가 처리하지 않은 단축키를 `ToolbarActionBar.onKeyShortcut`이 툴바 메뉴 `performShortcut` | 창 `onKeyShortcut`이 하단·선택 메뉴 다음에 툴바 메뉴 `performShortcut`(2.5). 호스트 → **활성 창**(`H:158-163` 그대로) | T-B13, LLD-A T-11 재실행 |
 | ③ 메뉴 키로 넘침 메뉴 | `AppCompatActivity.dispatchKeyEvent`: `KEYCODE_MENU` → `ToolbarActionBar.onMenuKeyEvent`(UP에서 `showOverflowMenu`) | `FileListActivity.dispatchKeyEvent`(2.1) → 호스트 `onMenuKeyEvent` → 활성 창 `onMenuKeyEvent`(2.5) | T-B13, LLD-A T-12 재실행 |
-| ④ 검색 펼침의 뒤로 가기 접기 | API 33 미만: `AppCompatDelegateImpl.onBackPressed`가 디스패처보다 먼저 `ActionBar.collapseActionView()`. API 33 이상: `setSupportActionBar`가 켠 `Toolbar.setBackInvokedCallbackEnabled(true)` — 펼칠 때 툴바가 자기 `OnBackInvokedCallback`을 등록 | 호스트의 **검색 접기 콜백**(2.4-7 ③, 활성 창 검색 상태를 따름)을 서랍 콜백 **뒤에** 등록 → 모든 API에서 "검색 접기 > 서랍 > 창" 순서. 툴바의 `setBackInvokedCallbackEnabled`는 켜지 않는다(켜면 숨은 창·비활성 창의 펼친 검색이 뒤로 가기를 가로챔 — `Toolbar.updateBackInvokedCallbackState`는 붙어 있기만 하면 등록, `GONE`도 붙어 있음) | T-B17, LLD-A T-09 재실행 |
+| ④ 검색 펼침의 뒤로 가기 접기 | API 33 미만: `AppCompatDelegateImpl.onBackPressed`가 디스패처보다 먼저 `ActionBar.collapseActionView()`. API 33 이상: `setSupportActionBar`가 켠 `Toolbar.setBackInvokedCallbackEnabled(true)` — 펼칠 때 툴바가 자기 `OnBackInvokedCallback`을 등록 | 호스트의 **검색 접기 콜백**(2.4-7 ③, 활성 창 검색 상태를 따름)을 서랍 콜백 **뒤에** 등록 → 액티비티 디스패처 안에서 "검색 접기 > 서랍 > 창" 순서. API 33 미만은 이것이 그대로 전체 순서다. **API 33 이상은 열고 닫는 서랍이 디스패처 밖에서 먼저 받으므로 "서랍 > 검색 접기 > 창"**이 된다(v1.3, 4장). 툴바의 `setBackInvokedCallbackEnabled`는 켜지 않는다(켜면 숨은 창·비활성 창의 펼친 검색이 뒤로 가기를 가로챔 — `Toolbar.updateBackInvokedCallbackState`는 붙어 있기만 하면 등록, `GONE`도 붙어 있음). 그래서 API 33 이상에서 검색 키보드가 떠 있으면 키보드가 먼저 닫힌다(0.3-2) | T-B17, LLD-A T-09 재실행 |
 | ⑤ 내비게이션 아이콘 → `android.R.id.home` | `ToolbarWidgetWrapper`가 `setNavigationOnClickListener`로 홈 항목을 창 콜백에 보냄 → `onOptionsItemSelected(home)`(`F:403-406`) → `listener.onNavigationIconClicked()` | `binding.toolbar.setNavigationOnClickListener { listener.onNavigationIconClicked() }`(2.5). 기본 내비게이션 설명(`abc_action_bar_up_description`)은 XML의 `app:navigationContentDescription`이 있어 지금도 적용되지 않으므로 할 일 없음 | T-B18, LLD-A T-05·T-10 재실행 |
 | ⑥ 액티비티 제목 → 툴바 제목 | `ToolbarActionBar.setWindowTitle` → `ToolbarWidgetWrapper.setTitleInt` → `toolbar.setTitle`(제목 표시 옵션이 켜져 있으므로). 접근성 창 제목(`setAccessibilityPaneTitle`)은 `mTitleSet`이 참일 때만이라 지금 쓰이지 않음 | 창이 `binding.toolbar.title`을 직접(시작 시 `file_list_title`, 선택 모드 제목은 `onPickOptionsChanged`). 액티비티 제목도 계속 설정 | T-B19, LLD-A T-04(c)(d)(e) 재실행 |
 
@@ -395,12 +401,17 @@ interface Listener {
 
 ## 4. 뒤로 가기 순서 (HLD 3.5 확장)
 
-### 4.1 지금 순서
+### 4.1 지금 순서 (기준 APK)
 - 액티비티 디스패처: 호스트 [① 창 전달 → ② 서랍](`H:127-138`). 창 디스패처: [상위 폴더 → 선택 → speed dial](`F:227-246`). 나중에 더한 켜진 콜백이 먼저.
-- 검색 접기: API 33 미만은 디스패처 밖(AppCompat)에서 가장 먼저. API 33 이상은 툴바 자체 `OnBackInvokedCallback` — 펼친 순간 등록되며, 그 뒤에 액티비티 디스패처가 자기 콜백을 새로 등록하면(켜진 콜백이 0 → 1이 될 때, activity 1.10.1) 그쪽이 먼저가 된다. 예: 최상위 폴더에서 검색을 펼치고 열고 닫는 서랍을 열면 서랍이 먼저 닫히고, 하위 폴더에서 같은 순서면 검색이 먼저 접힌다(상태 의존).
+- 검색 접기: API 33 미만은 디스패처 밖(AppCompat)에서 가장 먼저. API 33 이상은 툴바 자체 `OnBackInvokedCallback`(`setSupportActionBar`가 켠 `Toolbar.setBackInvokedCallbackEnabled(true)`) — 펼친 순간 `PRIORITY_OVERLAY`로 등록된다.
+- **API 33 이상의 디스패처 밖 콜백(v1.3, #6 구현에서 javap·실측으로 확인 — PR #22 리뷰 요청 "Important" 1·2)**: `DrawerLayout` 1.2.0(`DrawerLayout$Api33Impl`)은 열고 닫는 서랍이 열릴 때, appcompat 1.7.1 `Toolbar$Api33Impl`은 검색이 펼쳐질 때 각자 창의 `OnBackInvokedDispatcher`에 `PRIORITY_OVERLAY`(`1000000`)로 콜백을 등록한다. 이 우선순위는 액티비티 `OnBackPressedDispatcher`(기본 우선순위)보다 높다. 실측(API 36, `lldA/a`, 검색 펼침·키보드 숨김·서랍 열림): 기준 APK는 제스처 뒤로가 서랍 → 검색(두 번), 뒤로 키는 한 번에 서랍과 검색이 함께 닫힌다. 검색 키보드가 떠 있으면 툴바 콜백이 입력기보다 먼저 받아 한 번에 키보드 숨김과 검색 접기가 함께 일어난다.
+- v1.2의 "API 33 이상은 콜백 등록 시점에 따라 상태 의존"(서랍이 먼저이기도, 검색이 먼저이기도) 서술은 서랍의 디스패처 밖 콜백을 빠뜨린 추정이었다 — 실측에서는 서랍이 먼저였다.
 
 ### 4.2 이 LLD의 순서
-- 호스트가 같은 소유자로 [① 창 전달 → ② 서랍 → ③ 검색 접기]를 등록 → **검색 접기(활성 창) > 서랍 > speed dial > 선택 > 상위 폴더 > 기본(종료)**. API와 무관하게 하나로, API 33 미만의 지금 순서와 같다. API 33 이상의 상태 의존 경우 하나가 달라질 수 있다 → 0.3, FB-3.
+- 호스트가 같은 소유자로 [① 창 전달 → ② 서랍 → ③ 검색 접기]를 등록한다(`H:161-182`(0cca1b4)). 디스패처 안의 순서는 **검색 접기(활성 창) > 서랍 > speed dial > 선택 > 상위 폴더 > 기본(종료)**이다.
+- **API 33 미만**: 디스패처 밖에서 먼저 받는 콜백이 없으므로 위 순서가 그대로 전체 순서다(지금 순서와 같음 — 미확인, AVD 없음).
+- **API 33 이상(v1.3)**: 열고 닫는 서랍이 열려 있으면 `DrawerLayout`의 `PRIORITY_OVERLAY` 콜백이 디스패처보다 먼저 받는다. 그래서 **서랍 닫기 > 검색 접기(활성 창) > speed dial > 선택 > 상위 폴더 > 기본**이다. 검색 펼침 + 서랍 열림에서 제스처 뒤로는 기준과 같고(서랍 → 검색), 뒤로 키는 기준(한 번에 둘 다)과 달리 두 번이다(0.3-1). 툴바 콜백을 켜지 않으므로(3장 ④) 검색 키보드가 떠 있으면 입력기가 먼저 받아 키보드 숨김 → 검색 접기 두 번이다(0.3-2). 고정 메뉴(`PersistentDrawerLayout`)는 뒤로 가기로 닫지 않으므로(서랍 콜백 ②는 `binding.drawerLayout`이 있을 때만, `H:169-171`(0cca1b4)) 이 차이와 무관하다.
+- 둘 다 오너가 수용했다(PR #22 코멘트 6551291116, [판단]1·2). 서랍보다 검색 접기를 앞세우는 대안(활성 창 툴바에만 `setBackInvokedCallbackEnabled`를 켬)은 숨은 창·비활성 창 처리를 다시 넣어야 하고 3장 ④가 피한 문제를 되살리므로 쓰지 않는다.
 - ①과 ③의 대상은 `activePaneLiveData.switchMap`으로 활성 창을 따른다 — 비활성 창의 선택·검색·speed dial은 뒤로 가기에 반응하지 않는다(HLD 3.5 "활성 창일 때만").
 - 예측 뒤로 가기: ③이 켜져 있는 동안 디스패처가 콜백을 등록하므로 "홈으로" 미리보기가 나오지 않는다 — 지금 툴바 콜백이 있을 때와 같다.
 
@@ -444,7 +455,7 @@ LLD-A 5.1과 같다(빌드 명령, 기준 APK = develop a76055e 빌드, `adb log
 | T-B14 서랍 제스처(REQ-2-10, R1) | (FullDraggableContainer 그대로) | 정상·경계 | C1·C2: 목록 위 아무 곳·빈 화면에서 왼쪽→오른쪽 → 서랍 열림. 서랍 연 채 오른쪽→왼쪽 → 서랍만 닫힘, 창·활성 그대로. C4 메뉴 단추로 고정 메뉴 펼침·접힘. RTL 강제에서 방향 반대로 반복 | 기대대로. 쓸기 방향이 RTL에서 반전(A2) |
 | T-B15 충돌 회피(REQ-2-11) | `isExcludedFromSwipe`, `isInSystemGestureArea`, `requestDisallowInterceptTouchEvent` | 경계 | 제스처 내비게이션(API 36): 오른쪽 가장자리에서 안쪽으로 → 뒤로 가기만. 왼쪽 가장자리 → 뒤로 가기만. 아래 가장자리에서 대각선 → 홈·전환만. 긴 경로 breadcrumb 오른쪽→왼쪽 끌기·짧은 경로 breadcrumb 위 쓸기 → 경로 표시줄만(창 그대로). 툴바 위 쓸기 → 무반응. fastscroll 끌기(긴 목록) → 목록만. 당겨서 새로 고침 → 그대로. 3버튼 내비게이션: 시험할 때만 `isInSystemGestureArea`에 `systemGestures` 인셋 값을 찍는 임시 `Log.d`를 넣고(커밋 전에 지움) 값을 기록한 뒤, 그 값 밖의 가장자리 근처에서 쓸기 | 기대대로. 3버튼 갈래: 기록한 인셋 띠 안에서 시작한 쓸기는 무반응, 띠 밖은 전환(인셋이 0이면 가장자리까지 전환). 값을 못 얻으면 미확인 |
 | T-B16 창 2 시작 경로(REQ-2-18·19) | 호스트 2 | 정상 | SRS REQ-2-18·19 절차 + 압축 파일 열기 | 창 1 = Intent 경로·압축 루트, 창 2 = 기본 디렉터리 |
-| T-B17 검색 뒤로 가기(F1 ④) | 호스트 ③, 창 `collapseSearchView` | 정상·경계 | C1: (1) 검색 펼침(키보드 닫음) → 뒤로 → 접힘 (2) 하위 폴더 + 검색 펼침 + 서랍 열기 → 뒤로 → 검색 접힘, 다시 뒤로 → 서랍 닫힘 (3) C2: 창 1 검색 펼침, 창 2 활성 → 뒤로 → 창 2 상위 폴더(창 1 검색 그대로) | (1) 기준과 같음 (2) 4.2 순서. 기준(API 36)의 결과도 함께 적어 0.3의 차이 여부를 보고 (3) 기대대로 |
+| T-B17 검색 뒤로 가기(F1 ④) | 호스트 ③, 창 `collapseSearchView` | 정상·경계 | C1: (1) 검색 펼침(키보드 닫음) → 뒤로 → 접힘 (2) 하위 폴더 + 검색 펼침 + 서랍 열기 → 뒤로 → 검색 접힘, 다시 뒤로 → 서랍 닫힘 (3) C2: 창 1 검색 펼침, 창 2 활성 → 뒤로 → 창 2 상위 폴더(창 1 검색 그대로) | (1) 기준과 같음 (2) 4.2 순서 — API 33 이상(v1.3): 제스처 뒤로는 서랍 → 검색으로 기준과 같고, 뒤로 키는 서랍 → 검색 두 번(기준은 한 번에 둘 다, 0.3-1). API 33 미만: 검색 → 서랍(AVD가 없으면 미확인). 기준(API 36)의 결과도 함께 적는다 (3) 기대대로. 추가(v1.3): (4) 검색 펼침 + 키보드 표시 → 뒤로 → 키보드만 닫힘, 다시 뒤로 → 검색 접힘(API 33 이상, 0.3-2) |
 | T-B18 홈 단추(F1 ⑤) | 창 `setNavigationOnClickListener` | 정상 | C1 메뉴 아이콘 → 서랍 열림. C4 → 고정 메뉴 토글. TalkBack에서 아이콘 설명 | 기준과 같음("탐색 서랍 열기") |
 | T-B19 제목(F1 ⑥) | 창 `onActivityCreated`, `onPickOptionsChanged` | 정상 | 일반 시작, `GET_CONTENT`(단일·다중), `CREATE_DOCUMENT`, `OPEN_DOCUMENT_TREE` | 제목 문구·위치가 기준과 같음 |
 | T-B20 툴바 모양(F1 ①) | (조치 없음 확인) | 정상 | C1·C4에서 기준과 툴바 캡처 비교: 밝은·어두운 테마 × 설정의 Material 3 켬·끔(테마 `themes.xml`·`themes_material3.xml`) | 제목·부제목 글꼴·크기·여백·높이·넘침 메뉴 팝업 모양 같음 |
@@ -460,7 +471,7 @@ SRS·HLD는 고치지 않았다. 아래는 설계팀·PM에 넘길 것이다(동
 
 - **FB-1 (문서 정정, 동작 영향 없음 — 설계팀 `design/2-hld-v4.8`에서 처리) HLD D2 ①의 전제가 틀림**: `setSupportActionBar`는 `ToolbarWidgetWrapper(toolbar, false)`로 감싸 `actionBarStyle`을 툴바에 **적용하지 않는다**(3장 ① 근거). LLD-A F1 ①도 같은 오해였다. 지원 액션바를 빼도 툴바 모양은 바뀌지 않으므로 ①은 조치 없이 유지된다. HLD D2의 ① 문구를 "적용하지 않음(유지할 것 없음 — 확인은 캡처 비교)"으로 고치기를 권한다.
 - **FB-2 (문서 정정, 동작은 HLD 의도대로 — 설계팀 `design/2-hld-v4.8`에서 처리) HLD 3.3-1(a) API 29 미만 서술**: `WindowInsetsCompat.getInsets(Type.systemGestures())`는 API 29 미만에서 0이 아니라 시스템 창 인셋을 돌려준다(androidx.core 1.16.0). LLD는 `SDK_INT < Q`면 제외 영역 없음으로 명시 분기해 HLD의 의도를 지킨다(2.3 `isInSystemGestureArea`). HLD의 "버전 분기 없이" 문구 정정을 권한다.
-- **FB-3 (결정됨: "검색 접기 먼저"로 통일, PM 2026-10-29) 검색 펼침 + 열고 닫는 서랍 열림에서 뒤로 가기 순서**: 4.1·4.2. API 33 이상의 상태 의존 순서를 "검색 접기 먼저"로 통일한다(API 33 미만의 지금 동작과 같음). 대안: "서랍 먼저"로 통일(검색 콜백을 창 디스패처 맨 위에 두면 됨 — 그 경우 API 33 미만에서 달라짐). 권고: 검색 먼저(지금 대부분 경우와 같음).
+- **FB-3 (결정 정정: API 33 이상은 "서랍 먼저", 오너 수용 2026-11-01 — PR #22 코멘트 6551291116 [판단]1·2. v1.2의 결정은 PM 2026-10-29 "검색 접기 먼저로 통일") 검색 펼침 + 열고 닫는 서랍 열림에서 뒤로 가기 순서**: 4.1·4.2. v1.2는 API 33 이상의 순서를 상태 의존으로 보고 호스트 콜백 순서만으로 "검색 접기 먼저"로 통일된다고 했으나, `DrawerLayout` 1.2.0이 `PRIORITY_OVERLAY` 콜백을 따로 등록해 디스패처보다 먼저 받으므로 API 33 이상은 "서랍 먼저"가 된다(#6 구현 실측). 제스처 뒤로는 기준과 같고 뒤로 키만 기준(한 번에 둘 다)과 다르다. 검색 키보드가 떠 있을 때 두 번 눌러야 하는 것도 함께 수용했다(0.3-2). API 33 미만은 "검색 접기 먼저"(미확인). HLD 3.5·R3·D2 ④의 "모든 API에서 검색 접기 먼저"는 설계팀이 HLD v4.9에서 정정한다(이슈 #23).
 - **FB-4 (결정됨: #7 소유, PM 2026-10-29) K3 `panePaths`**: LLD-A 4장은 #6에 두었으나 이 단계에 소비자가 없다. #7(K7 반대쪽 경로)이 만들고 #9가 쓴다(PM이 #9에 메모). #6 범위 밖. HLD 변경 아님.
 - **FB-5 (결정됨: 승인, PM 2026-10-29) F3 격자 열 수 공식**: 두 창 모드만 창 너비(K4 목표 상태 기준), 한 창 모드는 지금 공식 유지(2.5). HLD K5 "창 너비로 계산"을 두 창 모드에 적용하고, 한 창 모드에는 LLD-A F3(보이는 변화 회피)을 따른 해석이다.
 - **FB-6 (결정됨: 승인, 오너 2026-10-29) 단위 테스트 의존성**: `testImplementation 'junit:junit:4.13.2'`, U-01~U-05 필수(1장 8·9행, 5.1).
@@ -471,7 +482,7 @@ SRS·HLD는 고치지 않았다. 아래는 설계팀·PM에 넘길 것이다(동
 | ID | 이 단계 처리 |
 |---|---|
 | R1 | **정적 확인으로 닫음, 실기는 T-B14**. `FullDraggableHelper.onInterceptTouchEvent`(drawer 1.0.3 바이트코드)는 가로 이동이 슬롭을 넘고 세로보다 크며 `isDrawerEnabled(dx)`일 때만 가로챈다. `isDrawerEnabled`는 `dx > 0`이면 왼쪽 서랍, `dx < 0`이면 오른쪽 서랍이 있을 때만 참 — 서랍은 `layout_gravity="start"` 하나라 LTR에서 오른쪽→왼쪽(`dx < 0`)은 가로채지 않는다(RTL은 거울). K4를 올릴 필요 없음. |
-| R2 | **닫음**. fastscroll 1.3.0 터치 영역은 엄지·트랙 뷰를 최소 48dp(`afs_min_touch_target_size`)로 넓혀 판정, 끌기 시작 시 부모에 `requestDisallowInterceptTouchEvent(true)`(`FastScroller.setDragging`). 띠 48dp + 2차 방어(2.3). |
+| R2 | **닫음**. fastscroll 1.3.0 터치 영역은 엄지·트랙 뷰를 최소 `afs_min_touch_target_size`로 넓혀 판정(이 앱은 24dp로 덮어씀 — `res/values/dimens.xml:51-52`, v1.3 정정), 끌기 시작 시 부모에 `requestDisallowInterceptTouchEvent(true)`(`FastScroller.setDragging`). 띠 48dp + 2차 방어(2.3). |
 | R3 | 확장: 전달 콜백이 활성 창을 따름(4장). |
 | R5 | 측정만(T-B23). 최적화하지 않음. |
 | R6 | 숨기지 않음(요구 REQ-2-13대로 두 창 모두 표시). 붐빔은 #7 활성 표시와 함께 다시 볼 수 있음. |
@@ -484,3 +495,4 @@ SRS·HLD는 고치지 않았다. 아래는 설계팀·PM에 넘길 것이다(동
 | 2026-10-29 | v1 | 최초 작성 | 이슈 #6 LLD 단계(F1·F3 포함) | PM |
 | 2026-10-29 | v1.1 | `isLongPressed` 삭제, 길게 누르기 선후 근거 정정(`super` 전 `postDelayed`), `Args.paneIndex` 기본값 제거, T-B02(K3 무시 갈래), T-B04(600dp 경계를 세로로), T-B15(3버튼 인셋 기록) 보강, 6장에 `[판단]` 대기 항목 | LLD 1회차 검수 `[기계]` 2·3·5·8·9 | 검수팀 |
 | 2026-10-29 | v1.2 | PM 결정 반영: FB-3·FB-5 결정 표기, FB-4 `panePaths` #7 소유, FB-6 JUnit 승인 → 1장 8·9행(`app/build.gradle`, `DualPaneLayoutTest.kt`, 합계 9개)·5.1 필수·T-B00, 순수 함수를 파일 수준으로, 제외 (d)를 `ViewGroup`으로 좁힘·T-B08 마키, 호스트 `paneMode` 초기화(2.4 4-1), 6장 결정 기록 | PR #17 코멘트 6473369587 "PM 결정" | PM |
+| 2026-11-01 | v1.3 | #6 구현(0cca1b4)에 맞춘 정정: 상태 "구현됨", 0.3 뒤로 가기의 두 차이(API 33 이상 서랍 + 검색의 뒤로 키 두 번, 검색 키보드 표시 중 두 번), 4.1·4.2를 `DrawerLayout`·`Toolbar`의 `PRIORITY_OVERLAY` 콜백 기준으로 고쳐 API별 순서로, 3장 ④, T-B17 기대값과 (4) 추가, FB-3 결정 정정, 2.5 `searchViewExpandedLiveData`를 창 안 미러로(lifecycle 2.9 `switchMap` 즉시 변환), 작은 차이 3건(2.5 `onToolbarMenuItemSelected` private 함수, `onMenuKeyEvent`의 `view == null` 가드, 2.3 `isSwipeEnabled` setter의 `requestLayout()`)과 `onCreate` 삭제, 2.3 `FAST_SCROLL_TOUCH_WIDTH_DP` 근거·7장 R2의 `afs_min_touch_target_size` 값(앱이 24dp로 덮어씀) | 이슈 #23, PR #22 코멘트 6551291116(뒤로 가기 두 건 오너, 미러 PM) | PM |
