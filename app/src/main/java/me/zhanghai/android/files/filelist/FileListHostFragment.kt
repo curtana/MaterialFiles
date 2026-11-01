@@ -24,7 +24,9 @@ import androidx.core.view.GravityCompat
 import androidx.drawerlayout.widget.DrawerLayout
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.commit
+import androidx.fragment.app.commitNow
 import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.switchMap
 import java8.nio.file.Path
 import kotlinx.parcelize.Parcelize
 import me.zhanghai.android.files.R
@@ -101,25 +103,57 @@ class FileListHostFragment : Fragment(), FileListFragment.Listener, NavigationFr
     override fun onActivityCreated(savedInstanceState: Bundle?) {
         super.onActivityCreated(savedInstanceState)
 
-        val pane: FileListFragment
+        val isDualPaneEnabled = !isPickIntent(args.intent)
+        viewModel.isDualPaneEnabled = isDualPaneEnabled
+        val pane1: FileListFragment
+        var pane2: FileListFragment?
         if (savedInstanceState == null) {
-            pane = FileListFragment().putArgs(FileListFragment.Args(args.intent))
+            pane1 = FileListFragment().putArgs(FileListFragment.Args(args.intent, 0))
+            // The second pane starts at the default directory.
+            pane2 = if (isDualPaneEnabled) {
+                FileListFragment().putArgs(FileListFragment.Args(Intent(), 1))
+            } else {
+                null
+            }
             navigationFragment = NavigationFragment()
-            // The pane must be added before the navigation fragment, because the latter accesses
-            // the pane through its listener when it's created.
+            // The panes must be added before the navigation fragment, because the latter accesses
+            // the active pane through its listener when it's created.
             childFragmentManager.commit {
-                add(R.id.paneContainer, pane)
+                add(R.id.paneContainer, pane1)
+                pane2?.let { add(R.id.pane2Container, it) }
                 add(R.id.navigationFragment, navigationFragment)
             }
         } else {
-            pane = childFragmentManager.findFragmentById(R.id.paneContainer) as FileListFragment
+            pane1 = childFragmentManager.findFragmentById(R.id.paneContainer) as FileListFragment
+            pane2 = childFragmentManager.findFragmentById(R.id.pane2Container) as FileListFragment?
+            if (isDualPaneEnabled && pane2 == null) {
+                // State saved by an older version of the app has only one pane. This must be
+                // executed now, because the following code accesses the second pane.
+                val newPane2 = FileListFragment().putArgs(FileListFragment.Args(Intent(), 1))
+                childFragmentManager.commitNow { add(R.id.pane2Container, newPane2) }
+                pane2 = newPane2
+            }
             navigationFragment = childFragmentManager.findFragmentById(R.id.navigationFragment)
                 as NavigationFragment
         }
-        panes = listOf(pane)
+        panes = listOfNotNull(pane1, pane2)
         navigationFragment.listener = this
+        // The pane mode of the previous configuration doesn't apply to the new views, and the
+        // layout reports the new one after its first measure.
+        viewModel.setPaneMode(PaneMode(false, 0))
 
+        binding.dualPaneLayout.isSwipeEnabled = isDualPaneEnabled
+        binding.dualPaneLayout.persistentDrawerView =
+            if (binding.persistentDrawerLayout != null) binding.navigationFragment else null
+        binding.dualPaneLayout.isPersistentDrawerOpen =
+            Settings.FILE_LIST_PERSISTENT_DRAWER_OPEN.valueCompat
+        binding.dualPaneLayout.listener = dualPaneLayoutListener
+        binding.dualPaneLayout.activePane = viewModel.activePane
         val viewLifecycleOwner = viewLifecycleOwner
+        viewModel.activePaneLiveData.observe(viewLifecycleOwner) {
+            binding.dualPaneLayout.activePane = it
+        }
+
         // A callback is added to the activity dispatcher when its owner is started, and a child
         // fragment is always started after its parent, so the panes keep their callbacks in their
         // own dispatchers and we forward to the active pane here. This callback must be added
@@ -129,13 +163,23 @@ class FileListHostFragment : Fragment(), FileListFragment.Listener, NavigationFr
                 activePane.paneOnBackPressedDispatcher.onBackPressed()
             }
         }
-        activePane.backPressedEnabledLiveData.observe(viewLifecycleOwner) {
-            paneOnBackPressedCallback.isEnabled = it
-        }
+        viewModel.activePaneLiveData.switchMap { panes[it].backPressedEnabledLiveData }
+            .observe(viewLifecycleOwner) { paneOnBackPressedCallback.isEnabled = it }
         addOnBackPressedCallback(paneOnBackPressedCallback)
         binding.drawerLayout?.let {
             addOnBackPressedCallback(DrawerLayoutOnBackPressedCallback(it))
         }
+        // The panes don't use a support action bar or the toolbar's own back callback (which would
+        // also catch the search view of an inactive pane), so collapsing the search view of the
+        // active pane is added last to take precedence over all the others.
+        val searchViewOnBackPressedCallback = object : OnBackPressedCallback(false) {
+            override fun handleOnBackPressed() {
+                activePane.collapseSearchView()
+            }
+        }
+        viewModel.activePaneLiveData.switchMap { panes[it].searchViewExpandedLiveData }
+            .observe(viewLifecycleOwner) { searchViewOnBackPressedCallback.isEnabled = it }
+        addOnBackPressedCallback(searchViewOnBackPressedCallback)
 
         if (binding.persistentDrawerLayout != null) {
             Settings.FILE_LIST_PERSISTENT_DRAWER_OPEN.observe(viewLifecycleOwner) {
@@ -162,6 +206,35 @@ class FileListHostFragment : Fragment(), FileListFragment.Listener, NavigationFr
         return activePane.onKeyShortcut(keyCode, event)
     }
 
+    fun onMenuKeyEvent(event: KeyEvent): Boolean {
+        if (!this::panes.isInitialized) {
+            return false
+        }
+        return activePane.onMenuKeyEvent(event)
+    }
+
+    // Must be kept in sync with the pick actions in FileListFragment.onActivityCreated().
+    private fun isPickIntent(intent: Intent): Boolean =
+        when (intent.action) {
+            Intent.ACTION_GET_CONTENT, Intent.ACTION_OPEN_DOCUMENT, Intent.ACTION_CREATE_DOCUMENT,
+            Intent.ACTION_OPEN_DOCUMENT_TREE -> true
+            else -> false
+        }
+
+    private val dualPaneLayoutListener = object : DualPaneLayout.Listener {
+        override fun onPaneModeChanged(mode: PaneMode) {
+            viewModel.setPaneMode(mode)
+        }
+
+        override fun onSwipeToTogglePane() {
+            viewModel.togglePane()
+        }
+
+        override fun onPaneActivated(index: Int) {
+            viewModel.setActivePane(index)
+        }
+    }
+
     private fun onPersistentDrawerOpenChanged(open: Boolean) {
         binding.persistentDrawerLayout?.let {
             if (open) {
@@ -170,6 +243,7 @@ class FileListHostFragment : Fragment(), FileListFragment.Listener, NavigationFr
                 it.closeDrawer(GravityCompat.START)
             }
         }
+        binding.dualPaneLayout.isPersistentDrawerOpen = open
     }
 
     private fun refreshPanes() {
@@ -207,7 +281,10 @@ class FileListHostFragment : Fragment(), FileListFragment.Listener, NavigationFr
     }
 
     override fun observeCurrentPath(owner: LifecycleOwner, observer: (Path) -> Unit) {
-        activePane.observeCurrentPath(owner, observer)
+        // Follows the active pane, so that the navigation drawer shows the path of the new active
+        // pane when it changes.
+        viewModel.activePaneLiveData.switchMap { panes[it].currentPathLiveData }
+            .observe(owner, observer)
     }
 
     override fun closeNavigationDrawer() {
@@ -403,7 +480,9 @@ class FileListHostFragment : Fragment(), FileListFragment.Listener, NavigationFr
     private class Binding private constructor(
         val root: View,
         val drawerLayout: DrawerLayout? = null,
-        val persistentDrawerLayout: PersistentDrawerLayout? = null
+        val persistentDrawerLayout: PersistentDrawerLayout? = null,
+        val dualPaneLayout: DualPaneLayout,
+        val navigationFragment: View
     ) {
         companion object {
             fun inflate(
@@ -415,7 +494,8 @@ class FileListHostFragment : Fragment(), FileListFragment.Listener, NavigationFr
                 val bindingRoot = binding.root
                 val includeBinding = FileListHostFragmentIncludeBinding.bind(bindingRoot)
                 return Binding(
-                    bindingRoot, includeBinding.drawerLayout, includeBinding.persistentDrawerLayout
+                    bindingRoot, includeBinding.drawerLayout, includeBinding.persistentDrawerLayout,
+                    includeBinding.dualPaneLayout, includeBinding.navigationFragment
                 )
             }
         }

@@ -55,6 +55,16 @@ class FileListActivity : AppActivity() {
         return hostFragment
     }
 
+    // The panes don't use a support action bar, so the menu key is handled here instead of by
+    // AppCompatActivity.dispatchKeyEvent().
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.keyCode == KeyEvent.KEYCODE_MENU && this::fragment.isInitialized &&
+            fragment.onMenuKeyEvent(event)) {
+            return true
+        }
+        return super.dispatchKeyEvent(event)
+    }
+
     override fun onKeyShortcut(keyCode: Int, event: KeyEvent): Boolean {
         if (fragment.onKeyShortcut(keyCode, event)) {
             return true
