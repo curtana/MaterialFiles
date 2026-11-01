@@ -4,8 +4,8 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 작성 중(v1) |
-| 근거 | SRS v4.8, HLD v4.8 (`docs/design/2-dual-pane/`), LLD-A v1.4, LLD-B v1.3, LLD-D v1.3.1, `docs/STANDARDS_TRACEABILITY.md`(develop) |
+| 상태 | 작성 중(v1.1) |
+| 근거 | SRS v4.8, HLD v4.9 (`docs/design/2-dual-pane/`), LLD-A v1.4, LLD-B v1.3, LLD-D v1.3.1, `docs/STANDARDS_TRACEABILITY.md`(develop) |
 | 기준 코드 | `origin/develop` 0cca1b4 (#6 머지 PR #22 — #5·#6·#8 구현 포함). 인용 줄 번호는 이 커밋 기준 |
 | 이슈 | #7 (하위 이슈 C, 상위 #2). 선행 #6(머지됨). K3 `panePaths`를 소유하고 #9(E)가 쓴다 |
 | HLD 구성요소 | K7(창 표시), K9(창 표시 문자열), K3 `panePaths`(소유), K5 자기 현재 경로 게시·창 표시 그리기, K2 창 표시 누르기 처리 |
@@ -191,6 +191,7 @@
   4. `val pane = panes[viewModel.activePane]`; `binding.dualPaneLayout.post { pane.focusPaneIndicator(hasInputFocus) }`.
 - **`post`가 레이아웃 뒤에 실행되는 근거**: 3의 `togglePane()` → `activePaneLiveData` 관찰(`H:153-155`) → K4 `activePane` setter가 같은 호출 안에서 가시성을 바꾸고 `requestLayout()`(`L:46-56`). `requestLayout`이 예약한 화면 갱신은 메시지 큐에 동기 장벽을 세우고 비동기 메시지로 실행되므로, 그 뒤에 `post`한 일반 메시지는 갱신(측정·배치)이 끝난 뒤 실행된다. 그래서 새로 보이는 창의 컨트롤은 이미 배치되어 있다(HLD 3.9 "레이아웃 뒤(`post`)"). 새 창의 `SWITCHER` 내용은 `activePane`과 무관해 미리 맞다(2.2).
 - **오류**: 없음. 호스트 뷰가 그 사이 없어지면 `post`한 일은 실행되지 않는다(뷰가 붙어 있지 않음). 실행되더라도 `focusPaneIndicator`가 창 뷰를 확인한다.
+- **같은 파일의 주석 정정(동작 변경 없음)**: 검색 접기 콜백 주석(`H:172-174`)의 "take precedence over all the others"는 API 33 이상에서 사실과 다르다(열고 닫는 서랍이 디스패처 밖에서 먼저 — LLD-B v1.3 4.2, HLD v4.9 3.5). "within the activity dispatcher; on API 33+ an open modal drawer still goes first" 취지로 고친다.
 - **기존 코드와의 관계**: `dualPaneLayoutListener.onSwipeToTogglePane`(`H:229-231`)과 같은 `togglePane()`. 초점 이동은 누르기 전환에만 한다 — 쓸기 전환은 손가락 제스처라 초점 이동 요구가 없다(HLD 3.9는 누르기만 다룸).
 
 ### 2.5 레이아웃 — `res/layout/file_list_fragment_app_bar_include.xml` (수정)
@@ -238,7 +239,8 @@
     android:id="@+id/activePaneLine"
     android:layout_width="match_parent"
     android:layout_height="3dp"
-    android:background="<FB-C1 결정에 따름 — 3장 대비>"
+    android:background="@android:color/white"
+    android:backgroundTint="?colorControlNormal"
     android:visibility="gone" />
 ```
 
@@ -246,6 +248,7 @@
 - **터치 대상(HLD 3.9가 LLD에 맡긴 방법)**: `minWidth`/`minHeight` 48dp(`@dimen/touch_target_size`, `res/values/dimens.xml:41`)를 고른다. `TouchDelegate`는 부모(줄) 경계 밖으로 넓힐 수 없어 줄 높이를 48dp 아래로 줄이면 위아래로 48dp를 만들 수 없고, 위의 경로 표시줄 항목과 겹친다. 그래서 줄 높이 = 컨트롤 높이 = 48dp(0.3).
 - **좁은 창**: 두 창 모드 최소 창 너비 300dp(HLD 3.9)에서 줄 = 60dp + 컨트롤("창 2 · 활성" ≈ 12+약 70+12dp)로 넘치지 않는다. 한 창 모드의 반대쪽 경로는 남은 너비에서 가운데 줄임표로 줄인다(`ellipsize="middle"` — 앞의 "창 2:"와 경로 끝 폴더가 함께 남는다. `start`·`middle` 줄임은 `singleLine`이 필요해 `maxLines` 대신 씀 — `res/layout/file_item_list.xml:77` 주석과 같은 이유).
 - **글자 스타일**: `?textAppearanceListItemSecondary` + `?android:textColor{Primary,Secondary}` — 이 앱 목록 보조 글자의 관용구(`res/layout/file_item_list.xml:94-95`). HLD 3.9의 "기존 툴바 부제목 글자 스타일"과 다르다 → FB-C2.
+- **선 색**(HLD v4.9 3.9, FB-C1): `?colorControlNormal`은 색 상태 목록이라 배경 드로어블로 바로 쓸 수 없으므로 흰 색 배경에 `backgroundTint`로 칠한다(`View`의 `android:backgroundTint`, API 21+). 앱바 안이라 `android:theme="?actionBarTheme"`(`:18`)가 적용되어 `ThemeOverlay.MaterialFiles.ActionBar`의 값(`res/values/styles.xml:61-62`)이 된다.
 - **배경**: 줄·선은 배경을 두지 않아(선 제외) 앱바 배경(`?colorAppBarSurface`, 들림 시 색 변화 포함)이 그대로 보인다. 컨트롤의 `?selectableItemBackground`는 누를 수 있을 때만 물결이 생긴다.
 - **창 레이아웃 두 변형**(`res/layout/file_list_fragment_include.xml`, `res/layout-sw600dp-land/file_list_fragment_include.xml`)은 이 include를 그대로 쓰므로 바꾸지 않는다.
 
@@ -275,10 +278,10 @@
 | 두 창 모드 활성화 | 비활성 창 컨트롤 클릭 → `setActivePane`(2.4-1). 그 밖의 요소는 K4 `TYPE_VIEW_CLICKED` 수신(#6, `L:486-491`) | T-C05 |
 | 터치 대상 48dp | `minWidth`/`minHeight` 48dp, 줄 높이 48dp(2.5) | T-C08 |
 | 좁은 창에서 겹침 없음 | 컨트롤은 줄이지 않고, 반대쪽 경로만 가운데 줄임(2.5). 두 창 모드는 경로 글자가 없다 | T-C12 |
-| 대비·색 외 구분 | 활성 = 선(형태) + "활성" 글자(글자). 글자 색은 `?android:textColorPrimary`·`?android:textColorSecondary`(4.5:1 이상 기대). 선 색은 **FB-C1 결정 대기** — HLD의 `?colorPrimary` 계열은 사용자 테마 색 19개 중 9개가 밝은 테마 앱바(흰색)에서 3:1 미만(아래) | T-C04, T-C09 |
+| 대비·색 외 구분 | 활성 = 선(형태) + "활성" 글자(글자). 글자 색은 `?android:textColorPrimary`·`?android:textColorSecondary`(4.5:1 이상 기대). 선 색은 앱바 테마의 `?colorControlNormal`(= `?android:textColorPrimary`, 툴바 아이콘과 같은 색, HLD v4.9 3.9 — FB-C1 반영). 강조색 `?colorPrimary`는 사용자 테마 색 19개 중 9개가 밝은 테마 앱바(흰색)에서 3:1 미만이라 쓰지 않는다(아래) | T-C04, T-C09 |
 | 키보드·마우스 | 컨트롤은 `focusable`(상태와 무관하게 늘 — `ACTIVE`로 바뀌어도 초점이 튀지 않게), Enter·D-pad 가운데는 `View`의 확인 키 처리로 `performClick`. 마우스 클릭은 터치 이벤트로 와 K4 탭 경로와 클릭을 탄다 | T-C05~T-C07 |
 
-- **선 색의 대비 계산(FB-C1 근거)**: WCAG 상대 휘도 대비, 앱바 배경 = 밝은 테마 `#FFFFFF`(`color_surface_light`), 어두운 테마 `#202124`(`google_grey_900`). 기본 강조색은 밝은 `#1A73E8` 4.51:1, 어두운 `#8AB4F8` 7.64:1로 통과. 사용자 선택 테마 색(`res/values/colors_custom.xml` 500 계열 / `res/values-night/colors_custom.xml` 300 계열): 밝은 테마에서 light_blue 2.63, cyan 2.30, green 2.78, light_green 2.10, lime 1.51, yellow 1.22, amber 1.63, orange 2.16, grey 2.68로 9개가 3:1 미만이다. 어두운 테마는 19개 모두 4.37:1 이상. `?android:textColorPrimary`(앱바 테마의 `colorControlNormal`, `res/values/styles.xml:56-59`)는 두 테마에서 약 16:1.
+- **선 색의 대비 계산(FB-C1 근거)**: WCAG 상대 휘도 대비, 앱바 배경 = 밝은 테마 `#FFFFFF`(`color_surface_light`), 어두운 테마 `#202124`(`google_grey_900`). 기본 강조색은 밝은 `#1A73E8` 4.51:1, 어두운 `#8AB4F8` 7.64:1로 통과. 사용자 선택 테마 색(`res/values/colors_custom.xml` 500 계열 / `res/values-night/colors_custom.xml` 300 계열): 밝은 테마에서 light_blue 2.63, cyan 2.30, green 2.78, light_green 2.10, lime 1.51, yellow 1.22, amber 1.63, orange 2.16, grey 2.68로 9개가 3:1 미만이다. 어두운 테마는 19개 모두 4.37:1 이상. `?android:textColorPrimary`(앱바 테마의 `colorControlNormal`, `res/values/styles.xml:61-62`)는 두 테마에서 약 16:1.
 - 실제 대비는 Accessibility Scanner(또는 화면 캡처 화소값)로 확인한다(T-C09, HLD 3.9 "실제 값은 LLD에서").
 
 ## 4. #9가 쓰는 `panePaths` API (계약)
@@ -327,7 +330,7 @@ LLD-B 5.2와 같다(빌드, 기준 APK = develop 0cca1b4 빌드, `adb logcat -b 
 | T-C06 키보드(REQ-2-20, `Keyboard_Navigation`) | 컨트롤 `focusable`, `focusPaneIndicator(true)` | 정상 | C1 외부 키보드: Tab·방향키로 컨트롤까지 → Enter → 초점 위치 확인 → Enter | 전환, 입력 초점이 새 창 컨트롤로(초점 강조 표시), 다시 Enter로 되돌아감 |
 | T-C07 마우스(REQ-2-20, `Mouse_Trackpad_Basic`) | 컨트롤 클릭 | 정상 | C1 `input mouse tap`으로 컨트롤 | 전환 |
 | T-C08 터치 대상(`Touch_Target_Size`) | 2.5 | 경계 | C1·C2·C4에서 `uiautomator dump`의 컨트롤 `bounds` | 너비·높이 ≥ 48dp(px ÷ density) |
-| T-C09 대비(`Visual_Contrast`, `Theme_Support`) | 2.5, 3장 | 경계 | C1·C2 밝은·어두운 테마, Material 3 켬·끔, 테마 색 기본 + FB-C1 결정에 따라 밝은 노랑(`material_yellow`) | 글자 4.5:1 이상, 선 3:1 이상(Scanner 또는 화소 계산) |
+| T-C09 대비(`Visual_Contrast`, `Theme_Support`) | 2.5, 3장 | 경계 | C1·C2 밝은·어두운 테마, Material 3 켬·끔, 검은 밤 모드(`Theme.MaterialFiles.*.Black`, `colorSurface` 검정 — `res/values-night/themes_custom.xml:5-7`), 테마 색 기본과 강조색으로는 3:1 미만이던 밝은 노랑(`material_yellow`) | 글자 4.5:1 이상, 선 3:1 이상(Scanner 또는 화소 계산) |
 | T-C10 선택 모드(SRS A1) | `HIDDEN` | 경계 | `GET_CONTENT`·`OPEN_DOCUMENT_TREE`·`CREATE_DOCUMENT`(LLD-A T-04 명령), C1·C2 | 창 표시 줄·선 없음, 앱바가 기준 APK와 같음 |
 | T-C11 RTL(`RTL-1`·`RTL-3`·`RTL-4`) | 2.5, `BidiFormatter` | 경계 | RTL 강제 + 히브리어 이름 폴더를 창 2 경로로, C1·C2. 언어를 아랍어로 바꿔 한 번 | 줄이 거울 배치(컨트롤이 오른쪽 시작), 반대쪽 경로 글자 순서가 깨지지 않음, 숫자 로캘 표기 |
 | T-C12 좁은 창·긴 경로 | 2.5 | 경계 | C1에서 창 2를 깊은 폴더(경로 > 화면 너비)로. C4(`wm size 1700x1300`, `wm density 320`, 고정 메뉴 접음 → 두 창, 창 약 425dp)와 LLD-B T-B04의 600dp 경계(세로, `wm density 160` + `wm size 600x1000` → 두 창, 창 300dp) | 한 창: 경로가 가운데 줄임표로 줄고 "창 2:"와 끝 폴더가 보임, 컨트롤과 겹치지 않음. 두 창 300dp: "창 2 · 활성"이 잘리지 않음 |
@@ -338,12 +341,12 @@ LLD-B 5.2와 같다(빌드, 기준 APK = develop 0cca1b4 빌드, `adb logcat -b 
 - 판정: 0.3의 의도된 변화 외에 기준 APK와 다르면 실패. 기록은 구현 PR 코멘트(시험별 통과/실패/미확인), 캡처는 `$MAIN_REPO/_workspace/impl-7/`.
 
 ## 6. 설계 피드백
-SRS·HLD는 고치지 않았다. 아래는 설계팀에 보낸 것이다(이슈 #23의 HLD 정정과 같은 호출, 결과는 이 절에 적는다).
+SRS·HLD는 개발팀이 고치지 않았다. 아래는 설계팀에 보낸 것이다(이슈 #23의 HLD 정정과 같은 호출). **결과: 설계팀이 넷 다 HLD v4.9(커밋 2edec99)에 반영했다** — 3.9(선 색 `?colorControlNormal`, 글자 스타일, 입력 초점, 터치 대상 문장), K9 목록. SRS는 바뀌지 않음(REQ-2-08·3.3은 색을 정하지 않음). FB-C1은 강조색을 유지하려면 필수 조항(`Visual_Contrast`) 편차가 필요해 오너 결정 사항이 되므로, 설계팀은 필수 조건을 지키는 안으로 반영하고 PM이 강조색을 원하면 되돌리도록 했다.
 
-- **FB-C1 (결정 필요 — 사용자에게 보이는 색) HLD 3.9 활성 창 선 색 `?colorPrimary` 계열의 3:1**: 사용자 테마 색 19개 중 9개가 밝은 테마 앱바(흰색) 대비 3:1 미만이다(3장 계산). 선은 REQ-2-08의 형태 단서이고 `Visual_Contrast`(필수)의 그래픽 3:1 대상이다. 권고: 선 색을 앱바 테마의 `?colorControlNormal`(= `?android:textColorPrimary`, 툴바 아이콘과 같은 색, 두 테마 약 16:1)로. 대안: `?colorPrimary` 유지 + 3:1 미만 테마 색 편차 등록.
-- **FB-C2 (문서 정정 권고, 동작 영향 작음) HLD 3.9 "기존 툴바 부제목 글자 스타일"**: 툴바 부제목 스타일 `TextAppearance.AppCompat.Widget.ActionBar.Subtitle.Small`은 12dp 고정(`res/values/styles.xml:18-20`)이라 글꼴 크기 설정을 따르지 않는다. LLD는 같은 보조 글자 색(`?android:textColorSecondary`)에 sp 크기인 목록 보조 글자 관용구(`?textAppearanceListItemSecondary`)를 쓴다(2.5). HLD 문구를 "보조 글자 색·sp 크기"로 바꾸기를 권한다.
-- **FB-C3 (문서 보완) HLD K9 목록**: K7 (1)의 보조 글자 "창 M: <반대쪽 경로>" 형식과 K7 (2)의 활성 창 보이는 글자 형식이 K9 목록에 없다. 2.6의 8개로 보완하기를 권한다("활성"은 형식 안에 넣음).
-- **FB-C4 (문서 보완) HLD 3.9 전환 뒤 초점**: HLD는 접근성 초점만 적었다. LLD는 키보드로 실행했을 때 입력 초점도 새 컨트롤로 옮긴다(2.3 `focusPaneIndicator`, `Keyboard_Navigation`). HLD 3.9 "키보드·마우스"에 한 문장 더하기를 권한다.
+- **FB-C1 (반영 — HLD v4.9 3.9. 사용자에게 보이는 색이라 PM 확인 대상) HLD 3.9 활성 창 선 색 `?colorPrimary` 계열의 3:1**: 사용자 테마 색 19개 중 9개가 밝은 테마 앱바(흰색) 대비 3:1 미만이다(3장 계산). 선은 REQ-2-08의 형태 단서이고 `Visual_Contrast`(필수)의 그래픽 3:1 대상이다. 권고: 선 색을 앱바 테마의 `?colorControlNormal`(= `?android:textColorPrimary`, 툴바 아이콘과 같은 색, 두 테마 약 16:1)로. 대안: `?colorPrimary` 유지 + 3:1 미만 테마 색 편차 등록.
+- **FB-C2 (반영 — HLD v4.9 3.9, 같은 폴더 안내는 #8 대화상자 본문 글자로 분리) HLD 3.9 "기존 툴바 부제목 글자 스타일"**: 툴바 부제목 스타일 `TextAppearance.AppCompat.Widget.ActionBar.Subtitle.Small`은 12dp 고정(`res/values/styles.xml:18-20`)이라 글꼴 크기 설정을 따르지 않는다. LLD는 같은 보조 글자 색(`?android:textColorSecondary`)에 sp 크기인 목록 보조 글자 관용구(`?textAppearanceListItemSecondary`)를 쓴다(2.5). HLD 문구를 "보조 글자 색·sp 크기"로 바꾸기를 권한다.
+- **FB-C3 (반영 — HLD v4.9 K9, 이름은 LLD가 정함) HLD K9 목록**: K7 (1)의 보조 글자 "창 M: <반대쪽 경로>" 형식과 K7 (2)의 활성 창 보이는 글자 형식이 K9 목록에 없다. 2.6의 8개로 보완하기를 권한다("활성"은 형식 안에 넣음).
+- **FB-C4 (반영 — HLD v4.9 3.9) HLD 3.9 전환 뒤 초점**: HLD는 접근성 초점만 적었다. LLD는 키보드로 실행했을 때 입력 초점도 새 컨트롤로 옮긴다(2.3 `focusPaneIndicator`, `Keyboard_Navigation`). HLD 3.9 "키보드·마우스"에 한 문장 더하기를 권한다.
 - **결정 기록(LLD 재량, HLD가 맡긴 것)**: 터치 대상은 `minWidth`/`minHeight` 48dp(2.5), `panePaths` API 모양과 `null` 뜻(2.1·4장), 창 표시 갱신을 한 메시지 미룸(2.3 — 눌림 상태 고착 방지), 단추 역할은 누를 수 있을 때만(2.3 위임), 선 두께 3dp·비활성 창은 자리만 둠(2.3), 반대쪽 경로 가운데 줄임(2.5), 비활성 창 speed dial·붙여넣기 막대는 숨기지 않음(R6, 7장).
 
 ## 7. 위험 처리 (HLD 6장)
@@ -359,3 +362,4 @@ SRS·HLD는 고치지 않았다. 아래는 설계팀에 보낸 것이다(이슈 
 | 일자 | 버전 | 변경 | 사유 | 요청자 |
 |---|---|---|---|---|
 | 2026-11-01 | v1 | 최초 작성 | 이슈 #7 LLD 단계(`panePaths` 소유·#9 API 포함) | PM |
+| 2026-11-01 | v1.1 | FB-C1~C4 결과 반영: 근거 HLD v4.9, 선 색 `?colorControlNormal`(2.5 XML·선 색 설명, 3장), `styles.xml` 줄 정정(`:61-62`), T-C09에 검은 밤 모드·노랑 테마, 6장 결과 | 설계팀 회신(HLD v4.9, 2edec99) | 설계팀 |
