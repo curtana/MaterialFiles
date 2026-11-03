@@ -2,8 +2,8 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 검수 통과(v1.1, PR #32 2회차 조건부 — n1은 v1.2에서 반영), v1.2 오너 결정 반영 |
-| 근거 | SRS v1.2 (v1.1 검수 통과 + 4.3 Q1~Q3 오너 결정 2026-11-04) |
+| 상태 | 검수 통과(v1.1, PR #32 2회차 조건부 — n1은 v1.2에서 반영), v1.2 오너 결정 반영, v1.3 LLD 피드백 FB-1~FB-5 반영(재검수 대상: 1.2, K1·K1a·K6·K8, 3.3, 3.4 "멈춤", 3.5, 4.1, R8·R9) |
+| 근거 | SRS v1.3 (v1.1 검수 통과 + 4.3 Q1~Q3 오너 결정 2026-11-04 + 1.4 "모션 줄이기" 정의 확장, LLD FB-1) |
 | 기준 코드 | `origin/develop` 4437e43 — 줄 번호는 이 커밋 기준 |
 
 ## 1. 구조 개요
@@ -37,31 +37,32 @@ flowchart LR
   T --- B
   T -- "state LiveData" --> H
   SET --> H
+  SET -- "묶음 끝 때 값 읽기" --> T
   H --- L
   H -- "phase" --> VM --> P --> V
   H -- "결과 소비" --> T
 ```
 - 작업 쪽은 **알리기만** 한다: 시작(K2, 메인 스레드)·끝(K2 `finally`, 메인 스레드로 넘김)·취소(K2). 작업 본문의 분기·반환값은 그대로다(SRS C-1).
 - 화면 쪽은 관찰한 상태로 **표시 단계**(숨김·달리기·만세·넘어짐)를 시간 규칙(K5)에 따라 정해 화면 하나에 하나만 그린다.
-- 새 경계: `FileJobStateTracker`(K1)는 `filejob/`에 둔다. 상태의 주인이 작업 쪽이고, 화면 쪽(`filelist/`)은 지금처럼 `filejob/`의 공개 API만 부른다(지금도 `FileListFragment`가 `FileJobService`를 부른다). 그림 뷰(K9)는 툴바 안 범용 위젯이라 기존 툴바 위젯들(`ui/CrossfadeSubtitleToolbar.kt`, `ui/OverlayToolbar.kt`)과 같은 `ui/`에 둔다.
+- 새 경계: `FileJobStateTracker`(K1)는 `filejob/`에 둔다. 상태의 주인이 작업 쪽이고, 화면 쪽(`filelist/`)은 지금처럼 `filejob/`의 공개 API만 부른다(지금도 `FileListFragment`가 `FileJobService`를 부른다). K1은 묶음이 끝나는 순간 표시 설정(K10)을 읽는다 — `filejob/`이 `settings/`를 참조하는 첫 자리다. 화면이 멈춘 동안(설정 화면은 다른 액티비티) 끈 설정은 화면 쪽(K6)이 볼 수 없어서, 결과를 만들 때 버려야 SRS A7을 지킬 수 있기 때문이다(LLD FB-2). 반대 방향(`settings/` → `filejob/`)은 이미 있다(`settings/RootStrategyPreference.kt:35`가 `FileJobService.runningJobCount`를 읽음). 그래서 두 패키지가 서로 참조하게 되지만 같은 모듈 안이고, 클래스 사이 순환은 없다 — `Settings`(`settings/Settings.kt`)는 `filejob/`을 참조하지 않고, K1이 읽는 것은 `Settings.FILE_JOB_INDICATOR`의 메모리 값뿐이다. 그림 뷰(K9)는 툴바 안 범용 위젯이라 기존 툴바 위젯들(`ui/CrossfadeSubtitleToolbar.kt`, `ui/OverlayToolbar.kt`)과 같은 `ui/`에 둔다.
 
 ## 2. 구성요소
 
 | 구성요소 | 위치(패키지·파일) | 책임 | 추적 REQ |
 |---|---|---|---|
-| K1 상태 통로 | `filejob/FileJobStateTracker.kt` (새 파일, `object`) | 메인 스레드 전용. `onJobStarted(id)`, `onJobFinished(id, isSuccessful)`, `consumeResult(seq)`를 받아 K1a로 집계하고 `stateLiveData: LiveData<FileJobState>`로 내보낸다. 모든 변경은 `setValue`(메인)라 순서가 보존되고 합쳐지지 않는다. | REQ-30-01, 04, 15 |
-| K1a 묶음 집계 | `filejob/FileJobBatch.kt` (새 파일, 안드로이드 의존 없음) | 진행 중 작업 id 집합, 이번 묶음의 실패 여부, 끝난 묶음 결과 `FinishedBatch(seq, isSuccessful)?`. 규칙: 모르는 id·이미 끝난 id의 끝 보고는 무시(중복 무시), 집합이 비면 결과를 만들고 seq를 1 올림(앞 결과는 덮어씀 — SRS A8 "마지막 묶음만"), 새 시작이 오면 남은 결과를 지움(REQ-30-08), `consume(seq)`는 seq가 같을 때만 결과를 지움. 상태 값 `FileJobState(runningCount, finished: FinishedBatch?)`. | REQ-30-01, 04, 08, 15 |
+| K1 상태 통로 | `filejob/FileJobStateTracker.kt` (새 파일, `object`) | 메인 스레드 전용. `onJobStarted(id)`, `onJobFinished(id, isSuccessful)`, `consumeResult(seq)`를 받아 K1a로 집계하고(`onJobFinished`는 그 순간의 `Settings.FILE_JOB_INDICATOR` 값을 K1a에 "결과를 남길지"로 넘긴다 — 꺼져 있으면 끝난 묶음의 결과를 만들지 않음, SRS A7), `stateLiveData: LiveData<FileJobState>`로 내보낸다. 모든 변경은 `setValue`(메인)라 순서가 보존되고 합쳐지지 않는다. | REQ-30-01, 04, 11, 15 |
+| K1a 묶음 집계 | `filejob/FileJobBatch.kt` (새 파일, 안드로이드 의존 없음) | 진행 중 작업 id 집합, 이번 묶음의 실패 여부, 끝난 묶음 결과 `FinishedBatch(seq, isSuccessful)?`. 규칙: 모르는 id·이미 끝난 id의 끝 보고는 무시(중복 무시), 집합이 비면 결과를 만들고(K1이 넘긴 "결과를 남길지"가 거짓이면 결과 없음, SRS A7) seq를 1 올림(앞 결과는 덮어씀 — SRS A8 "마지막 묶음만"), 새 시작이 오면 남은 결과를 지움(REQ-30-08), `consume(seq)`는 seq가 같을 때만 결과를 지움. 상태 값 `FileJobState(runningCount, finished: FinishedBatch?)`. | REQ-30-01, 04, 08, 11, 15 |
 | K2 서비스 연결 | `filejob/FileJobService.kt` (기존) | ① companion `startJob`(`:104-113`) 처음에 `onJobStarted(job.id)` ② 실행기 작업(`:57-63`)을 `try { isSuccessful = job.runOn(this) } finally { runningJobs 정리·잠금 갱신(`:59-62`를 여기로 옮김, #34); 메인으로 넘겨 onJobFinished(job.id, isSuccessful) }`로 감싼다 — `isSuccessful` 기본값 `false`라 `Throwable`로 끝나도 실패로 보고되고 `runningJobs`에서도 지워지며(#34 해소), 예외는 지금처럼 그대로 위로 나간다(잡지 않음) ③ companion `cancelJob`(`:198-202`)에서 대기 목록에서 지운 작업, 서비스 `cancelJob`(`:69-74`)·`onDestroy`(`:76-87`)에서 지운 작업마다 `onJobFinished(id, false)`. 메인으로 넘기기는 기존 `mainExecutorCompat`(`compat/ContextCompat.kt:48`). `runningJobs`·잠금 처리는 ②의 `finally` 이동(#34) 외에는 바꾸지 않는다(6장 R5). | REQ-30-01, 04, 16 |
 | K3 결과 반환 | `filejob/FileJob.kt` `runOn` (기존, `:19-33`) | 반환형을 `Boolean`(성공 여부)으로: `run()`이 끝나고 K4 기록이 없으면 `true`, `InterruptedIOException`·`Exception` 경로는 `false`. 잡는 범위·토스트·`finally`의 알림 지우기는 그대로. 기록용 필드 `hasUnresolvedError`(K4가 씀)를 둔다. | REQ-30-04, 16 |
 | K4 건너뛴 오류 기록 (SRS Q2 오너 결정) | `filejob/FileJobs.kt` `showErrorDialog` (기존, `:499-526`) | 답을 받은 뒤, 고른 답이 **"다시 시도"가 아니면** `hasUnresolvedError = true`. "다시 시도"는 `action == POSITIVE`이고 그 창의 양성 버튼 글이 `getString(R.string.retry)`인 경우로 판정한다 — 양성 버튼이 늘 다시 시도인 것은 아니기 때문이다: "자기 안으로 복사·이동" 창(`:1201-1224`)과 "자기 위로 복사·이동" 창(`:1241-1264`)은 양성 버튼이 "건너뛰기"(`getString(R.string.skip)`)이고 POSITIVE가 그 파일을 건너뛴다(`:1217-1224`). 판정에 쓰는 값(`positiveButtonText`)은 이미 이 함수의 인자라 호출부를 바꾸지 않는다. 반환값·예외는 그대로다. 작업 본문의 호출부(`:1021-1055`, `:1201-1231`, `:1241-1271`, `:1392-1431`, `:2293-2310` 등)는 바꾸지 않는다. 오류 창 하나의 함수라 모든 작업에 같이 적용된다. 충돌 창(`showConflictDialog`)은 기록하지 않는다(충돌 "건너뛰기" = 성공, Q2 결정). | REQ-30-04, 16 |
 | K5 표시 시간 규칙 | `filelist/FileJobIndicatorTimeline.kt` (새 파일, 안드로이드 의존 없음) | 입력: 현재 시각(ms, 주입), 설정 켬 여부, `FileJobState`. 출력: 표시 단계 `FileJobIndicatorPhase`(`HIDDEN`·`RUNNING`·`SUCCEEDED`·`FAILED`), 다음에 다시 계산할 시각, 소비할 seq. 규칙은 3.3. 상수 `MIN_RUNNING_MILLIS = 1000`, `RESULT_MILLIS = 1500`(SRS A4). | REQ-30-05, 06, 07, 08, 10, 11, 15 |
-| K6 표시 제어 | `filelist/FileListHostFragment.kt` (기존, `onActivityCreated` `:103-` 의 관찰 등록 자리) | 뷰 수명 동안 K5 인스턴스 하나를 가진다(화면 단위 — 창 이동에도 시간이 이어짐, 화면 재생성 시 새로, SRS REQ-30-07). `FileJobStateTracker.stateLiveData`와 `Settings.FILE_JOB_INDICATOR`를 `viewLifecycleOwner`로 관찰하고(시작됨 상태일 때만 받음 = "화면이 보일 때"), K5 결과를 K7에 쓴다. 다음 시각은 뷰의 `postDelayed`로 예약하고 멈춤 때 지운다. K5가 결과 단계로 들어가면 `consumeResult(seq)`, 설정이 꺼진 채 결과를 받으면 바로 `consumeResult(seq)`(SRS A7). | REQ-30-03, 07, 11, 15 |
+| K6 표시 제어 | `filelist/FileListHostFragment.kt` (기존, `onActivityCreated` `:103-` 의 관찰 등록 자리) | 뷰 수명 동안 K5 인스턴스 하나를 가진다(화면 단위 — 창 이동에도 시간이 이어짐, 화면 재생성 시 새로, SRS REQ-30-07). `FileJobStateTracker.stateLiveData`와 `Settings.FILE_JOB_INDICATOR`를 `viewLifecycleOwner`로 관찰하고(시작됨 상태일 때만 받음 = "화면이 보일 때"), K5 결과를 K7에 쓴다. 다음 시각은 뷰의 `postDelayed`로 예약하고 멈춤 때 지운다. K5가 결과 단계로 들어가면 `consumeResult(seq)`, 설정이 꺼진 채 결과를 받으면 바로 `consumeResult(seq)` — 설정이 켜진 채 끝났지만 아직 보이지 않은 결과를 화면이 시작된 상태에서 끈 경우(다중 창 등)다. 꺼진 동안 끝난 묶음은 K1이 결과를 만들지 않으므로(SRS A7) K6가 받지 않는다. | REQ-30-03, 07, 11, 15 |
 | K7 표시 단계 전달 | `filelist/DualPaneViewModel.kt` (기존) | `fileJobIndicatorPhaseLiveData: LiveData<FileJobIndicatorPhase>`(초기 `HIDDEN`)와 설정 함수. 두 창이 같은 값을 본다. 기존 활성 창·창 모드 LiveData와 같은 방식(`:10-51`). | REQ-30-03 |
-| K8 표시할 창 | `filelist/FileJobIndicator.kt` (새 파일, 순수 함수) + `filelist/FileListFragment.kt` (기존, 관찰 등록 `:348-358` 근처) | `getFileJobIndicatorPaneIndex(isDualPaneEnabled, isDualPane, activePane)` = 두 창 모드면 `1`(끝 쪽 창), 아니면 `activePane`(보이는 창). 선택 모드(창 2 없음)는 `0`. 각 창은 K7 단계·창 모드·활성 창을 관찰해 `자기 index == 판정값`이면 그 단계를, 아니면 `HIDDEN`을 자기 K9에 준다. 기존 창 표시 갱신(`schedulePaneIndicatorUpdate`, `:598-`)과 같은 관찰 자리에 붙인다. | REQ-30-02, 03, 14 |
+| K8 표시할 창 | `filelist/FileJobIndicator.kt` (새 파일, 순수 함수) + `filelist/FileListFragment.kt` (기존, `onActivityCreated` 끝 `:382` 뒤에서 부르는 새 관찰 등록 함수 — 4.1) | `getFileJobIndicatorPaneIndex(isDualPaneEnabled, isDualPane, activePane)` = 두 창 모드면 `1`(끝 쪽 창), 아니면 `activePane`(보이는 창). 선택 모드(창 2 없음)는 `0`. 각 창은 K7 단계·창 모드·활성 창을 관찰해 `자기 index == 판정값`이면 그 단계를, 아니면 `HIDDEN`을 자기 K9에 준다. 기존 창 표시 갱신(`schedulePaneIndicatorUpdate`, `:598-`)과 같은 LiveData를 관찰하되, 그 관찰 블록(`:348-358`)에 끼우지 않고 별도 함수로 등록한다 — #29 구현이 그 블록 안 줄을 바꾸기 때문이다(4.1, LLD FB-5). | REQ-30-02, 03, 14 |
 | K9 선 사람 뷰 | `ui/FileJobIndicatorView.kt` (새 파일) + 자세 계산 `ui/StickFigurePose.kt` (새 파일, 순수 함수) | `phase`를 받아 그린다. 3.4·3.5. `HIDDEN`이면 `GONE`(자리 없음). 누르기·초점 없음, 상태 설명과 알림 영역(live region). | REQ-30-02, 05, 06, 09, 10, 12, 13, 14 |
 | K9a 툴바 배치 | `res/layout/file_list_fragment_app_bar_include.xml` (기존, `toolbar` `:27-36`) | `toolbar`의 자식으로 K9를 `layout_gravity="end"`, 기본 `visibility="gone"`으로 둔다. `Toolbar`는 끝 쪽 정렬 자식을 메뉴 보기의 시작 쪽에 놓아 메뉴 항목을 가리지 않는다(R1에서 LLD가 확인). `overlayToolbar`(`:38-47`)에는 두지 않는다(SRS A1·Q3). | REQ-30-02, 14 |
 | K10 설정 | `settings/Settings.kt`(`FILE_LIST_ANIMATION` 뒤, `:124-127`), `res/values/donottranslate_prefs.xml`(`:52-53` 뒤), `res/xml/settings.xml`(인터페이스 분류, `:44-47` 뒤), `res/values/strings.xml`·`res/values-ko/strings.xml` | `FILE_JOB_INDICATOR: SettingLiveData<Boolean>` = `BooleanSettingLiveData(R.string.pref_key_file_job_indicator, R.bool.pref_default_value_file_job_indicator)`, 키 `key_file_job_indicator`, 기본 `true`. 설정 화면 `SwitchPreferenceCompat` 제목 "파일 작업 표시"·요약 "파일 작업 중 툴바에 달리는 사람을 표시"(문구 LLD 확정). | REQ-30-11 |
-| K11 모션 줄이기 판정 | `util/AnimatorScale.kt` (새 파일, 이름 LLD) | `isReducedMotion(context)`: API 26 이상 `ValueAnimator.areAnimatorsEnabled()`의 반대, 미만은 `Settings.Global.ANIMATOR_DURATION_SCALE`를 읽어(기본 1) 0이면 참. 순수 부분 `isReducedMotion(scale: Float) = scale == 0f`는 단위 테스트. K9가 단계가 바뀔 때·나타날 때 부른다(SRS REQ-30-10). | REQ-30-10 |
+| K11 모션 줄이기 판정 | `util/AnimatorScale.kt` (새 파일, 이름 LLD) | `isReducedMotion(context)`(SRS 1.4 ①②): API 26 이상 `ValueAnimator.areAnimatorsEnabled()`의 반대(배율 0과 절전 모드 등 — R9), 미만은 `Settings.Global.ANIMATOR_DURATION_SCALE`를 읽어(기본 1) 0이면 참. 순수 부분 `isReducedMotion(scale: Float) = scale == 0f`는 단위 테스트. K9가 단계가 바뀔 때·나타날 때 부른다(SRS REQ-30-10). | REQ-30-10 |
 | K12 문자열 | `res/values/strings.xml`, `res/values-ko/strings.xml` | 낭독 문구 셋("File operation in progress"/"파일 작업 진행 중", "File operation finished"/"파일 작업 완료", "File operation failed or canceled"/"파일 작업 실패 또는 취소됨"), 설정 제목·요약. | REQ-30-11, 12 |
 
 ### 2.1 하위 이슈 분배
@@ -101,31 +102,32 @@ flowchart LR
 | 아무 단계 | 설정 꺼짐 | `HIDDEN`, 받은 결과는 소비(A7) |
 | `HIDDEN`·`SUCCEEDED`·`FAILED` | `runningCount > 0` | `RUNNING`, `runningSince = now`(결과 중단, REQ-30-08) |
 | `RUNNING` | `runningCount > 0` | 그대로 |
-| `HIDDEN` | `runningCount == 0`, `finished != null` | `RUNNING`, `runningSince = now`(화면 밖에서 끝난 결과도 달리기부터, REQ-30-15) |
+| `HIDDEN` | `runningCount == 0`, `finished != null`, `finished.seq != shownSeq` | `RUNNING`, `runningSince = now`(화면 밖에서 끝난 결과도 달리기부터, REQ-30-15) |
 | `RUNNING` | `runningCount == 0`, `finished != null`, `now - runningSince < 1000` | 그대로, `runningSince + 1000`에 다시 계산(REQ-30-07) |
-| `RUNNING` | `runningCount == 0`, `finished != null`, 1초 지남 | `SUCCEEDED`/`FAILED`, `resultUntil = now + 1500`, `consume(seq)` |
+| `RUNNING` | `runningCount == 0`, `finished != null`, 1초 지남 | `SUCCEEDED`/`FAILED`, `resultUntil = now + 1500`, `shownSeq = seq`, `consume(seq)` |
 | `RUNNING` | `runningCount == 0`, `finished == null`(다른 화면이 이미 소비, A3) | `HIDDEN` |
-| `SUCCEEDED`·`FAILED` | `now >= resultUntil` | `HIDDEN` |
+| `SUCCEEDED`·`FAILED` | `runningCount == 0`, `finished != null`, `finished.seq != shownSeq`(멈춘 동안 새 묶음이 시작·끝남) | `RUNNING`, `runningSince = now`(앞 결과 중단 — REQ-30-08·15의 연장, LLD FB-4) |
+| `SUCCEEDED`·`FAILED` | `now >= resultUntil` | `HIDDEN`, 같은 계산에서 `HIDDEN` 행을 다시 본다 |
 | `SUCCEEDED`·`FAILED` | 소비 뒤 상태가 `finished == null`로 바뀜 | 그대로(자기 소비이므로 `resultUntil`까지 유지) |
 - 화면 단위: K5는 K6(호스트 뷰 수명)에 있다. 창 모드·보이는 창이 바뀌면 K8이 그리는 창만 바뀌고 K5 상태는 이어진다(REQ-30-03·07). 회전은 뷰를 새로 만들므로 새 K5 — 진행 중이면 다시 1초부터, 이미 소비된 결과는 다시 나오지 않는다(REQ-30-15).
 - 화면이 멈추면(LiveData 관찰 중지) K6가 예약을 지운다. 다시 시작되면(K6가 K5에 "다시 시작" 입력을 준다) 받은 최신 상태로 K5를 다시 계산한다:
   - `RUNNING`에서 멈췄다 돌아오면 `runningSince = now`로 다시 센다 — 멈춘 동안 묶음이 끝났어도 돌아와서 달리기 1초를 보인 뒤 결과(REQ-30-07·15). 멈춘 동안의 시간은 "보인 달리기"로 치지 않는다.
-  - 결과 단계에서 멈췄다 돌아오면 `resultUntil`이 지났으면 `HIDDEN`, 남았으면 남은 시간만큼 유지(결과는 이미 소비됨).
+  - 결과 단계에서 멈췄다 돌아오면: 멈춘 동안 새 묶음이 끝나 있으면(`finished.seq != shownSeq`) 달리기부터, 진행 중이면 달리기, 아니면 `resultUntil`이 지났으면 `HIDDEN`, 남았으면 남은 시간만큼 유지(자기 결과는 이미 소비됨).
   - `HIDDEN`에서 돌아오면 표의 규칙 그대로.
 - 시간은 `SystemClock.uptimeMillis()`(K6가 주입). Animator 길이 배율은 시간 규칙에 쓰지 않는다(SRS A4).
 
 ### 3.4 그리기 (K9)
 - **방식**: `View`를 상속한 직접 그리기. 머리(원)와 몸·팔 둘·다리 둘(선 다섯)을 `Canvas.drawCircle`·`drawLine`으로 그린다. 자세는 관절 좌표(단위 상자 0~1)를 돌려주는 순수 함수 `StickFigurePose`(`running(t)`, `cheering(t)`, `fallen(t)`, `t`는 0~1 위상)로 계산한다. 애니메이션은 `ValueAnimator`(달리기는 약 600ms 주기 무한 반복, 만세는 팔 올리기 약 300ms 뒤 정지, 넘어짐은 약 400ms 동안 몸을 눕힘 뒤 정지)로 위상을 바꾸고 `invalidate()`. 사라질 때 약 150ms 서서히 사라짐(모션 줄이기면 없음).
-- **모션 줄이기**(K11 참): 애니메이터를 돌리지 않고 정지 자세(`running(0.25)`·`cheering(1)`·`fallen(1)`)를 한 번 그린다. 사라짐 효과 없음. 시간 규칙(K5)은 같다.
+- **모션 줄이기**(K11 참, SRS 1.4 ①②): 애니메이터를 돌리지 않고 정지 자세(`running(0.25)`·`cheering(1)`·`fallen(1)`)를 한 번 그린다. 사라짐 효과 없음. 시간 규칙(K5)은 같다.
 - **크기**: 그림 24dp, 뷰는 너비 32dp × 툴바 높이(세로 가운데). 선 굵기 2dp, 끝 둥글게.
 - **색**: 뷰의 테마(앱바 `?actionBarTheme`)에서 `colorControlNormal`을 읽는다 = `?android:textColorPrimary`(`res/values/styles.xml:61-64`) — 툴바 아이콘과 같다(REQ-30-13). 색 상태 목록이면 기본 상태 색.
 - **RTL**: `layoutDirection`이 RTL이면 그리기 전에 가로 반전(`canvas.scale(-1, 1, 중심)`) — 끝 쪽을 향해 달림(SRS 3.5, `RTL-2`).
-- **멈춤**: 애니메이터는 `phase != HIDDEN` + 붙어 있음 + `isShown`일 때만 돈다. `onDetachedFromWindow`·`onVisibilityAggregated(false)`에서 멈춘다(SRS 3.2). 툴바가 위로 밀려 가려진 경우(A2)는 뷰가 붙어 보이는 상태라 계속 돈다 — 작은 뷰라 비용은 작다(R3).
+- **멈춤**: 애니메이터는 `phase != HIDDEN` + 붙어 있음 + `isShown`일 때만 돈다. 붙음·떼어짐과 자기·조상·창의 보임 변화(`onAttachedToWindow`·`onDetachedFromWindow`·`onVisibilityChanged`·`onWindowVisibilityChanged`)마다 조건을 다시 보아 멈추거나 다시 돌린다(SRS 3.2). `onVisibilityAggregated`는 API 24부터라 minSdk 23(`app/build.gradle:34`)에서 쓰지 않는다(LLD FB-3). 툴바가 위로 밀려 가려진 경우(A2)는 뷰가 붙어 보이는 상태라 계속 돈다 — 작은 뷰라 비용은 작다(R3).
 
 ### 3.5 접근성 (K9, SRS REQ-30-09·12)
 - `isClickable = false`, `isFocusable = false`(누름 효과·키보드 초점 없음, REQ-30-09). 화면 낭독기는 설명이 있는 뷰에 탐색 초점을 줄 수 있으므로 `importantForAccessibility = yes`.
 - 설명: 단계마다 K12 문구를 `contentDescription`으로. 역할 말("버튼"·"그림") 없음. 클릭 동작을 노출하지 않으므로 "두 번 눌러 활성화" 안내가 없다.
-- 알림: `ViewCompat.setAccessibilityLiveRegion(POLITE)`. 설명은 단계가 바뀔 때만 바꾼다 — 같은 단계의 반복 설정은 건너뛴다(반복 낭독 없음). `View.announceForAccessibility`는 API 36에서 사용 중단이라 쓰지 않는다. 창 이동(K8)으로 뷰가 바뀌면 새 뷰가 나타나며 같은 문구를 한 번 더 읽을 수 있다(R2).
+- 알림: `View.accessibilityLiveRegion = POLITE`(API 19부터 있는 `View` 속성이라 `ViewCompat` 불필요). 설명은 단계가 바뀔 때만 바꾼다 — 같은 단계의 반복 설정은 건너뛴다(반복 낭독 없음). 나타날 때는 뷰를 보이게 한 **뒤** 설명을 넣고, 숨길 때 바로 설명을 지운다(R8). `View.announceForAccessibility`는 API 36에서 사용 중단이라 쓰지 않는다. 창 이동(K8)으로 뷰가 바뀌면 새 뷰가 나타나며 같은 문구를 한 번 더 읽을 수 있다(R2).
 - 가려짐(A1·A2) 중에도 단계 변화 알림은 뷰가 붙어 있으면 난다 — 선택 모드에서 `overlayToolbar`는 위에 겹쳐 보이고 아래 `toolbar`는 그대로 두며 입력 초점만 막는다(`ui/OverlayToolbarActionMode.kt:22-38` — `descendantFocusability`만 바꿈). 검색이 펼쳐진 동안 `Toolbar`가 일반 자식을 잠시 떼는 경우는 알림이 나지 않을 수 있다(R2).
 
 ### 3.6 수명주기·오류 전파
@@ -143,7 +145,7 @@ flowchart LR
 | 파일 | #29(PR #31 HLD)가 바꾸는 곳 | 이 설계가 바꾸는 곳 | 판단 |
 |---|---|---|---|
 | `filelist/FileListLiveData.kt` | 적재 로직 | 없음 | 겹침 없음 |
-| `filelist/FileListFragment.kt` | `onFileListChanged`(`:707-739`) — 툴바 부제목 포함 | 관찰 등록(`:348-358` 근처)과 K9 바인딩 필드(`Binding`, `:1617-1660`) | 같은 파일, 다른 자리. 나중에 머지되는 쪽이 다시 맞춘다. 부제목은 건드리지 않는다. |
+| `filelist/FileListFragment.kt` | `onFileListChanged`(`:707-739`) — 툴바 부제목 포함 | `onActivityCreated` 끝(`:382` 뒤)에서 부르는 새 관찰 등록 함수(`onActivityCreated`와 `menuProvider` `:385` 사이)와 K9 바인딩 필드(`Binding`, `:1617-1660`) | 같은 파일, 다른 자리. #29 구현(`origin/feature/29-sftp-list-reload`)은 `onActivityCreated`의 창 표시 관찰 블록(`:348-358`) 안과 `:365` 근처를 바꾸므로 그 블록에는 끼우지 않는다(LLD FB-5). 나중에 머지되는 쪽이 다시 맞춘다. 부제목은 건드리지 않는다. |
 | `res/layout/file_list_fragment_app_bar_include.xml` | 없음(#29 HLD는 레이아웃을 바꾸지 않음) | `toolbar`에 자식 추가 | 겹침 없음 |
 | `docs/STANDARDS_TRACEABILITY.md` | v0.7, 4장 #29 행 | feature PR에서 #30 행 | 순서대로(#29 먼저면 v0.8) |
 - 진행 중 제목이 줄 때 #29의 부제목("Loading…"·항목 수)도 같은 너비 안에서 줄임표 처리된다(Toolbar 기본). 부제목 문자열·애니메이션(`ui/CrossfadeSubtitleToolbar.kt`)은 그대로다.
@@ -170,8 +172,8 @@ flowchart LR
 | R5 | 기존 결함 #34: 작업이 `Throwable`로 끝나면 `runningJobs.remove`·잠금 갱신이 건너뛰어진다(`FileJobService.kt:57-63`이 `finally`가 아님). | **이 기능에서 함께 고친다**(PM 결정, #34를 #30에 흡수): K2 ②의 `finally`로 옮긴다. 예외 전파·작업 본문은 그대로다. feature PR 본문에 #34를 적는다. |
 | R6 | (닫힘) SRS Q1~Q3. | 오너 결정(2026-11-04)으로 v1.1 설계 그대로 확정: Q1 모두 포함(K2 ①에 작업 종류 제외 없음), Q2 오류 건너뛰기는 실패·충돌 건너뛰기는 성공(K4 유지), Q3 선택 모드·검색 중 가려짐 허용(K9a `overlayToolbar`에 두지 않음). |
 | R7 | #29와 같은 파일(`FileListFragment.kt`) 수정. | 4.1 조율점. |
-| R8 | 낭독 중복 방지(3.5): 같은 단계 반복 설정을 건너뛰려면 `HIDDEN`이 될 때 마지막 설명을 지워야 다음 묶음의 "진행 중"이 다시 낭독된다. 또 설명은 뷰를 보이게 하기 전에 설정해야 나타날 때 옛 설명을 읽지 않는다. | LLD에서 K9 함수 명세로 정한다. |
-| R9 | K11의 `ValueAnimator.areAnimatorsEnabled()`는 시스템 설정 배율 0 말고도 절전 모드 등으로 애니메이터가 꺼진 경우 거짓일 수 있다고 알려져 있다(미확인). 그러면 SRS 용어(배율 0)보다 넓고, API 23~25 경로(설정값 읽기)와 판정이 다를 수 있다. | 애니메이터가 꺼지면 어차피 그림이 끝 프레임으로 건너뛰므로 넓게 판정해 정지 자세를 쓰는 편이 맞다고 본다(REQ-30-10의 목적과 같음). LLD에서 API 문서·동작으로 확인하고, 다르면 SRS 용어 정의를 설계팀이 고친다. |
+| R8 | 낭독 중복 방지(3.5): 같은 단계 반복 설정을 건너뛰려면 `HIDDEN`이 될 때 마지막 설명을 지워야 다음 묶음의 "진행 중"이 다시 낭독된다. (v1.3 정정) 설명은 뷰를 보이게 한 **뒤** 설정한다 — 보이지 않는 뷰의 접근성 이벤트는 버려지므로(android-35 `View.java:9032-9034` `sendAccessibilityEventUncheckedInternal`의 `isShown()` 검사) 보이기 전에 넣으면 나타날 때의 낭독이 사라진다. 나타날 때 옛 설명을 읽지 않는 것은 `HIDDEN`이 될 때 바로 설명을 지우는 것(첫 문장)으로 지킨다. | (해소) LLD 0.2 R8·2.12 `phase` 설정자(LLD FB-3). |
+| R9 | K11의 `ValueAnimator.areAnimatorsEnabled()`는 시스템 설정 배율 0 말고도 절전 모드 등으로 애니메이터가 꺼진 경우 거짓일 수 있다고 알려져 있다(미확인). 그러면 SRS 용어(배율 0)보다 넓고, API 23~25 경로(설정값 읽기)와 판정이 다를 수 있다. | (해소) LLD가 확인: API 문서(android-35 `ValueAnimator.java:396-411`)가 배율 0 "또는 절전 모드"에서 거짓이라고 명시한다(창 관리자 쪽 구현은 미확인). API 23~25 경로는 절전 모드를 반영하지 않는다. 애니메이터가 꺼지면 어차피 그림이 끝 프레임으로 건너뛰므로 넓게 판정해 정지 자세를 쓴다(REQ-30-10의 목적과 같음). SRS 1.4 정의를 v1.3에서 넓혔다(LLD FB-1). |
 | R10 | K6가 상태 관찰 콜백 안에서 `consumeResult`를 부르면 같은 LiveData가 콜백 안에서 다시 통지된다(재진입). | K5·K6는 재진입해도 같은 결과가 되게 만든다(소비 뒤 `finished == null`은 3.3 표의 "자기 소비" 행으로 처리). LLD에서 명시. |
 
 ## 7. 변경 이력
@@ -180,3 +182,4 @@ flowchart LR
 | 2026-11-03 | v1 | 초안 | SRS v1.1 검수 통과 | 설계팀 |
 | 2026-11-04 | v1.1 | K4 "다시 시도" 판정을 양성 버튼 글로(자기 안·위로 복사·이동 창의 양성 = 건너뛰기), K4 추적에 REQ-30-16, 3.1 먼저 온 보고가 이김, 3.3 멈춤에서 돌아올 때 규칙, D3 대안, R8~R10 | HLD 검수 1회차 M1·m1~m6 (PR #32) | 검수팀 |
 | 2026-11-04 | v1.2 | 3.1 표 가운데의 문단을 표 아래로 옮김(표 분리 해소). SRS Q1~Q3 결정 반영(K4 제목·설명, 3.2, R6 닫음). K2 ②의 `finally`에 `runningJobs` 정리·잠금 갱신을 옮겨 #34 해소, R5 갱신 | HLD 검수 2회차 경미 n1, 오너 결정(이슈 #30 issuecomment-6617754053, 2026-11-04), #34 흡수(PM 결정) | 검수팀·오너·PM |
+| 2026-11-04 | v1.3 | 1.2 그림·새 경계에 K1→설정 참조와 이유, K1·K1a 묶음 끝 때 설정 꺼짐이면 결과 없음, K6 소비 규칙 범위 한정(FB-2). 3.3 표에 결과 단계 중 새 결과(`shownSeq` 다름) 행과 `HIDDEN` 행의 `shownSeq` 조건, 멈춤 복귀 규칙(FB-4). 3.4 멈춤 콜백을 API 23 호환으로, 3.5 `View.accessibilityLiveRegion`·설명 순서, R8 정정·해소(FB-3). K11·R9 해소(FB-1). K8·4.1 관찰 등록 위치를 `onActivityCreated` 끝 별도 함수로(FB-5) | LLD v1 설계 피드백 FB-1~FB-5 (커밋 8aec196) | 개발팀 |
