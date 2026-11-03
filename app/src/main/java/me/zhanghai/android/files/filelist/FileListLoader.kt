@@ -22,7 +22,8 @@ import java.util.concurrent.Future
  *
  * All the functions here and the callbacks are on the main thread.
  *
- * @param load Loads the result on [backgroundExecutor]. It should not throw.
+ * @param load Loads the result on [backgroundExecutor]. It should not throw; if it does, nothing
+ * is delivered for that load, but the loader is no longer loading.
  * @param onLoadStarted Called when a load starts, with whether it was started for a change.
  * @param onLoadFinished Called with the result of the current load, and whether it was started for
  * a change.
@@ -73,17 +74,26 @@ class FileListLoader<T>(
         val generation = ++generation
         onLoadStarted(isForChange)
         future = backgroundExecutor.submit {
-            val result = load()
-            mainExecutor.execute { onFinished(generation, result, isForChange) }
+            val result = try {
+                load()
+            } catch (t: Throwable) {
+                // Don't stay loading forever, so that later changes still reload.
+                mainExecutor.execute { onFinished(generation, null, isForChange) }
+                throw t
+            }
+            mainExecutor.execute { onFinished(generation, LoadResult(result), isForChange) }
         }
     }
 
-    private fun onFinished(generation: Int, result: T, isForChange: Boolean) {
+    // A null result means that the load threw.
+    private fun onFinished(generation: Int, result: LoadResult<T>?, isForChange: Boolean) {
         if (generation != this.generation) {
             return
         }
         future = null
-        onLoadFinished(result, isForChange)
+        if (result != null) {
+            onLoadFinished(result.value, isForChange)
+        }
         if (isChangePending) {
             isChangePending = false
             onPendingChange()
@@ -99,3 +109,6 @@ class FileListLoader<T>(
         future = null
     }
 }
+
+// Wraps a result so that a null result can be told apart from a load that threw.
+private class LoadResult<T>(val value: T)

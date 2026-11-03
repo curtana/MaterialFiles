@@ -49,10 +49,16 @@ class FileListLoaderTest {
         backgroundExecutor.shutdownNow()
     }
 
+    // Loads with these indices throw an Error after their gate opens.
+    private val throwingLoads = mutableSetOf<Int>()
+
     private fun load(): String {
         val index = loadCount.getAndIncrement()
         return try {
             gates[index].await()
+            if (index in throwingLoads) {
+                throw OutOfMemoryError("Test")
+            }
             "load$index"
         } catch (e: InterruptedException) {
             interruptedCount.incrementAndGet()
@@ -183,5 +189,22 @@ class FileListLoaderTest {
         loader.reload()
         assertNoMainTask()
         assertEquals(1, loadCount.get())
+    }
+
+    // R-B1-04 (review m1): a load that throws doesn't leave the loader loading forever.
+    @Test
+    fun throwingLoad_stopsLoading_andPendingChangeStillReloads() {
+        throwingLoads += 0
+        loader.reload()
+        waitForLoadCount(1)
+        loader.requestReloadOnChange()
+        finishLoad(0)
+        runMainTask()
+        assertEquals(emptyList<String>(), finished)
+        waitForLoadCount(2)
+        finishLoad(1)
+        runMainTask()
+        assertEquals(listOf("load1"), finished)
+        assertFalse(loader.isLoading)
     }
 }
