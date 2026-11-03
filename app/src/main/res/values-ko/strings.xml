@@ -281,6 +281,21 @@
     <string name="file_list_paste_copy_title_format">%1$,d개 항목 복사</string>
     <string name="file_list_paste_extract_title_format">%1$,d개 항목 압축 해제</string>
     <string name="file_list_paste_action_extract_here">여기에 압축 풀기</string>
+    <string name="file_list_confirm_copy_move_move_title">이동</string>
+    <string name="file_list_confirm_copy_move_item_name_format">“%1$s”</string>
+    <plurals name="file_list_confirm_copy_move_item_count_format">
+        <item quantity="other">%1$,d개 항목</item>
+    </plurals>
+    <plurals name="file_list_confirm_copy_move_locations_format">
+        <item quantity="other">%1$s 외 %2$,d곳</item>
+    </plurals>
+    <string name="file_list_confirm_copy_move_from_to_format">%1$s → %2$s</string>
+    <string name="file_list_confirm_copy_move_to_format">대상: %1$s</string>
+    <string name="file_list_confirm_copy_move_same_directory_all">대상이 원래 위치와 같은 폴더입니다.</string>
+    <plurals name="file_list_confirm_copy_move_same_directory_some_format">
+        <item quantity="other">%1$,d개 항목의 원래 위치가 대상과 같은 폴더입니다.</item>
+    </plurals>
+    <string name="file_list_confirm_copy_move_positive">실행</string>
     <string name="file_list_empty">파일 없음</string>
     <string name="file_list_action_create_file">파일</string>
     <string name="file_list_action_create_directory">폴더</string>
