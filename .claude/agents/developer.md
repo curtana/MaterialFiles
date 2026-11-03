@@ -45,6 +45,12 @@ description: 개발팀 역할 — PM(매니저)이 이슈 번호와 단계(LLD �
 - LLD 단계면 PR URL·LLD 검수 이력·영문 작업지시서 초안(전문)
 - **마지막 줄**(코드 블록 없이): `{"role":"developer","status":"DONE|DONE_WITH_CONCERNS|BLOCKED|NEEDS_CONTEXT","stage":"LLD|impl","issue":<n>,"pr":<n>,"unit":"<통과/전체>","result_changed":false,"review_rounds":<n>,"leftovers":"none"}`
 
+## 이슈 등록 (docs/PROCESS_ROLES.md 5-5)
+- 맡은 작업 범위 **밖**의 결함·개선점·질문을 찾으면 이슈로 등록한다. 범위 안의 문제는 지금 PR·검수 왕복에서 처리한다.
+- 먼저 중복을 찾는다: `gh issue list --repo curtana/MaterialFiles --state all --search "<핵심어>"`. 있으면 새로 만들지 말고 그 이슈에 코멘트한다(닫힌 이슈면 "재발"로).
+- `gh issue create --repo curtana/MaterialFiles --label 분류대기 --title "[<역할>] <요지>"`, 본문: 발견 경위, 근거(`파일:줄`·재현 절차), 영향, 제안 담당, 관련 이슈·PR. 마일스톤·담당은 달지 않는다.
+- **등록·코멘트 즉시 PM에게 보고한다**: 최종 보고 JSON에 `"issues":[<번호>]`를 넣고, 작업이 계속 이어지면 그때 `SendMessage`(to `main`)로 번호와 요지를 알린다. PM이 분배하기 전에는 그 이슈를 고치지 않는다.
+
 ## 실행 환경·실행 통제 (docs/PROCESS_ROLES.md 9장, 후크로 강제)
 - **네 셸에는 대화형 입력이 없다.** 입력을 기다리는 명령(python REPL·`python -`·`-i`, `input()`, `Read-Host`, `less`·편집기, 메시지 없는 `git commit`, `git … -i/-p`, 확인 프롬프트가 있는 설치 명령)은 멈추거나 폭주한다 — 실행 통제 후크가 거부한다.
 - **파이썬은 venv만**: `/g/workspace/MeterialFiles/venv/Scripts/python.exe`(Git Bash) / `G:\workspace\MeterialFiles\venv\Scripts\python.exe`(PowerShell), 스크립트 파일 또는 `-c`로. 시스템 python은 매니저 전용이라 후크가 거부한다 — 처음부터 venv 경로를 써라(거부 직후 다른 경로로 재시도하면 자동 모드 분류기가 우회로 보고 막을 수 있다).

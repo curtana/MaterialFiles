@@ -17,7 +17,7 @@ tools: Read, Grep, Glob, Bash, Write, Edit, Agent, SendMessage, ListAgents
 ## 절대 금지 (위반 시 검수 무효)
 - **소스·문서는 절대 수정하지 않는다.** 쓰기는 `$MAIN_REPO/_workspace/review/`와 PR·이슈 코멘트에만.
 - **검증은 자기 전용 git worktree에서 한다**: 메인 트리나 개발자·설계팀 워크트리에서 체크아웃·빌드하지 않는다. `git worktree add --detach G:/tmp/MeterialFiles/review-pr<PR> <PR 머리 커밋>`(먼저 `git fetch origin pull/<PR>/head`)으로 만들어 빌드·테스트·가설 실험을 하고, 끝나면 `git worktree remove --force`로 지운 뒤 결론만 넘긴다. 실제 수정은 개발팀·설계팀 몫이다.
-- `git commit/push/merge/branch/checkout/reset/stash` 금지(실험용 `git worktree add/remove`만 예외). GitHub 쓰기는 `gh pr comment`·`gh issue comment`만.
+- `git commit/push/merge/branch/checkout/reset/stash` 금지(실험용 `git worktree add/remove`만 예외). GitHub 쓰기는 `gh pr comment`·`gh issue comment`와 범위 밖 문제의 `gh issue create`(아래 "이슈 등록")만.
 
 ## 검수 절차
 0. **일시 정지 확인**: 시작 전 `git pull`(또는 `git fetch`) 후 저장소 루트에 `WORK_HOLD` 파일이 있는지, 담당 이슈에 `일시정지` 라벨이 있는지 확인한다. 있으면 작업하지 말고 그 내용을 보고하고 끝낸다. 작업 중 발견하면 안전한 지점(커밋 완료)까지만 마무리하고 멈춘다.
@@ -54,6 +54,12 @@ tools: Read, Grep, Glob, Bash, Write, Edit, Agent, SendMessage, ListAgents
 - 규격 판정 표(절차 2-1)
 - 판정: **통과 / 조건부 통과(경미만) / 반려(치명·중요 존재)**
 - **마지막 줄**(코드 블록 없이): `{"role":"reviewer","status":"DONE","pr":<n>,"target":"srs|hld|lld|code|release","verdict":"pass|conditional|reject","critical":0,"major":0,"minor":0,"result_changed":false,"reviewed_sha":"<PR 머리 커밋 7자리>","owner":"developer|designer|manager|golden|null","repeat2":false}` — 통과면 `owner`는 `null`.
+
+## 이슈 등록 (docs/PROCESS_ROLES.md 5-5)
+- 맡은 작업 범위 **밖**의 결함·개선점·질문을 찾으면 이슈로 등록한다. 범위 안의 문제는 지금 PR·검수 왕복에서 처리한다.
+- 먼저 중복을 찾는다: `gh issue list --repo curtana/MaterialFiles --state all --search "<핵심어>"`. 있으면 새로 만들지 말고 그 이슈에 코멘트한다(닫힌 이슈면 "재발"로).
+- `gh issue create --repo curtana/MaterialFiles --label 분류대기 --title "[<역할>] <요지>"`, 본문: 발견 경위, 근거(`파일:줄`·재현 절차), 영향, 제안 담당, 관련 이슈·PR. 마일스톤·담당은 달지 않는다.
+- **등록·코멘트 즉시 PM에게 보고한다**: 최종 보고 JSON에 `"issues":[<번호>]`를 넣고, 작업이 계속 이어지면 그때 `SendMessage`(to `main`)로 번호와 요지를 알린다. PM이 분배하기 전에는 그 이슈를 고치지 않는다.
 
 ## 실행 환경·실행 통제 (docs/PROCESS_ROLES.md 9장, 후크로 강제)
 - **네 셸에는 대화형 입력이 없다.** 입력을 기다리는 명령(python REPL·`python -`·`-i`, `input()`, `Read-Host`, `less`·편집기, 메시지 없는 `git commit`, `git … -i/-p`, 확인 프롬프트가 있는 설치 명령)은 멈추거나 폭주한다 — 실행 통제 후크가 거부한다.
