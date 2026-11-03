@@ -4,7 +4,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 작성 중(v1.1) — 검수 대기 |
+| 상태 | 작성 중(v1.2) — LLD 검수 1회차 조건부(경미 m1~m6) 반영, 재검수 대기 |
 | 근거 | SRS v1.3, HLD v1.3 (`docs/design/30-job-runner/`, PR #32 — v1.3은 이 LLD의 FB-1~FB-5 반영, 74dff1a), 오너 결정 이슈 #30 issuecomment-6617754053, #34 흡수(PM 결정) |
 | 기준 코드 | `origin/develop` 4437e43 — 인용 줄 번호는 이 커밋 기준 |
 | 이슈 | #30 (흡수 #34). 하위 이슈 없음(HLD 2.1) — feature 브랜치 `feature/30-job-runner` 하나 |
@@ -22,7 +22,7 @@
 |---|---|---|---|
 | R1 | `Toolbar`는 `CUSTOM` 자식 중 끝 쪽 정렬(LTR `RIGHT`, RTL `LEFT`) 자식을 **메뉴 보기를 놓은 다음** 그 안쪽(시작 쪽)에 놓는다 → 메뉴를 가리지 않는다. 검색 펼침(`expandItemActionView`) 때는 `EXPANDED`가 아니고 메뉴가 아닌 자식을 모두 **떼어**(`removeViewAt`) 숨겼다가 접을 때 다시 붙인다 → 선 사람 뷰는 떼어졌다 붙는다(분리·재부착 처리 필요, 2.12). | 프레임워크 `android/widget/Toolbar.java`(SDK sources android-35) `onLayout` `:1863`(메뉴) → `:2008-2011`(`addCustomViewsWithGravity(RIGHT)` 뒤 `layoutChildRight`), `addCustomViewsWithGravity` `:2134-2160`, `removeChildrenForExpandedActionView` `:2230-2241`, `expandItemActionView` `:2477`. 앱이 쓰는 androidx `appcompat:1.8.0`(`app/build.gradle:135`)의 `androidx/appcompat/widget/Toolbar.class`를 `javap -c`로 확인: `onLayout`이 `mMenuView`를 바이트 오프셋 208~252에서 배치한 뒤 1291·1349·1407에서 `addCustomViewsWithGravity`, `Toolbar$ExpandedActionViewMenuPresenter.expandItemActionView`가 `removeChildrenForExpandedActionView`(오프셋 184), `collapseItemActionView`가 `addChildrenForExpandedActionView`(68)를 부름 — 같은 구조. | 2.12, 2.14 |
 | R8 | ① 뷰 초기화에서 `importantForAccessibility = YES`·`accessibilityLiveRegion = POLITE`·`contentDescription = null`을 정한다. ② `HIDDEN`이 되면 **바로** `contentDescription = null`. ③ 나타날 때는 `visibility = VISIBLE`을 **먼저** 하고 그 뒤 설명을 넣는다(HLD R8 문장의 순서와 반대 — 4장 FB-3). | `View.setContentDescription`(android-35 `View.java:11886-11903`)은 같은 값이면 아무 일도 하지 않고 돌아가며(`:11887-11893`), 값이 처음 생길 때 `importantForAccessibility`가 `AUTO`면 라이브 영역 내용 변경 대신 하위 트리 변경만 보낸다(`:11896-11898`) → ①. 라이브 영역 뷰의 변경 알림은 `notifyViewAccessibilityStateChangedIfNeeded`(`:15792-15796`)가 `sendAccessibilityEventUnchecked`로 보내는데 `sendAccessibilityEventUncheckedInternal`은 `isShown()`이 거짓이면 버린다(`:9032-9034`) → 보이기 전에 설명을 넣으면 그 알림이 사라진다 → ③. ②로 숨김 중에 옛 설명이 남지 않으므로 "나타날 때 옛 설명을 읽지 않는다"(HLD R8의 목적)는 ②가 지킨다. | 2.12 |
-| R9 | **그렇다.** API 26 이상 `ValueAnimator.areAnimatorsEnabled()`는 절전 모드에서도 거짓이다. 값은 정적 `sDurationScale == 0`의 반대이고, `sDurationScale`은 창 관리자의 `getCurrentAnimatorScale()`(시작 때)과 `onAnimatorScaleChanged`(바뀔 때)로 채워진다. API 문서가 "개발자 옵션의 배율 0 **또는 절전 모드**(모든 애니메이션을 끔)"로 바뀐다고 명시한다. 창 관리자 쪽 구현(절전 모드가 배율을 0으로 보고하는 코드)은 SDK sources에 없어 **미확인**. API 23~25 경로(설정값 읽기)는 절전 모드를 반영하지 않는다 — 그 버전에서 절전 모드가 애니메이터를 끄는지 자체가 **미확인**. HLD R9 대응대로 넓게 판정(API 26 이상은 `areAnimatorsEnabled`)하고, SRS 1.4 "모션 줄이기" 정의를 설계팀이 넓힌다(4장 FB-1). | android-35 `android/animation/ValueAnimator.java:396-411`(문서 주석과 `return !(sDurationScale == 0)`), `:312-313`·`:338-339`, `android/view/WindowManagerGlobal.java:214-215`·`:236-240`. | 2.15 |
+| R9 | **API 문서상 그렇다(구현 미확인).** API 26 이상 `ValueAnimator.areAnimatorsEnabled()`는 문서 주석에 따르면 절전 모드에서도 거짓이다. 값은 정적 `sDurationScale == 0`의 반대이고, `sDurationScale`은 창 관리자의 `getCurrentAnimatorScale()`(시작 때)과 `onAnimatorScaleChanged`(바뀔 때)로 채워진다. API 문서가 "개발자 옵션의 배율 0 **또는 절전 모드**(모든 애니메이션을 끔)"로 바뀐다고 명시한다. 창 관리자 쪽 구현(절전 모드가 배율을 0으로 보고하는 코드)은 SDK sources에 없어 **미확인**. API 23~25 경로(설정값 읽기)는 절전 모드를 반영하지 않는다 — 그 버전에서 절전 모드가 애니메이터를 끄는지 자체가 **미확인**. HLD R9 대응대로 넓게 판정(API 26 이상은 `areAnimatorsEnabled`)하고, SRS 1.4 "모션 줄이기" 정의를 설계팀이 넓힌다(4장 FB-1). | android-35 `android/animation/ValueAnimator.java:396-411`(문서 주석과 `return !(sDurationScale == 0)`), `:312-313`·`:338-339`, `android/view/WindowManagerGlobal.java:214-215`·`:236-240`. | 2.15 |
 | R10 | K6 `updateFileJobIndicator`는 `consumeResult`를 **마지막 문장**에서 부르고, K5 `update`는 같은 입력을 다시 받아도 같은 출력을 내며(멱등) 자기가 보인 결과(`shownSeq`)를 두 번 소비하라고 하지 않는다. 상태 관찰 콜백 안에서 소비하면 `LiveData`가 재귀 호출하지 않고 콜백이 끝난 뒤 다시 돌린다. 설정 관찰·타이머·시작 콜백에서 소비하면 상태 관찰 콜백이 **동기적으로 중첩 호출**된다 — 그때 바깥 호출은 할 일을 다 마친 상태다. | androidx `lifecycle-livedata-core:2.11.0`(`app/build.gradle:140`) `LiveData.dispatchingValue` `javap -c`: 오프셋 0~12 — `mDispatchingValue`가 참이면 `mDispatchInvalidated = true` 후 반환(재귀 없음). | 2.7, 2.8 |
 
 ### 0.3 사용자에게 보이는 변화
@@ -222,7 +222,7 @@ object FileJobStateTracker {
   ```
 - **오류**: 기다리다 끼어들면 지금처럼 `InterruptedIOException`(기록하지 않음 — 어차피 취소).
 - **알고리즘**: 위. 비교를 창을 띄우기 **전에** 하는 이유: 답을 기다리는 동안 언어가 바뀌면 서비스 자원이 새 언어로 바뀌어(서비스도 구성 변경을 받는다) 뒤에서 비교하면 "다시 시도"를 놓칠 수 있다. 호출부가 같은 순간 같은 자원으로 만든 글과 비교하므로 언어와 무관하다(HLD D3).
-- **기존 코드와의 관계**: 호출부 15곳(`:706`, `:919`, `:1021`, `:1201`, `:1241`, `:1392`, `:1563`, `:1663`, `:1808`, `:1954`, `:2074`, `:2202`, `:2293` 등)은 바꾸지 않는다. 양성 버튼이 "건너뛰기"인 두 창(`:1201-1224`, `:1241-1264`)에서 POSITIVE는 미해결로 기록된다. 양성 버튼이 없는 압축 오류 창(`:706-722`, NEGATIVE·CANCELED → `InterruptedIOException`)도 기록되지만 결과는 어차피 실패다. `showConflictDialog`(`:547-`)는 바꾸지 않는다(충돌 "건너뛰기" = 성공).
+- **기존 코드와의 관계**: 호출부 13곳(`:706`, `:919`, `:1021`, `:1201`, `:1241`, `:1392`, `:1563`, `:1663`, `:1808`, `:1954`, `:2074`, `:2202`, `:2293` 등)은 바꾸지 않는다. 양성 버튼이 "건너뛰기"인 두 창(`:1201-1224`, `:1241-1264`)에서 POSITIVE는 미해결로 기록된다. 양성 버튼이 없는 압축 오류 창(`:706-722`, NEGATIVE·CANCELED → `InterruptedIOException`)도 기록되지만 결과는 어차피 실패다. `showConflictDialog`(`:547-`)는 바꾸지 않는다(충돌 "건너뛰기" = 성공).
 
 ### 2.6 `filejob.FileJobErrorAction.kt` (K4 순수 판정) — 수정
 
@@ -428,8 +428,9 @@ class FileJobIndicatorView : View {
 - **입력·전제**: 메인 스레드. 뷰가 떼어져 있어도(검색 펼침 R1) 불릴 수 있다.
 - **출력·사후조건**:
   - 같은 값 → 아무것도 안 함(반복 낭독 없음, REQ-30-12).
+  - **순서 규칙**: 맨 먼저 `field = value`(새 단계)와 `animator.cancel()`을 하고, `isReducedMotion`·`posePhase`를 정한 **뒤에** `visibility`를 바꾼다. `visibility` 대입은 동기로 `onVisibilityChanged` → `updatePoseAnimator(restart = false)`를 부르므로, 그 안에서 새 단계와 새 판정만 보이게 하기 위해서다(옛 단계로 애니메이터가 시작되지 않음).
   - `HIDDEN`으로: `contentDescription = null`(R8 ②); 자세 애니메이터 취소; `isReducedMotion = context.isReducedMotion()`; 모션 줄이기이거나 `!isShown`이면 `animate().cancel(); visibility = GONE; alpha = 1f`; 아니면 `animate().alpha(0f).setDuration(FADE_OUT_MILLIS = 150).withEndAction { visibility = GONE; alpha = 1f }`.
-  - `RUNNING`·`SUCCEEDED`·`FAILED`로: `animate().cancel(); alpha = 1f`; `isReducedMotion = context.isReducedMotion()`(나타날 때·자세 바뀔 때마다 판정, REQ-30-10); `visibility = VISIBLE` **그 다음** `contentDescription = getString(설명)`(R8 ③) — 설명 = `RUNNING` → `R.string.file_job_indicator_running_description`, `SUCCEEDED` → `…_succeeded_description`, `FAILED` → `…_failed_description`; `posePhase = if (isReducedMotion) STATIC_POSE_PHASE[phase] else 0f`(정지 자세: 달리기 `0.25f`, 만세·넘어짐 `1f` — HLD 3.4); `updatePoseAnimator(restart = true)`; `invalidate()`.
+  - `RUNNING`·`SUCCEEDED`·`FAILED`로 (이 순서대로): `animator.cancel()`; `animate().cancel(); alpha = 1f`; `isReducedMotion = context.isReducedMotion()`(나타날 때·자세 바뀔 때마다 판정, REQ-30-10); `posePhase = if (isReducedMotion) STATIC_POSE_PHASE[phase] else 0f`(정지 자세: 달리기 `0.25f`, 만세·넘어짐 `1f` — HLD 3.4); `visibility = VISIBLE`; **그 다음** `contentDescription = getString(설명)`(R8 ③) — 설명 = `RUNNING` → `R.string.file_job_indicator_running_description`, `SUCCEEDED` → `…_succeeded_description`, `FAILED` → `…_failed_description`; `updatePoseAnimator(restart = true)`; `invalidate()`.
 - **오류**: 없음.
 - **알고리즘**: 위. 사라짐 효과 중 새 단계가 오면 `animate().cancel()`로 멈추고 `alpha = 1f`로 되돌린다.
 - **기존 코드와의 관계**: `View.animate()`(ViewPropertyAnimator)는 배율 0에서 끝으로 바로 건너뛰지만 모션 줄이기는 위에서 먼저 걸러 효과 자체를 쓰지 않는다(REQ-30-10 "서서히 사라지는 효과 없이").
@@ -437,9 +438,9 @@ class FileJobIndicatorView : View {
 #### `private fun updatePoseAnimator(restart: Boolean)`
 - **추적**: HLD 3.4 "멈춤", R3 / SRS 3.2
 - **책임**: 애니메이터를 돌릴 조건일 때만 돌린다.
-- **출력·사후조건**: `shouldRun = phase != HIDDEN && !isReducedMotion && isAttachedToWindow && isShown`.
+- **출력·사후조건**: `shouldRun = phase != HIDDEN && !isReducedMotion && isAttachedToWindow && windowVisibility == VISIBLE && isShown`. `isShown`은 조상 뷰의 보임만 보고 창 보임을 반영하지 않으므로 `windowVisibility`를 따로 본다(이 조건이 있어야 `onWindowVisibilityChanged` 훅이 실효가 있다. 액티비티가 멈추면 decor가 INVISIBLE이 되어 `isShown`도 거짓이 되지만 그 경로에 기대지 않는다).
   - `!shouldRun` → `animator.cancel()`; 결과 단계면 `posePhase = 1f`(끝 자세로 둠); `RUNNING`은 위상 그대로.
-  - `shouldRun && (restart || !animator.isStarted)` → 단계에 맞게 설정 후 `start()`: `RUNNING` — `duration = RUNNING_CYCLE_MILLIS (600)`, `repeatCount = INFINITE`, `repeatMode = RESTART`, `interpolator = LinearInterpolator()`; `SUCCEEDED` — `300`, `repeatCount = 0`, `FastOutSlowInInterpolator()`; `FAILED` — `400`, `repeatCount = 0`, `FastOutSlowInInterpolator()`(`CrossfadeSubtitleToolbar.kt:25`의 보간기). 결과 단계에서 다시 붙거나 다시 보이는 경우(`restart == false`)는 이미 끝 자세이므로 다시 돌리지 않는다: `restart == false && phase != RUNNING && posePhase == 1f`면 시작하지 않는다.
+  - `shouldRun && (restart || !animator.isStarted)` → `animator.cancel()`(시작 중이면 멈춤) 뒤 단계에 맞게 설정하고 `start()`: `RUNNING` — `duration = RUNNING_CYCLE_MILLIS (600)`, `repeatCount = INFINITE`, `repeatMode = RESTART`, `interpolator = LinearInterpolator()`; `SUCCEEDED` — `300`, `repeatCount = 0`, `FastOutSlowInInterpolator()`; `FAILED` — `400`, `repeatCount = 0`, `FastOutSlowInInterpolator()`(`CrossfadeSubtitleToolbar.kt:25`의 보간기). 결과 단계에서 다시 붙거나 다시 보이는 경우(`restart == false`)는 이미 끝 자세이므로 다시 돌리지 않는다: `restart == false && phase != RUNNING && posePhase == 1f`면 시작하지 않는다.
 - **오류**: 없음.
 
 #### `onAttachedToWindow()` / `onDetachedFromWindow()` / `onVisibilityChanged(changedView, visibility)` / `onWindowVisibilityChanged(visibility)`
@@ -516,7 +517,7 @@ data class StickFigurePose(
 - **출력·사후조건**: API 26 이상 `!ValueAnimator.areAnimatorsEnabled()`(배율 0 또는 절전 모드 — 0.2 R9). 미만 `isReducedMotion(android.provider.Settings.Global.getFloat(contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f))`.
 - **오류**: 없음(설정이 없으면 기본 1 → 거짓).
 - **알고리즘**: 위. 앱의 `settings.Settings`와 이름이 겹치므로 `android.provider.Settings`는 정규 이름으로 쓴다.
-- **기존 코드와의 관계**: 새 파일. API 23~25의 설정값 읽기는 설정 제공자 프로세스 간 호출(캐시됨)이고 디스크 입출력이 아니다(SRS 3.2 — 단계가 바뀔 때만 부름).
+- **기존 코드와의 관계**: 새 파일. API 23~25의 설정값 읽기(`Settings.Global.getFloat`)는 설정 제공자를 거친다. 프로세스 안 캐시 여부와 디스크 입출력 여부는 **미확인**(SDK 소스로 확인하지 않음). 부르는 횟수가 단계가 바뀔 때만이라(묶음당 몇 번) 메인 스레드 막힘(`Stability_ANR`, SRS 3.2) 위험은 작다고 보며, 구현 단계에서 StrictMode 경고가 나면 보고한다.
 
 #### `internal fun isReducedMotion(animatorDurationScale: Float): Boolean`
 - **출력·사후조건**: `animatorDurationScale == 0f`.
@@ -573,6 +574,8 @@ data class StickFigurePose(
 | U-L13 | 같음 | 멈춤-결과 중 새 묶음 끝(`finished(2)`) → t=2000 | `RUNNING next 3000` |
 | U-L14 | 같음 | 쉼: 진행 0, `finished null` | `HIDDEN`, `next null`, 소비 없음 |
 | U-L15 | 같음 | 같은 입력 `RUNNING` 두 번(t=0, t=400) | `runningSince` 그대로(끝 뒤 `next 1000`) |
+| U-L16 | 같음 | `HIDDEN`에서 `finished(1)`이 자기가 이미 보인 seq(`shownSeq == 1`, 소비 전 재전달) | `HIDDEN` 유지, `next null`, 소비 없음 |
+| U-L17 | 같음 | 멈춤 뒤 진행 중: t=0 진행 → t=300 `stop()` → t=5000 진행 중 그대로 → t=5000 `finished` 받음 | t=5000 `RUNNING`(`runningSince = 5000`으로 다시 셈); 끝 받은 호출은 `next 6000` |
 | U-I01 | `getFileJobIndicatorPaneIndex` | `isDualPaneEnabled = false` × 나머지 | `0` |
 | U-I02 | 같음 | 두 창 모드 × 활성 0·1 | `1` |
 | U-I03 | 같음 | 한 창 모드 × 활성 0·1 | `activePane` |
@@ -593,6 +596,7 @@ data class StickFigurePose(
 | M-01 | 01·02 | 큰 파일 복사 | 바로 툴바 끝 쪽에서 달림, 메뉴 아이콘·더 보기 눌림 |
 | M-02 | 05·07 | 새 폴더 만들기 | 약 1초 달리고 만세 1.5초, 사라짐(화면 녹화 ±0.3초) |
 | M-03 | 04·06 | 복사 중 알림 취소 / 쓰기 금지 폴더로 복사해 오류 창 "취소" / "건너뛰기" | 셋 다 넘어짐 |
+| M-03a | 01·04, K2 ③ | 큰 복사 여럿을 걸어 일부가 서비스 생성 전 대기(`pendingJobs`)일 때 그 알림 취소 / 진행 중 앱 강제 종료 없이 서비스 끝(`adb shell am stopservice`로 `FileJobService` 중지) | 둘 다 넘어짐, 진행 중으로 남지 않음(선 사람이 사라짐) |
 | M-04 | 04 | 같은 이름 충돌 창 "건너뛰기" | 만세 |
 | M-05 | 03 | 복사 둘 동시, 두 창 모드, 한 창 모드 쓸기 전환, 회전 | 하나, 창 2에만, 보이는 창으로 옮겨 감(달리기 이어짐), 회전 뒤 계속 달림 |
 | M-06 | 08 | 만세 중 새 복사 | 바로 달리기 |
@@ -624,3 +628,4 @@ data class StickFigurePose(
 |---|---|---|---|---|
 | 2026-11-04 | v1 | 초안 | SRS v1.2·HLD v1.2 검수 통과, R1·R8~R10 해소, #34 흡수 | 개발팀 |
 | 2026-11-04 | v1.1 | 근거를 SRS·HLD v1.3으로, 4장 FB-1~FB-5 결과 기록 | 설계팀 답(74dff1a) | 개발팀 |
+| 2026-11-04 | v1.2 | 2.5 호출부 13곳, 2.12 `shouldRun`에 `windowVisibility`·`phase` 설정자 순서 규칙·`start()` 전 `cancel()`, 0.2 R9 단정 완화, U-L16·U-L17·M-03a 추가, 2.15 설정 읽기 입출력 미확인 | LLD 검수 1회차 경미 m1~m6 (PR #32 issuecomment-6618249202) | 검수팀 |
