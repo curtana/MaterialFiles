@@ -4,7 +4,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 검수 통과(v1.3 — PR #24 LLD 검수 2회차, 3d4252d) |
+| 상태 | 검수 통과(v1.3 — PR #24 LLD 검수 2회차, 3d4252d). v1.4는 구현 중 설계 문의 반영(8장) — 바뀐 절 재검수 대상 |
 | 근거 | SRS v4.8, HLD v4.9 (`docs/design/2-dual-pane/`), LLD-A v1.4, LLD-B v1.3, LLD-D v1.3.1, `docs/STANDARDS_TRACEABILITY.md`(develop) |
 | 기준 코드 | `origin/develop` 0cca1b4 (#6 머지 PR #22 — #5·#6·#8 구현 포함). 인용 줄 번호는 이 커밋 기준 |
 | 이슈 | #7 (하위 이슈 C, 상위 #2). 선행 #6(머지됨). K3 `panePaths`를 소유하고 #9(E)가 쓴다 |
@@ -151,7 +151,7 @@
 
      | 모드 | `text` | `contentDescription` | `isClickable` | 클릭 동작 설명(`ACTION_CLICK` 라벨) |
      |---|---|---|---|---|
-     | `SWITCHER` | `file_list_pane_switcher_format`(`number`, `count`) → "1 / 2" | `file_list_pane_switcher_description_format`(`number`, `count`) → "창 1 / 2" | `true` | `file_list_pane_switcher_action_format`(`otherNumber`) → "창 2로 전환" |
+     | `SWITCHER` | `file_list_pane_switcher_format`(`number`, `count`) → "1 / 2"를 `BidiFormatter.getInstance().unicodeWrap(…, TextDirectionHeuristicsCompat.LTR)`로 LTR 격리(v1.4 — RTL 문단에서 "2 / 1"로 보이지 않게, SRS `RTL-3`) | `file_list_pane_switcher_description_format`(`number`, `count`) → "창 1 / 2" | `true` | `file_list_pane_switcher_action_format`(`otherNumber`) → "창 2로 전환" |
      | `ACTIVE` | `file_list_pane_name_active_format`(`number`) → "창 1 · 활성" | `file_list_pane_name_active_description_format`(`number`) → "창 1, 활성" | `false` | 없음 |
      | `INACTIVE` | `file_list_pane_name_format`(`number`) → "창 2" | `null`(보이는 글자 "창 2"가 라벨) | `true` | `file_list_pane_activate_action` → "이 창을 활성 창으로" |
 
@@ -233,7 +233,7 @@
         android:ellipsize="middle"
         android:singleLine="true"
         android:textAppearance="?textAppearanceListItemSecondary"
-        android:textColor="?android:textColorSecondary" />
+        android:textColor="?android:textColorPrimary" />
 </LinearLayout>
 
 <View
@@ -249,7 +249,7 @@
 - **들여쓰기 맞춤**: 줄의 `paddingStart`·`paddingEnd`는 경로 표시줄(`:54-55`)과 같고, 컨트롤 안쪽 12dp가 경로 표시줄 항목의 12dp(`res/layout/breadcrumb_item.xml`의 `paddingStart`)와 같아 글자가 경로 표시줄 글자와 세로로 맞는다. start/end만 쓴다(`RTL-1`).
 - **터치 대상(HLD 3.9가 LLD에 맡긴 방법)**: `minWidth`/`minHeight` 48dp(`@dimen/touch_target_size`, `res/values/dimens.xml:41`)를 고른다. `TouchDelegate`는 부모(줄) 경계 밖으로 넓힐 수 없어 줄 높이를 48dp 아래로 줄이면 위아래로 48dp를 만들 수 없고, 위의 경로 표시줄 항목과 겹친다. 그래서 줄 높이 = 컨트롤 높이 = 48dp(0.3).
 - **좁은 창**: 두 창 모드 최소 창 너비 300dp(HLD 3.9)에서 줄 = 60dp + 컨트롤("창 2 · 활성" ≈ 12+약 70+12dp)로 넘치지 않는다. 한 창 모드의 반대쪽 경로는 남은 너비에서 가운데 줄임표로 줄인다(`ellipsize="middle"` — 앞의 "창 2:"와 경로 끝 폴더가 함께 남는다. `start`·`middle` 줄임은 `singleLine`이 필요해 `maxLines` 대신 씀 — `res/layout/file_item_list.xml:77` 주석과 같은 이유).
-- **글자 스타일**: `?textAppearanceListItemSecondary` + `?android:textColor{Primary,Secondary}` — 이 앱 목록 보조 글자의 관용구(`res/layout/file_item_list.xml:94-95`). HLD 3.9의 "기존 툴바 부제목 글자 스타일"과 다르다 → FB-C2.
+- **글자 스타일**: `?textAppearanceListItemSecondary`(sp 크기) — 이 앱 목록 보조 글자의 관용구(`res/layout/file_item_list.xml:94-95`). HLD 3.9의 "기존 툴바 부제목 글자 스타일"과 다르다 → FB-C2. 글자 색은 컨트롤·반대쪽 경로 모두 `?android:textColorPrimary`(v1.4 — `?android:textColorSecondary`는 Material 3 밝은 테마에서 4.24:1로 4.5:1 미달, FB-C5).
 - **선 색**(HLD v4.9 3.9, FB-C1): `?colorControlNormal`은 색 상태 목록이라 배경 드로어블로 바로 쓸 수 없으므로 흰 색 배경에 `backgroundTint`로 칠한다(`View`의 `android:backgroundTint`, API 21+). 앱바 안이라 `android:theme="?actionBarTheme"`(`:18`)가 적용되어 `ThemeOverlay.MaterialFiles.ActionBar`의 값(`res/values/styles.xml:61-62`)이 된다.
 - **배경**: 줄·선은 배경을 두지 않아(선 제외) 앱바 배경(`?colorAppBarSurface`, 들림 시 색 변화 포함)이 그대로 보인다. 컨트롤의 `?selectableItemBackground`는 누를 수 있을 때만 물결이 생긴다.
 - **창 레이아웃 두 변형**(`res/layout/file_list_fragment_include.xml`, `res/layout-sw600dp-land/file_list_fragment_include.xml`)은 이 include를 그대로 쓰므로 바꾸지 않는다.
@@ -280,7 +280,7 @@
 | 두 창 모드 활성화 | 비활성 창 컨트롤 클릭 → `setActivePane`(2.4-1). 그 밖의 요소는 K4 `TYPE_VIEW_CLICKED` 수신(#6, `L:486-491`) | T-C05 |
 | 터치 대상 48dp | `minWidth`/`minHeight` 48dp, 줄 높이 48dp(2.5) | T-C08 |
 | 좁은 창에서 겹침 없음 | 컨트롤은 줄이지 않고, 반대쪽 경로만 가운데 줄임(2.5). 두 창 모드는 경로 글자가 없다 | T-C12 |
-| 대비·색 외 구분 | 활성 = 선(형태) + "활성" 글자(글자). 글자 색은 `?android:textColorPrimary`·`?android:textColorSecondary`(4.5:1 이상 기대). 선 색은 앱바 테마의 `?colorControlNormal`(= `?android:textColorPrimary`, 툴바 아이콘과 같은 색, HLD v4.9 3.9 — FB-C1 반영). 강조색 `?colorPrimary`는 사용자 테마 색 19개 중 9개가 밝은 테마 앱바(흰색)에서 3:1 미만이라 쓰지 않는다(아래) | T-C04, T-C09 |
+| 대비·색 외 구분 | 활성 = 선(형태) + "활성" 글자(글자). 글자 색은 `?android:textColorPrimary`(v1.4 — 실측 모든 테마 14:1 이상, FB-C5). 선 색은 앱바 테마의 `?colorControlNormal`(= `?android:textColorPrimary`, 툴바 아이콘과 같은 색, HLD v4.9 3.9 — FB-C1 반영). 강조색 `?colorPrimary`는 사용자 테마 색 19개 중 9개가 밝은 테마 앱바(흰색)에서 3:1 미만이라 쓰지 않는다(아래) | T-C04, T-C09 |
 | 키보드·마우스 | 컨트롤은 `focusable`(상태와 무관하게 늘 — `ACTIVE`로 바뀌어도 초점이 튀지 않게), Enter·D-pad 가운데는 `View`의 확인 키 처리로 `performClick`. 마우스 클릭은 터치 이벤트로 와 K4 탭 경로와 클릭을 탄다 | T-C05~T-C07 |
 
 - **선 색의 대비 계산(FB-C1 근거)**: WCAG 상대 휘도 대비, 앱바 배경 = 밝은 테마 `#FFFFFF`(`color_surface_light`), 어두운 테마 `#202124`(`google_grey_900`). 기본 강조색은 밝은 `#1A73E8` 4.51:1, 어두운 `#8AB4F8` 7.64:1로 통과. 사용자 선택 테마 색(`res/values/colors_custom.xml` 500 계열 / `res/values-night/colors_custom.xml` 300 계열): 밝은 테마에서 light_blue 2.63, cyan 2.30, green 2.78, light_green 2.10, lime 1.51, yellow 1.22, amber 1.63, orange 2.16, grey 2.68로 9개가 3:1 미만이다. 어두운 테마는 19개 모두 4.37:1 이상. `?android:textColorPrimary`(앱바 테마의 `colorControlNormal`, `res/values/styles.xml:61-62`)는 두 테마에서 약 16:1.
@@ -332,9 +332,9 @@ LLD-B 5.2와 같다(빌드, 기준 APK = develop 0cca1b4 빌드, `adb logcat -b 
 | T-C06 키보드(REQ-2-20, `Keyboard_Navigation`) | 컨트롤 `focusable`, `focusPaneIndicator(true)` | 정상 | C1 외부 키보드: Tab·방향키로 컨트롤까지 → Enter → 초점 위치 확인 → Enter | 전환, 입력 초점이 새 창 컨트롤로(초점 강조 표시), 다시 Enter로 되돌아감 |
 | T-C07 마우스(REQ-2-20, `Mouse_Trackpad_Basic`) | 컨트롤 클릭 | 정상 | C1 `input mouse tap`으로 컨트롤 | 전환 |
 | T-C08 터치 대상(`Touch_Target_Size`) | 2.5 | 경계 | C1·C2·C4에서 `uiautomator dump`의 컨트롤 `bounds` | 너비·높이 ≥ 48dp(px ÷ density) |
-| T-C09 대비(`Visual_Contrast`, `Theme_Support`) | 2.5, 3장 | 경계 | C1·C2 밝은·어두운 테마, Material 3 켬·끔, 검은 밤 모드(`Theme.MaterialFiles.*.Black`, `colorSurface` 검정 — `res/values-night/themes_custom.xml:5-7`), 테마 색 기본과 강조색으로는 3:1 미만이던 밝은 노랑(`material_yellow`) | 글자 4.5:1 이상, 선 3:1 이상(Scanner 또는 화소 계산) |
+| T-C09 대비(`Visual_Contrast`, `Theme_Support`) | 2.5, 3장(v1.4: 반대쪽 경로 색) | 경계 | C1·C2 밝은·어두운 테마, Material 3 켬·끔, 검은 밤 모드(`Theme.MaterialFiles.*.Black`, `colorSurface` 검정 — `res/values-night/themes_custom.xml:5-7`), 테마 색 기본과 강조색으로는 3:1 미만이던 밝은 노랑(`material_yellow`) | 글자 4.5:1 이상, 선 3:1 이상(Scanner 또는 화소 계산) |
 | T-C10 선택 모드(SRS A1) | `HIDDEN` | 경계 | `GET_CONTENT`·`OPEN_DOCUMENT_TREE`·`CREATE_DOCUMENT`(LLD-A T-04 명령), C1·C2 | 창 표시 줄·선 없음, 앱바가 기준 APK와 같음 |
-| T-C11 RTL(`RTL-1`·`RTL-3`·`RTL-4`) | 2.5, `BidiFormatter` | 경계 | RTL 강제 + 히브리어 이름 폴더를 창 2 경로로, C1·C2. 언어를 아랍어로 바꿔 한 번 | 줄이 거울 배치(컨트롤이 오른쪽 시작), 반대쪽 경로 글자 순서가 깨지지 않음, 숫자 로캘 표기 |
+| T-C11 RTL(`RTL-1`·`RTL-3`·`RTL-4`) | 2.5, `BidiFormatter` | 경계 | RTL 강제 + 히브리어 이름 폴더를 창 2 경로로, C1·C2. 언어를 아랍어로 바꿔 한 번 | 줄이 거울 배치(컨트롤이 오른쪽 시작), 반대쪽 경로 글자 순서가 깨지지 않음, 숫자 로캘 표기, `SWITCHER` 단추는 RTL에서도 "1 / 2"로 보임(v1.4) |
 | T-C12 좁은 창·긴 경로 | 2.5 | 경계 | C1에서 창 2를 깊은 폴더(경로 > 화면 너비)로. C4(`wm size 1700x1300`, `wm density 320`, 고정 메뉴 접음 → 두 창, 창 약 425dp)와 LLD-B T-B04의 600dp 경계(세로, `wm density 160` + `wm size 600x1000` → 두 창, 창 300dp) | 한 창: 경로가 가운데 줄임표로 줄고 "창 2:"와 끝 폴더가 보임, 컨트롤과 겹치지 않음. 두 창 300dp: "창 2 · 활성"이 잘리지 않음 |
 | T-C13 회전·복원 | K3 게시판 수명, 2.3 관찰 | 경계 | 창 2 활성·두 경로를 다르게 둔 뒤 C1↔C2 회전 ×3, `always_finish_activities` 켜고 다른 앱 갔다 오기. 회전 직후 화면 녹화(`adb shell screenrecord`)로 표시 단계 기록 | 표시·선·반대쪽 경로가 수 프레임 안에 맞음(2.3 "시작·회전 직후의 단계" — 중간 단계와 앱바 높이 변화는 기록만). 복원 뒤에도 맞음, 크래시 없음 |
 | T-C14 경로 게시(#9 계약) | `setPanePath`, 4장 | 정상 | 한 창 모드 창 1에서, 창 2를 각각 경로 표시줄 누르기·뒤로·탐색 서랍 항목·Ctrl+L 경로 입력·압축 파일 열기로 이동시킨 뒤 창 1 표시 확인 | 매번 "창 2: <새 경로>"(압축 내부는 "압축 파일 경로 + 내부 경로"). `setPanePath`의 같은 값 무시는 단위 시험이 없어(5.1 — `MutableLiveData`가 메인 루퍼를 요구) 코드 검수의 줄 대조로 확인한다 |
@@ -351,6 +351,7 @@ SRS·HLD는 개발팀이 고치지 않았다. 아래는 설계팀에 보낸 것�
 - **FB-C2 (반영 — HLD v4.9 3.9, 같은 폴더 안내는 #8 대화상자 본문 글자로 분리) HLD 3.9 "기존 툴바 부제목 글자 스타일"**: 툴바 부제목 스타일 `TextAppearance.AppCompat.Widget.ActionBar.Subtitle.Small`은 12dp 고정(`res/values/styles.xml:18-20`)이라 글꼴 크기 설정을 따르지 않는다. LLD는 같은 보조 글자 색(`?android:textColorSecondary`)에 sp 크기인 목록 보조 글자 관용구(`?textAppearanceListItemSecondary`)를 쓴다(2.5). HLD 문구를 "보조 글자 색·sp 크기"로 바꾸기를 권한다.
 - **FB-C3 (반영 — HLD v4.9 K9, 이름은 LLD가 정함) HLD K9 목록**: K7 (1)의 보조 글자 "창 M: <반대쪽 경로>" 형식과 K7 (2)의 활성 창 보이는 글자 형식이 K9 목록에 없다. 2.6의 8개로 보완하기를 권한다("활성"은 형식 안에 넣음).
 - **FB-C4 (반영 — HLD v4.9 3.9) HLD 3.9 전환 뒤 초점**: HLD는 접근성 초점만 적었다. LLD는 키보드로 실행했을 때 입력 초점도 새 컨트롤로 옮긴다(2.3 `focusPaneIndicator`, `Keyboard_Navigation`). HLD 3.9 "키보드·마우스"에 한 문장 더하기를 권한다.
+- **FB-C5 (구현 중 설계 문의, 2026-11-03 — 설계팀 답변: HLD 3.9 수정은 설계팀) T-C09·T-C11 실측**: (1) 반대쪽 경로 `?android:textColorSecondary`가 Material 3 밝은 테마에서 `#757780`/`#FAF8FF` = 4.24:1(4.5:1 미달, 기존 툴바 부제목·경로 표시줄 비현재 항목도 같은 값). 설계팀: SRS 3.3·`Visual_Contrast`(필수) 때문에 그대로 둘 수 없음 → `?android:textColorPrimary`로(사용자에게 보이는 색이라 PM 확인 대상). 앱 전체 보조 글자 대비는 범위 밖 별도 이슈. (2) `SWITCHER` "1 / 2"가 RTL(히브리어·아랍어)에서 "2 / 1"로 보임 → `RTL-3`에 따라 LTR 격리(`ACTIVE`·`INACTIVE`는 로캘 방향, 뷰 `textDirection`은 쓰지 않음). SRS 변경 없음.
 - **결정 기록(LLD 재량, HLD가 맡긴 것)**: 터치 대상은 `minWidth`/`minHeight` 48dp(2.5), `panePaths` API 모양과 `null` 뜻(2.1·4장), 창 표시 갱신을 한 메시지 미룸(2.3 — 눌림 상태 고착 방지), 단추 역할은 누를 수 있을 때만(2.3 위임), 선 두께 3dp·비활성 창은 자리만 둠(2.3), 반대쪽 경로 가운데 줄임(2.5), 비활성 창 speed dial·붙여넣기 막대는 숨기지 않음(R6, 7장).
 
 ## 7. 위험 처리 (HLD 6장)
@@ -382,3 +383,4 @@ SRS·HLD는 개발팀이 고치지 않았다. 아래는 설계팀에 보낸 것�
 | 2026-11-01 | v1.1 | FB-C1~C4 결과 반영: 근거 HLD v4.9, 선 색 `?colorControlNormal`(2.5 XML·선 색 설명, 3장), `styles.xml` 줄 정정(`:61-62`), T-C09에 검은 밤 모드·노랑 테마, 6장 결과 | 설계팀 회신(HLD v4.9, 2edec99) | 설계팀 |
 | 2026-11-03 | v1.2 | 7.1 업스트림 동기화 후 재확인 항목 S1~S7 | 업스트림 29개 커밋이 master에 들어옴(develop 미반영) | PM |
 | 2026-11-03 | v1.3 | 검수 1회차 경미 1~6: 2.1 "초기화하지 않는다" 근거, 2.3 시작·회전 직후 단계·위임 설정 순서 근거, 2.5 선 `importantForAccessibility="no"`, T-C13 기대값, T-C14 단위 시험 한계, T-C16 큰 글꼴, 7.1 S1·S2·S4·S5 보완. LLD-A·LLD-D의 `panePaths` 소유(#6 → #7), LLD-B `F:422` | LLD 검수 1회차(PR #24 코멘트 6598275680) | 검수팀 |
+| 2026-11-03 | v1.4 | 2.3 `SWITCHER` 글자 LTR 격리, 2.5 반대쪽 경로 색 `?android:textColorPrimary`, 3장 대비 행, T-C09·T-C11 기대값, 6장 FB-C5. 7.1 S1~S7 재확인: develop 6e6a403에서 `F:`·`H:`·`V:`·`L:` 인용 줄 번호와 기호가 그대로 맞음(변경 없음) | 구현 중 T-C09·T-C11 실측 결과 설계 문의(설계팀 답변) | 개발팀 |

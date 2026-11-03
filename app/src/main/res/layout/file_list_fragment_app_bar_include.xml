@@ -79,7 +79,10 @@
                 android:textAppearance="?textAppearanceListItemSecondary"
                 android:textColor="?android:textColorPrimary" />
 
-            <!-- Ellipsize in the middle to keep both the pane name and the last directory. -->
+            <!--
+              ~ Ellipsize in the middle to keep both the pane name and the last directory. The
+              ~ secondary text color is below 4.5:1 in the light Material 3 theme.
+              -->
             <TextView
                 android:id="@+id/otherPanePathText"
                 android:layout_width="0dp"
@@ -88,7 +91,7 @@
                 android:ellipsize="middle"
                 android:singleLine="true"
                 android:textAppearance="?textAppearanceListItemSecondary"
-                android:textColor="?android:textColorSecondary" />
+                android:textColor="?android:textColorPrimary" />
         </LinearLayout>
 
         <!-- ?colorControlNormal is a color state list, so it's applied as a tint. -->

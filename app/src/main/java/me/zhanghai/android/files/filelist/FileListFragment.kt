@@ -36,6 +36,7 @@ import androidx.core.content.pm.ShortcutInfoCompat
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.drawable.IconCompat
 import androidx.core.text.BidiFormatter
+import androidx.core.text.TextDirectionHeuristicsCompat
 import androidx.core.util.Consumer
 import androidx.core.view.AccessibilityDelegateCompat
 import androidx.core.view.MenuProvider
@@ -623,8 +624,11 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
         val actionLabel: String?
         when (mode) {
             PaneIndicatorMode.SWITCHER -> {
-                indicatorText.text =
-                    getString(R.string.file_list_pane_switcher_format, number, count)
+                // Isolated as LTR, so that it isn't displayed as "2 / 1" in RTL.
+                indicatorText.text = BidiFormatter.getInstance().unicodeWrap(
+                    getString(R.string.file_list_pane_switcher_format, number, count),
+                    TextDirectionHeuristicsCompat.LTR
+                )
                 indicatorText.contentDescription =
                     getString(R.string.file_list_pane_switcher_description_format, number, count)
                 indicatorText.isClickable = true
