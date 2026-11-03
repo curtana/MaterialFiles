@@ -4,8 +4,8 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 작성 중(v1) |
-| 근거 | SRS v1.2, HLD v1.2 (`docs/design/30-job-runner/`, PR #32), 오너 결정 이슈 #30 issuecomment-6617754053, #34 흡수(PM 결정) |
+| 상태 | 작성 중(v1.1) — 검수 대기 |
+| 근거 | SRS v1.3, HLD v1.3 (`docs/design/30-job-runner/`, PR #32 — v1.3은 이 LLD의 FB-1~FB-5 반영, 74dff1a), 오너 결정 이슈 #30 issuecomment-6617754053, #34 흡수(PM 결정) |
 | 기준 코드 | `origin/develop` 4437e43 — 인용 줄 번호는 이 커밋 기준 |
 | 이슈 | #30 (흡수 #34). 하위 이슈 없음(HLD 2.1) — feature 브랜치 `feature/30-job-runner` 하나 |
 | HLD 구성요소 | K1·K1a·K2~K12 전부 |
@@ -613,13 +613,14 @@ data class StickFigurePose(
 
 | ID | 내용 | 근거 | 문의·결과 |
 |---|---|---|---|
-| FB-1 | R9: API 26 이상 판정(`areAnimatorsEnabled`)은 절전 모드도 포함해 SRS 1.4 "모션 줄이기"(배율 0) 정의보다 넓다. HLD R9 대응("다르면 SRS 용어 정의를 설계팀이 고친다")에 따라 SRS 1.4 정의를 넓혀야 한다. | 0.2 R9 | (문의 중) |
-| FB-2 | SRS A7("꺼져 있는 동안 끝난 묶음의 결과는 켠 뒤 보이지 않는다")을 HLD K6("설정이 꺼진 채 결과를 받으면 바로 소비")만으로는 지킬 수 없다: 설정 화면은 다른 액티비티라 파일 목록 화면이 멈춘 동안 K6가 결과를 받지 못하고, 거기서 끄고 → 묶음 끝 → 켜고 돌아오면 결과가 보인다. LLD는 K1 `onJobFinished`가 묶음 끝 때 설정을 읽어 꺼져 있으면 결과를 만들지 않게 했다(2.1 `isResultKept`, 2.2). 그 결과 `filejob/`이 `settings/`를 참조한다(HLD 1.2 그림에 없는 화살표). | `filejob/` 안 `settings` 참조 없음(현재), `SettingLiveData.kt` `init()`이 수신기를 늘 등록 | (문의 중) |
-| FB-3 | K9 세부: ① R8 — HLD R8 둘째 문장("설명은 뷰를 보이게 하기 전에 설정")과 반대로 보인 **뒤** 설정한다(보이지 않는 뷰의 알림은 버려짐). 목적(옛 설명 안 읽음)은 숨길 때 지우기로 지킨다. ② HLD 3.4의 `onVisibilityAggregated`는 API 24부터라 `onVisibilityChanged`+`onWindowVisibilityChanged`로 대신한다. ③ `ViewCompat.setAccessibilityLiveRegion` 대신 `View.accessibilityLiveRegion`(API 19). | 0.2 R8, `app/build.gradle:34` | (문의 중) |
-| FB-4 | K5 표(HLD 3.3)에 없는 경우: 결과 단계 중 멈춘 사이 새 묶음이 시작·끝나 `finished`가 자기가 보인 것과 다른 seq로 오면 다시 달리기부터(REQ-30-08·15의 연장). 이를 위해 K5가 `shownSeq`를 가진다. | 2.7 4번 | (문의 중) |
-| FB-5 | HLD K8·4.1은 관찰 등록을 `FileListFragment.kt:348-358`(기존 창 표시 관찰 블록)에 둔다고 했으나, #29 구현 브랜치가 바로 그 블록 안 줄(`:353`, `:359` 근처)을 바꾸어 충돌한다. LLD는 별도 함수로 `:382` 뒤에서 등록한다(0.4). HLD 4.1 표의 "이 설계가 바꾸는 곳"을 맞춰야 한다. | `git diff origin/develop...origin/feature/29-sftp-list-reload -- …/FileListFragment.kt` | (문의 중) |
+| FB-1 | R9: API 26 이상 판정(`areAnimatorsEnabled`)은 절전 모드도 포함해 SRS 1.4 "모션 줄이기"(배율 0) 정의보다 넓다. HLD R9 대응("다르면 SRS 용어 정의를 설계팀이 고친다")에 따라 SRS 1.4 정의를 넓혀야 한다. | 0.2 R9 | **수용·반영** — SRS v1.3 1.4 "모션 줄이기" ①(배율 0, 모든 API)·②(API 26+ `areAnimatorsEnabled()` 거짓, 절전 등), 3.1, REQ-30-10 보조 수동 확인. HLD v1.3 K11·3.4, R9 닫음. 설계팀 판단: 오너 결정 범위 안(시스템이 Animator를 끄면 어차피 움직이지 못함) — PM이 오너에게 알림 권장 (74dff1a) |
+| FB-2 | SRS A7("꺼져 있는 동안 끝난 묶음의 결과는 켠 뒤 보이지 않는다")을 HLD K6("설정이 꺼진 채 결과를 받으면 바로 소비")만으로는 지킬 수 없다: 설정 화면은 다른 액티비티라 파일 목록 화면이 멈춘 동안 K6가 결과를 받지 못하고, 거기서 끄고 → 묶음 끝 → 켜고 돌아오면 결과가 보인다. LLD는 K1 `onJobFinished`가 묶음 끝 때 설정을 읽어 꺼져 있으면 결과를 만들지 않게 했다(2.1 `isResultKept`, 2.2). 그 결과 `filejob/`이 `settings/`를 참조한다(HLD 1.2 그림에 없는 화살표). | `filejob/` 안 `settings` 참조 없음(현재), `SettingLiveData.kt` `init()`이 수신기를 늘 등록 | **수용·반영** — HLD v1.3 1.2 그림(`SET → T`)·새 경계 문단(`filejob/`→`settings/` 참조 이유), K1·K1a(REQ-30-11 추적), K6 소비 규칙 범위 한정. SRS 변경 없음 (74dff1a) |
+| FB-3 | K9 세부: ① R8 — HLD R8 둘째 문장("설명은 뷰를 보이게 하기 전에 설정")과 반대로 보인 **뒤** 설정한다(보이지 않는 뷰의 알림은 버려짐). 목적(옛 설명 안 읽음)은 숨길 때 지우기로 지킨다. ② HLD 3.4의 `onVisibilityAggregated`는 API 24부터라 `onVisibilityChanged`+`onWindowVisibilityChanged`로 대신한다. ③ `ViewCompat.setAccessibilityLiveRegion` 대신 `View.accessibilityLiveRegion`(API 19). | 0.2 R8, `app/build.gradle:34` | **수용·반영** — HLD v1.3 R8(보인 뒤 설명, 닫음), 3.4 멈춤 콜백, 3.5 `View.accessibilityLiveRegion` (74dff1a) |
+| FB-4 | K5 표(HLD 3.3)에 없는 경우: 결과 단계 중 멈춘 사이 새 묶음이 시작·끝나 `finished`가 자기가 보인 것과 다른 seq로 오면 다시 달리기부터(REQ-30-08·15의 연장). 이를 위해 K5가 `shownSeq`를 가진다. | 2.7 4번 | **수용·반영** — HLD v1.3 3.3 표에 `shownSeq` 행·조건, 멈춤 복귀 규칙 (74dff1a) |
+| FB-5 | HLD K8·4.1은 관찰 등록을 `FileListFragment.kt:348-358`(기존 창 표시 관찰 블록)에 둔다고 했으나, #29 구현 브랜치가 바로 그 블록 안 줄(`:353`, `:359` 근처)을 바꾸어 충돌한다. LLD는 별도 함수로 `:382` 뒤에서 등록한다(0.4). HLD 4.1 표의 "이 설계가 바꾸는 곳"을 맞춰야 한다. | `git diff origin/develop...origin/feature/29-sftp-list-reload -- …/FileListFragment.kt` | **수용·반영** — HLD v1.3 K8 위치·4.1 표 (74dff1a) |
 
 ## 5. 변경 이력
 | 일자 | 버전 | 변경 | 사유 | 요청자 |
 |---|---|---|---|---|
 | 2026-11-04 | v1 | 초안 | SRS v1.2·HLD v1.2 검수 통과, R1·R8~R10 해소, #34 흡수 | 개발팀 |
+| 2026-11-04 | v1.1 | 근거를 SRS·HLD v1.3으로, 4장 FB-1~FB-5 결과 기록 | 설계팀 답(74dff1a) | 개발팀 |
