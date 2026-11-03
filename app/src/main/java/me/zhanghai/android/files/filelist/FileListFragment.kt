@@ -348,11 +348,13 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
         dualPaneViewModel.paneModeLiveData.observe(viewLifecycleOwner) {
             updateSpanCount()
             schedulePaneIndicatorUpdate()
+            updateFileListObserved()
         }
         // The pane indicator stays hidden without a second pane.
         if (dualPaneViewModel.isDualPaneEnabled) {
             dualPaneViewModel.activePaneLiveData.observe(viewLifecycleOwner) {
                 schedulePaneIndicatorUpdate()
+                updateFileListObserved()
             }
             dualPaneViewModel.getPanePathLiveData(otherPaneIndex(args.paneIndex))
                 .observe(viewLifecycleOwner) { schedulePaneIndicatorUpdate() }
@@ -598,6 +600,15 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
     private fun schedulePaneIndicatorUpdate() {
         binding.paneIndicatorLayout.removeCallbacks(paneIndicatorUpdateRunnable)
         binding.paneIndicatorLayout.post(paneIndicatorUpdateRunnable)
+    }
+
+    // The pane hidden in single pane mode keeps its state but doesn't need to reload its file list
+    // upon every change, e.g. while a file is being copied into its directory. It reloads once
+    // when it's shown again if anything changed meanwhile.
+    private fun updateFileListObserved() {
+        viewModel.isFileListObserved = isPaneShown(
+            dualPaneViewModel.paneMode.isDualPane, args.paneIndex, dualPaneViewModel.activePane
+        )
     }
 
     private fun updatePaneIndicator() {
