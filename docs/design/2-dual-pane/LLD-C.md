@@ -4,7 +4,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 작성 중(v1.2) |
+| 상태 | 작성 중(v1.3) |
 | 근거 | SRS v4.8, HLD v4.9 (`docs/design/2-dual-pane/`), LLD-A v1.4, LLD-B v1.3, LLD-D v1.3.1, `docs/STANDARDS_TRACEABILITY.md`(develop) |
 | 기준 코드 | `origin/develop` 0cca1b4 (#6 머지 PR #22 — #5·#6·#8 구현 포함). 인용 줄 번호는 이 커밋 기준 |
 | 이슈 | #7 (하위 이슈 C, 상위 #2). 선행 #6(머지됨). K3 `panePaths`를 소유하고 #9(E)가 쓴다 |
@@ -91,7 +91,7 @@
 
 - **추적**: HLD K3 `panePaths[0..1]`(#7 소유), 2.1 분배표, 3.1(호스트 범위 상태), 3.8("반대쪽 경로를 아직 모를 때") / REQ-2-17 (#9 REQ-2-12)
 - **수명**: 호스트 프래그먼트 범위라 회전·크기 변경을 넘어 남는다. 이때 창의 `FileListViewModel`도 남으므로 값이 맞다. 프로세스 종료 뒤에는 `null`에서 다시 시작하고 창이 처음 관찰에서 다시 게시한다(HLD 3.1 "프로세스 종료 뒤 처음 값").
-- **초기화하지 않는다**: 호스트 `onActivityCreated`의 `setPaneMode(PaneMode(false, 0))`(`H:141-143`)와 달리 경로는 이전 구성의 값이 그대로 맞으므로 지우지 않는다(지우면 회전 직후 한 프레임 반대쪽 경로가 사라진다).
+- **초기화하지 않는다**: 호스트 `onActivityCreated`의 `setPaneMode(PaneMode(false, 0))`(`H:141-143`)와 달리 경로는 이전 구성의 값이 그대로 맞으므로 지우지 않는다. 지울 이유가 없고, 지우면 #9 반대쪽 명령이 창이 다시 게시할 때까지 잠깐 비활성이 된다(창 표시 줄은 새 뷰라 첫 갱신 전에는 어차피 보이지 않는다).
 - **값의 뜻**: 창의 `FileListViewModel.currentPath` 원래 값(정규화하지 않음). 복사·이동 대상으로 쓸 때의 `j` 변환(HLD 3.6-1)은 K6(`ConfirmCopyMoveDialogFragment.show` → `createCopyMoveConfirmation`, `CopyMoveConfirmation.kt`)이 한다.
 - **기존 코드와의 관계**: LLD-B 2.2의 `activePaneLiveData`·`paneModeLiveData`와 같은 모양(비공개 `MutableLiveData` + 공개 `LiveData`). `valueCompat`은 non-null 값용이라 쓰지 않는다. 게시판을 `List<LiveData>` 공개 속성 대신 함수로 두는 이유: 쓰기(`setPanePath`)를 한 곳에 모으고 형식을 `LiveData`로 좁히기 위해서.
 
@@ -139,6 +139,7 @@
 - **알고리즘**: `binding.paneIndicatorLayout.removeCallbacks(paneIndicatorUpdateRunnable)`; `binding.paneIndicatorLayout.post(paneIndicatorUpdateRunnable)`. 같은 메시지 안의 여러 관찰(활성 창·모드·경로)을 한 번의 갱신으로 모은다.
 - **바로 갱신하지 않는 이유(필수)**: 두 창 모드에서 비활성 창의 컨트롤을 손으로 누르면 K4가 `ACTION_UP`을 자식에게 넘기기 **전에** 그 창을 활성으로 한다(`L:280-287`, HLD 3.4). 이때 갱신을 바로 하면 컨트롤이 `isClickable = false`가 된 뒤 같은 `ACTION_UP`을 받는다. `View.onTouchEvent`는 누를 수 없는 뷰의 `ACTION_UP`을 처리하지 않으므로 DOWN에서 켜진(또는 누름 확인 지연 뒤 켜질) 눌림 상태(물결 효과)가 꺼지지 않고 남는다. 한 메시지 미루면 그 `ACTION_UP`이 누를 수 있는 상태에서 처리되고(클릭은 `View`가 다시 `post`한 `performClick`으로 실행 — 이 갱신 뒤라 `onPaneIndicatorClicked`가 불리지만 이미 활성이라 K3에서 무시된다), 그다음 갱신된다. 시험 T-C05(a).
 - **창 뷰가 없어졌으면**(`onDestroyView` 뒤 실행): 아무것도 하지 않는다.
+- **시작·회전 직후의 단계(검수 1회차 경미 1)**: 새 뷰의 창 표시 줄은 XML 기본값 `GONE`으로 시작하고, 호스트가 `paneMode`를 `PaneMode(false, 0)`로 지운 뒤(`H:141-143`) K4가 첫 측정 뒤 `post`로 실제 모드를 알린다(`L:157`). 그래서 두 창 레이아웃에서는 첫 프레임 `GONE` → (한 번) `SWITCHER` → `ACTIVE`/`INACTIVE`로 수 프레임 안에 맞춰지고, 그동안 앱바 높이가 한두 번 바뀔 수 있다(코드 읽기 추정, T-C13에서 확인). 거슬리면 "`paneMode`가 K4의 첫 통지를 받기 전에는 갱신을 미룸" 같은 보완을 설계 문의로 올린다 — 이 판에서는 넣지 않는다.
 
 #### `private fun updatePaneIndicator()` (신규)
 - **추적**: HLD K7·K9·3.9 / REQ-2-08·17·20
@@ -163,7 +164,7 @@
 #### `private val paneIndicatorAccessibilityDelegate = object : AccessibilityDelegateCompat()` (신규)
 - **추적**: HLD 3.9 "역할·라벨" / REQ-2-20, `Content_Description`
 - `onInitializeAccessibilityNodeInfo(host, info)`: `super` 뒤 `if (host.isClickable) info.className = Button::class.java.name`. 누를 수 있을 때만 단추 역할로 알린다(`SWITCHER`·`INACTIVE`). `ACTIVE`(누를 수 없음)는 `TextView` 그대로라 TalkBack이 "단추"라고 읽지 않는다.
-- `replaceAccessibilityAction`(위)보다 **먼저** 설정한다(2.3 `onActivityCreated` 1) — androidx.core는 이미 `AccessibilityDelegateCompat`가 있으면 그것을 두고 동작 목록만 더하며, `super.onInitializeAccessibilityNodeInfo`가 그 동작을 노드에 넣는다. 나중에 설정하면 앞서 넣은 동작 라벨이 있는 기본 위임을 덮는다.
+- 설정 순서: 2.3 `onActivityCreated` 1에서 `replaceAccessibilityAction`보다 먼저 한 번 설정한다. 순서는 동작에 영향이 없다 — androidx.core는 동작 목록을 위임이 아니라 뷰 태그(`ViewCompat.getActionList`)에 두고, 노드에 넣는 것은 프레임워크 쪽 어댑터(`AccessibilityDelegateAdapter.onInitializeAccessibilityNodeInfo`)다(androidx.core 1.16.0 javap — 검수 1회차 경미 2). 먼저 두는 것은 읽기 쉽게 하려는 것뿐이다.
 - **이유(위젯 대신 위임)**: `Button`/`MaterialButton`을 쓰면 `ACTIVE`(누를 수 없음)에서도 단추로 읽히고, 끄면(`isEnabled = false`) 흐린 글자가 되어 대비(3장)가 떨어진다. 같은 뷰가 상태에 따라 단추·글자를 오가므로 위임이 단순하다.
 
 #### `fun focusPaneIndicator(requestInputFocus: Boolean)` (신규 공개)
@@ -241,6 +242,7 @@
     android:layout_height="3dp"
     android:background="@android:color/white"
     android:backgroundTint="?colorControlNormal"
+    android:importantForAccessibility="no"
     android:visibility="gone" />
 ```
 
@@ -334,9 +336,11 @@ LLD-B 5.2와 같다(빌드, 기준 APK = develop 0cca1b4 빌드, `adb logcat -b 
 | T-C10 선택 모드(SRS A1) | `HIDDEN` | 경계 | `GET_CONTENT`·`OPEN_DOCUMENT_TREE`·`CREATE_DOCUMENT`(LLD-A T-04 명령), C1·C2 | 창 표시 줄·선 없음, 앱바가 기준 APK와 같음 |
 | T-C11 RTL(`RTL-1`·`RTL-3`·`RTL-4`) | 2.5, `BidiFormatter` | 경계 | RTL 강제 + 히브리어 이름 폴더를 창 2 경로로, C1·C2. 언어를 아랍어로 바꿔 한 번 | 줄이 거울 배치(컨트롤이 오른쪽 시작), 반대쪽 경로 글자 순서가 깨지지 않음, 숫자 로캘 표기 |
 | T-C12 좁은 창·긴 경로 | 2.5 | 경계 | C1에서 창 2를 깊은 폴더(경로 > 화면 너비)로. C4(`wm size 1700x1300`, `wm density 320`, 고정 메뉴 접음 → 두 창, 창 약 425dp)와 LLD-B T-B04의 600dp 경계(세로, `wm density 160` + `wm size 600x1000` → 두 창, 창 300dp) | 한 창: 경로가 가운데 줄임표로 줄고 "창 2:"와 끝 폴더가 보임, 컨트롤과 겹치지 않음. 두 창 300dp: "창 2 · 활성"이 잘리지 않음 |
-| T-C13 회전·복원 | K3 게시판 수명, 2.3 관찰 | 경계 | 창 2 활성·두 경로를 다르게 둔 뒤 C1↔C2 회전 ×3, `always_finish_activities` 켜고 다른 앱 갔다 오기 | 표시·선·반대쪽 경로가 즉시 맞음(경로가 빈 프레임 없음). 복원 뒤에도 맞음, 크래시 없음 |
-| T-C14 경로 게시(#9 계약) | `setPanePath`, 4장 | 정상 | 한 창 모드 창 1에서, 창 2를 각각 경로 표시줄 누르기·뒤로·탐색 서랍 항목·Ctrl+L 경로 입력·압축 파일 열기로 이동시킨 뒤 창 1 표시 확인 | 매번 "창 2: <새 경로>"(압축 내부는 "압축 파일 경로 + 내부 경로") |
+| T-C13 회전·복원 | K3 게시판 수명, 2.3 관찰 | 경계 | 창 2 활성·두 경로를 다르게 둔 뒤 C1↔C2 회전 ×3, `always_finish_activities` 켜고 다른 앱 갔다 오기. 회전 직후 화면 녹화(`adb shell screenrecord`)로 표시 단계 기록 | 표시·선·반대쪽 경로가 수 프레임 안에 맞음(2.3 "시작·회전 직후의 단계" — 중간 단계와 앱바 높이 변화는 기록만). 복원 뒤에도 맞음, 크래시 없음 |
+| T-C14 경로 게시(#9 계약) | `setPanePath`, 4장 | 정상 | 한 창 모드 창 1에서, 창 2를 각각 경로 표시줄 누르기·뒤로·탐색 서랍 항목·Ctrl+L 경로 입력·압축 파일 열기로 이동시킨 뒤 창 1 표시 확인 | 매번 "창 2: <새 경로>"(압축 내부는 "압축 파일 경로 + 내부 경로"). `setPanePath`의 같은 값 무시는 단위 시험이 없어(5.1 — `MutableLiveData`가 메인 루퍼를 요구) 코드 검수의 줄 대조로 확인한다 |
 | T-C15 회귀 | LLD-B T-B08·T-B10·T-B12·T-B15(앱바 쓸기 부분), T-B21 | 회귀 | C1·C2에서 LLD-B 절차 | LLD-B 기대와 같음(앱바가 높아진 것 외). 창 표시 줄 위 탭은 그 창 활성화(T-B10의 "경로 표시줄" 경우와 같음) |
+
+| T-C16 큰 글꼴(`Font_Scaling`) | 2.5 | 경계 | 설정 글꼴 크기 최대(`adb shell settings put system font_scale 2.0`, 끝나면 1.0), C1과 600dp 경계 두 창(창 300dp) | 줄이 글자에 맞게 48dp 이상으로 늘고 "창 N · 활성"이 잘리지 않음, 한 창의 반대쪽 경로가 컨트롤과 겹치지 않고 줄임표로 줄어듦 |
 
 - 판정: 0.3의 의도된 변화 외에 기준 APK와 다르면 실패. 기록은 구현 PR 코멘트(시험별 통과/실패/미확인), 캡처는 `$MAIN_REPO/_workspace/impl-7/`.
 
@@ -363,11 +367,11 @@ SRS·HLD는 개발팀이 고치지 않았다. 아래는 설계팀에 보낸 것�
 
 | # | 업스트림 변화 | 영향받을 수 있는 이 LLD 지점 | 재확인 |
 |---|---|---|---|
-| S1 | `targetSdk` 34 → 36(`app/build.gradle`) — 예측 뒤로 가기가 기본으로 켜지고(`onBackPressed` 대신 `OnBackInvokedCallback` 경로), API 35+ edge-to-edge가 강제된다 | (a) 뒤로 가기 순서 자체는 LLD-B 4.2·HLD 3.5의 몫이지만, 창 표시 전환 뒤에도 뒤로 가기가 새 활성 창을 따르는지 (b) edge-to-edge에서 앱바(새 창 표시 줄·선 포함)가 상태 표시줄 아래에 바르게 놓이고 두 창 인셋 분배(K4, LLD-B T-B22)가 그대로인지 | LLD-B T-B12·T-B17·T-B22, 이 LLD T-C04·T-C12 재실행 |
-| S2 | lifecycle 2.9.2 → 2.11.0, fragment 1.8.8 → 1.9.1, activity 1.10.1 → 1.13.0 | `map`/`switchMap`의 처음 값 즉시 변환(LLD-B v1.3 2.5 미러의 이유)과 자식 프래그먼트 `onActivityCreated`·`ON_START` 순서(2.3 "전제", 2.4 `post`)가 같은지. 같은 소유자 콜백 등록 순서(LLD-A 3.2) | T-C01·T-C02·T-C13, LLD-B T-B01·T-B12 재실행. 라이브러리 변경 기록 확인 |
+| S1 | `targetSdk` 34 → 36(`app/build.gradle`) — 예측 뒤로 가기가 기본으로 켜지고(`onBackPressed` 대신 `OnBackInvokedCallback` 경로), API 35+ edge-to-edge가 강제된다 | (a) 뒤로 가기 순서 자체는 LLD-B 4.2·HLD 3.5의 몫이지만, 창 표시 전환 뒤에도 뒤로 가기가 새 활성 창을 따르는지 (b) edge-to-edge에서 앱바(새 창 표시 줄·선 포함)가 상태 표시줄 아래에 바르게 놓이고 두 창 인셋 분배(K4, LLD-B T-B22)가 그대로인지. 업스트림이 Material 1.14용으로 `OnWindowInsetChangedAppBarLayout.onWindowInsetChanged`를 `protected`로 바꾸고 `MaterialShapeDrawableAccessor`를 지웠다 — 앱바 인셋·들림 배경 처리가 바뀌므로 스크롤 플래그 없는 새 자식 둘이 붙은 앱바를 함께 본다 | LLD-B T-B12·T-B17·T-B22, 이 LLD T-C04·T-C12 재실행 |
+| S2 | lifecycle 2.9.2 → 2.11.0, fragment 1.8.8 → 1.9.1, activity 1.10.1 → 1.13.0 | `map`/`switchMap`의 처음 값 즉시 변환(LLD-B v1.3 2.5 미러의 이유)과 자식 프래그먼트 `onActivityCreated`·`ON_START` 순서(2.3 "전제" — 부모의 `onActivityCreated` 뒤 자식에 전달, fragment 1.9.1·activity 1.13에서 미확인, 2.4 `post`)가 같은지. 같은 소유자 콜백 등록 순서(LLD-A 3.2) | T-C01·T-C02·T-C13, LLD-B T-B01·T-B12 재실행. 라이브러리 변경 기록 확인 |
 | S3 | appcompat 1.7.1 → 1.8.0, core 1.16.0 → 1.19.1 | `ViewCompat.replaceAccessibilityAction`·`AccessibilityDelegateCompat`의 동작 목록 처리(2.3), `Toolbar`의 자체 뒤로 콜백(LLD-B 3장 ④), `WindowInsetsCompat` 제스처 인셋(LLD-B FB-2) | T-C03·T-C05(b), LLD-B T-B15·T-B17 재실행 |
-| S4 | Material 1.12.0 → 1.14.0, 테마 변경(`themes.xml`·`themes_material3.xml` — `Platform.V23`, `windowLightStatusBar`) | 앱바 배경·들림 색(`?colorAppBarSurface`), `?textAppearanceListItemSecondary`·`?colorControlNormal` 값 → 대비(3장) | T-C09 재실행(밝은·어두운·검은 밤 모드, M3 켬·끔) |
-| S5 | `OverlayToolbarActionMode(toolbar, overlaidLayout)`로 생성자 변경, 선택 툴바가 보이는 동안 일반 툴바 묶음의 초점을 막음(f983dc4) | 창 표시 줄은 툴바 묶음(`FrameLayout`, `app_bar_include.xml:22-48`) 밖이라 막히지 않는다 — 파일 선택 중에도 창 표시 컨트롤에 키보드 초점이 가는지, 의도와 맞는지 | T-C06을 파일 선택 상태에서 한 번 더 |
+| S4 | Material 1.12.0 → 1.14.0, 테마 변경(`themes.xml`·`themes_material3.xml` — `Platform.V23`, `windowLightStatusBar`) | 앱바 배경·들림 색(`?colorAppBarSurface`, S1의 `MaterialShapeDrawableAccessor` 삭제 포함), `?textAppearanceListItemSecondary`·`?colorControlNormal` 값 → 대비(3장) | T-C04·T-C09·T-C12 재실행(밝은·어두운·검은 밤 모드, M3 켬·끔) |
+| S5 | `OverlayToolbarActionMode(toolbar, overlaidLayout)`로 생성자 변경, 선택 툴바가 보이는 동안 일반 툴바의 초점을 막음(f983dc4 — 업스트림 `FileListFragment`는 `OverlayToolbarActionMode(binding.overlayToolbar, binding.toolbar)`로 불러 막는 대상은 `binding.toolbar`) | 창 표시 줄은 일반 툴바(`file_list_fragment_app_bar_include.xml:27-36`) 밖이라 막히지 않는다 — 파일 선택 중에도 창 표시 컨트롤에 키보드 초점이 가는지, 의도와 맞는지 | T-C06을 파일 선택 상태에서 한 번 더 |
 | S6 | `minSdk` 21 → 23 | 2.5의 `android:backgroundTint`(API 21+) 등 이 LLD의 API 전제는 그대로 성립 | 없음(기록만) |
 | S7 | 업스트림 `FileListFragment.kt`는 #5 이전 구조(권한 요청 코드가 창 안에 있음)라 develop의 화면/창 분리와 겹친다 | 동기화 PR의 충돌 해결 결과에 따라 이 LLD가 인용한 `F:` 줄 번호가 바뀐다 | 구현 착수 시 `F:`·`H:` 줄 번호를 동기화 뒤 develop 기준으로 다시 맞춘다(Work Order에 적음) |
 
@@ -377,3 +381,4 @@ SRS·HLD는 개발팀이 고치지 않았다. 아래는 설계팀에 보낸 것�
 | 2026-11-01 | v1 | 최초 작성 | 이슈 #7 LLD 단계(`panePaths` 소유·#9 API 포함) | PM |
 | 2026-11-01 | v1.1 | FB-C1~C4 결과 반영: 근거 HLD v4.9, 선 색 `?colorControlNormal`(2.5 XML·선 색 설명, 3장), `styles.xml` 줄 정정(`:61-62`), T-C09에 검은 밤 모드·노랑 테마, 6장 결과 | 설계팀 회신(HLD v4.9, 2edec99) | 설계팀 |
 | 2026-11-03 | v1.2 | 7.1 업스트림 동기화 후 재확인 항목 S1~S7 | 업스트림 29개 커밋이 master에 들어옴(develop 미반영) | PM |
+| 2026-11-03 | v1.3 | 검수 1회차 경미 1~6: 2.1 "초기화하지 않는다" 근거, 2.3 시작·회전 직후 단계·위임 설정 순서 근거, 2.5 선 `importantForAccessibility="no"`, T-C13 기대값, T-C14 단위 시험 한계, T-C16 큰 글꼴, 7.1 S1·S2·S4·S5 보완. LLD-A·LLD-D의 `panePaths` 소유(#6 → #7), LLD-B `F:422` | LLD 검수 1회차(PR #24 코멘트 6598275680) | 검수팀 |

@@ -327,7 +327,7 @@ interface Listener {
 | 함수 | 명세 |
 |---|---|
 | `onCreateMenu(menu, menuInflater)` | 기존 `onCreateOptionsMenu`(`F:339-345`) 본문: `menuBinding = MenuBinding.inflate(menu, menuInflater)`, 그룹 구분선, `setUpSearchView()`. 이어서 기존 `onPrepareOptionsMenu`(`F:393-399`)의 세 갱신(`updateViewSortMenuItems`, `updateSelectAllMenuItem`, `updateShowHiddenFilesMenuItem`)을 부른다 — 툴바 `MenuHost`는 `onPrepareMenu`를 부르지 않는다(appcompat 1.7.1 `Toolbar`는 `MenuHostHelper.onPrepareMenu`를 호출하지 않음). 이후 갱신은 지금처럼 LiveData 관찰이 한다. |
-| `onMenuItemSelected(menuItem)` | `onToolbarMenuItemSelected(menuItem)`를 부른다. `private fun onToolbarMenuItemSelected(item: MenuItem): Boolean`(v1.3 — 구현 `F:421-512`(0cca1b4))은 기존 `onOptionsItemSelected`(`F:401-495`) 본문을 그 자리에 함수로 남기고 `android.R.id.home` 갈래를 뺀 같은 `when`이다(홈은 ⑤의 내비게이션 클릭으로). `else -> false`. 함수로 둔 이유: 같은 파일의 #8 수정과 겹치는 diff를 작게 하려고(PR #22 강조점 2). |
+| `onMenuItemSelected(menuItem)` | `onToolbarMenuItemSelected(menuItem)`를 부른다. `private fun onToolbarMenuItemSelected(item: MenuItem): Boolean`(v1.3 — 구현 `F:422-512`(0cca1b4), 바로 앞 `F:421`은 주석)은 기존 `onOptionsItemSelected`(`F:401-495`) 본문을 그 자리에 함수로 남기고 `android.R.id.home` 갈래를 뺀 같은 `when`이다(홈은 ⑤의 내비게이션 클릭으로). `else -> false`. 함수로 둔 이유: 같은 파일의 #8 수정과 겹치는 diff를 작게 하려고(PR #22 강조점 2). |
 - 삭제: `onCreateOptionsMenu`, `onPrepareOptionsMenu`, `onOptionsItemSelected` override(본문은 위 `onToolbarMenuItemSelected`로).
 - 메뉴 인플레이터: 툴바의 `SupportMenuInflater(toolbar.context)` — 지금 지원 액션바의 테마 컨텍스트(`ToolbarActionBar.getThemedContext()` = 툴바 컨텍스트)와 같아 `app:showAsAction`·검색 뷰 스타일(`ThemeOverlay.MaterialFiles.ActionBar`의 `searchViewStyle`, `res/values/styles.xml:61-64`)이 같다.
 
