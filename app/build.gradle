@@ -4,7 +4,6 @@
  */
 
 apply plugin: 'com.android.application'
-apply plugin: 'kotlin-android'
 apply plugin: 'kotlin-parcelize'
 
 apply from: '../signing.gradle'
@@ -16,8 +15,8 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath 'com.google.gms:google-services:4.4.3'
-        classpath 'com.google.firebase:firebase-crashlytics-gradle:3.0.5'
+        classpath 'com.google.gms:google-services:4.5.0'
+        classpath 'com.google.firebase:firebase-crashlytics-gradle:3.0.8'
     }
 }
 apply plugin: 'com.google.gms.google-services'
@@ -26,17 +25,18 @@ apply plugin: 'com.google.firebase.crashlytics'
 
 android {
     namespace 'me.zhanghai.android.files'
-    buildToolsVersion = '36.0.0'
-    compileSdk 36
-    ndkVersion '28.1.13356709'
+    buildToolsVersion = '37.0.0'
+    compileSdk = 37
+    compileSdkMinor = 2
+    ndkVersion '30.0.16248370'
     defaultConfig {
         applicationId 'me.zhanghai.android.files'
-        minSdk 21
-        // Not supporting foreground service timeout yet.
+        minSdk 23
+        // Not supporting the ACCESS_LOCAL_NETWORK runtime permission yet.
         //noinspection OldTargetApi
-        targetSdk 34
-        versionCode 39
-        versionName '1.7.4'
+        targetSdk 36
+        versionCode 40
+        versionName '1.7.5'
         resValue 'string', 'app_version', versionName + ' (' + versionCode + ')'
         buildConfigField 'String', 'FILE_PROVIDIER_AUTHORITY', 'APPLICATION_ID + ".file_provider"'
         resValue 'string', 'app_provider_authority', applicationId + '.app_provider'
@@ -50,6 +50,7 @@ android {
     buildFeatures {
         aidl true
         buildConfig true
+        resValues true
         viewBinding true
     }
     androidResources {
@@ -57,11 +58,8 @@ android {
     }
     compileOptions {
         coreLibraryDesugaringEnabled true
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
-    }
-    kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_1_8.toString()
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
     }
     externalNativeBuild {
         cmake {
@@ -92,8 +90,9 @@ android {
         }
         resources {
             excludes += [
-                    'META-INF/DEPENDENCIES',
-                    'org/bouncycastle/pqc/crypto/picnic/*'
+                    // https://github.com/kotlin/kotlinx.coroutines#avoiding-including-the-debug-infrastructure-in-the-resulting-apk
+                    '/DebugProbesKt.bin',
+                    '/META-INF/DEPENDENCIES',
             ]
         }
     }
@@ -110,8 +109,11 @@ repositories {
     }
 }
 dependencies {
-    // We need https://github.com/bitfireAT/dav4jvm/commit/c1bc14348831bcdb00f3a6eec4859b81c7dc3728
-    implementation('com.github.bitfireat:dav4jvm:ec6264d427') {
+    // We need
+    // https://github.com/bitfireAT/dav4jvm/commit/c1bc14348831bcdb00f3a6eec4859b81c7dc3728 , but we
+    // don't want
+    // https://github.com/bitfireAT/dav4jvm/commit/37c2bde745b166383efe108568506c8905723d91 .
+    implementation('com.github.bitfireAT:dav4jvm:02fe1a95e6b86e323bec3784d7d2fe2d4081dde6') {
         exclude group: 'org.ogce', module: 'xpp3'
     }
     implementation 'com.github.chrisbanes:PhotoView:2.3.0'
@@ -125,17 +127,17 @@ dependencies {
 
     // kotlinx-coroutines-android depends on kotlin-stdlib-jdk8
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
-    def kotlinx_coroutines_version = '1.10.2'
+    def kotlinx_coroutines_version = '1.11.0'
     implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:$kotlinx_coroutines_version"
     implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core:$kotlinx_coroutines_version"
 
-    implementation 'androidx.activity:activity-ktx:1.10.1'
-    implementation 'androidx.appcompat:appcompat:1.7.1'
-    implementation 'androidx.core:core-ktx:1.16.0'
+    implementation 'androidx.activity:activity-ktx:1.13.0'
+    implementation 'androidx.appcompat:appcompat:1.8.0'
+    implementation 'androidx.core:core-ktx:1.19.1'
     implementation 'androidx.drawerlayout:drawerlayout:1.2.0'
-    implementation 'androidx.exifinterface:exifinterface:1.4.1'
-    implementation 'androidx.fragment:fragment-ktx:1.8.8'
-    def androidx_lifecycle_version = '2.9.2'
+    implementation 'androidx.exifinterface:exifinterface:1.4.2'
+    implementation 'androidx.fragment:fragment-ktx:1.9.1'
+    def androidx_lifecycle_version = '2.11.0'
     implementation "androidx.lifecycle:lifecycle-common-java8:$androidx_lifecycle_version"
     implementation "androidx.lifecycle:lifecycle-livedata-ktx:$androidx_lifecycle_version"
     implementation "androidx.lifecycle:lifecycle-process:$androidx_lifecycle_version"
@@ -143,22 +145,24 @@ dependencies {
     implementation "androidx.lifecycle:lifecycle-viewmodel-ktx:$androidx_lifecycle_version"
     implementation 'androidx.preference:preference-ktx:1.2.1'
     implementation 'androidx.recyclerview:recyclerview:1.4.0'
-    implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
-    implementation 'com.google.android.material:material:1.12.0'
+    implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.2.0'
+    implementation 'com.google.android.material:material:1.14.0'
 
     implementation 'com.caverock:androidsvg-aar:1.4'
     implementation 'com.davemorrissey.labs:subsampling-scale-image-view-androidx:3.10.0'
     implementation 'com.drakeet.drawer:drawer:1.0.3'
     implementation 'com.h6ah4i.android.materialshadowninepatch:materialshadowninepatch:1.0.0'
     implementation 'com.h6ah4i.android.widget.advrecyclerview:advrecyclerview:1.0.0'
-    // SMBJ 0.12.0 breaks anonymous authentication: https://github.com/hierynomus/smbj/issues/792
-    //noinspection GradleDependency
+    // SMBJ 0.12.0 broke anonymous authentication: https://github.com/hierynomus/smbj/issues/792 ,
+    // and it's still an issue in 0.14.0 according to
+    // https://github.com/hierynomus/smbj/issues/792#issuecomment-2548018378 .
+    //noinspection NewerVersionAvailable
     implementation ('com.hierynomus:smbj:0.11.5') {
         // org.bouncycastle:bcprov-jdk15on uses bytecode version unsupported by Jetifier, so use
         // org.bouncycastle:bcprov-jdk15to18 instead.
         exclude group: 'org.bouncycastle', module: 'bcprov-jdk15on'
     }
-    def bouncy_castle_version = '1.81'
+    def bouncy_castle_version = '1.86'
     implementation "org.bouncycastle:bcprov-jdk15to18:$bouncy_castle_version"
     implementation ('com.hierynomus:sshj:0.40.0') {
         exclude group: 'org.bouncycastle', module: 'bcprov-jdk18on'
@@ -173,19 +177,21 @@ dependencies {
         exclude group: 'com.hierynomus', module: 'smbj'
         exclude group: 'org.bouncycastle', module: 'bcprov-jdk18on'
     }
-    implementation 'com.google.guava:guava:33.4.8-android'
+    implementation 'com.google.guava:guava:33.7.1-android'
     // Guava conflicts with com.google.guava:listenablefuture:1.0 pulled in by AndroidX Core
     implementation 'com.google.guava:listenablefuture:9999.0-empty-to-avoid-conflict-with-guava'
     implementation 'com.takisoft.preferencex:preferencex:1.1.0'
-    implementation 'commons-net:commons-net:3.12.0'
+    implementation 'commons-net:commons-net:3.13.0'
     // LicensesDialog 2.2.0 pulls in androidx.webkit and uses setForceDark() instead of correctly
     // setting colors.
-    //noinspection GradleDependency
+    //noinspection NewerVersionAvailable
     implementation 'de.psdev.licensesdialog:licensesdialog:2.1.0'
     // dev.chrisbanesinsetter:insetter:0.6.0 makes inset unstable when entering immersive.
     implementation 'dev.chrisbanes:insetter-ktx:0.3.1'
     implementation 'dev.rikka.rikkax.preference:simplemenu-preference:1.0.3'
-    implementation 'dev.rikka.shizuku:api:13.1.5'
+    def shizuku_version = '13.1.5'
+    implementation "dev.rikka.shizuku:api:$shizuku_version"
+    implementation "dev.rikka.shizuku:provider:$shizuku_version"
     implementation ('eu.agno3.jcifs:jcifs-ng:2.1.10') {
         exclude group: 'org.bouncycastle', module: 'bcprov-jdk18on'
     }
@@ -197,7 +203,7 @@ dependencies {
     implementation 'me.zhanghai.android.appiconloader:appiconloader:1.5.0'
     implementation 'me.zhanghai.android.fastscroll:library:1.3.0'
     implementation 'me.zhanghai.android.foregroundcompat:library:1.0.2'
-    implementation 'me.zhanghai.android.libarchive:library:1.1.6'
+    implementation 'me.zhanghai.android.libarchive:library:1.1.7'
     implementation 'me.zhanghai.android.libselinux:library:2.1.1'
     implementation 'me.zhanghai.android.retrofile:library:1.2.0'
     implementation 'me.zhanghai.android.systemuihelper:library:1.0.0'
@@ -216,7 +222,7 @@ dependencies {
     testImplementation 'junit:junit:4.13.2'
 
 //#ifdef NONFREE
-    implementation platform('com.google.firebase:firebase-bom:34.0.0')
+    implementation platform('com.google.firebase:firebase-bom:34.19.0')
     implementation 'com.google.firebase:firebase-analytics'
     implementation 'com.google.firebase:firebase-crashlytics-ndk'
 //#endif
