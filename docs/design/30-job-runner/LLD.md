@@ -4,7 +4,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 작성 중(v1.2) — LLD 검수 1회차 조건부(경미 m1~m6) 반영, 재검수 대기 |
+| 상태 | 검수 통과(v1.2 — PR #32 LLD 검수 2회차, 614ad6a) |
 | 근거 | SRS v1.3, HLD v1.3 (`docs/design/30-job-runner/`, PR #32 — v1.3은 이 LLD의 FB-1~FB-5 반영, 74dff1a), 오너 결정 이슈 #30 issuecomment-6617754053, #34 흡수(PM 결정) |
 | 기준 코드 | `origin/develop` 4437e43 — 인용 줄 번호는 이 커밋 기준 |
 | 이슈 | #30 (흡수 #34). 하위 이슈 없음(HLD 2.1) — feature 브랜치 `feature/30-job-runner` 하나 |
