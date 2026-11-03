@@ -2,8 +2,8 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 작성 중(v1.1) |
-| 근거 | SRS v1.1 (검수 통과, PR #32 2회차) |
+| 상태 | 검수 통과(v1.1, PR #32 2회차 조건부 — n1은 v1.2에서 반영), v1.2 오너 결정 반영 |
+| 근거 | SRS v1.2 (v1.1 검수 통과 + 4.3 Q1~Q3 오너 결정 2026-11-04) |
 | 기준 코드 | `origin/develop` 4437e43 — 줄 번호는 이 커밋 기준 |
 
 ## 1. 구조 개요
@@ -51,9 +51,9 @@ flowchart LR
 |---|---|---|---|
 | K1 상태 통로 | `filejob/FileJobStateTracker.kt` (새 파일, `object`) | 메인 스레드 전용. `onJobStarted(id)`, `onJobFinished(id, isSuccessful)`, `consumeResult(seq)`를 받아 K1a로 집계하고 `stateLiveData: LiveData<FileJobState>`로 내보낸다. 모든 변경은 `setValue`(메인)라 순서가 보존되고 합쳐지지 않는다. | REQ-30-01, 04, 15 |
 | K1a 묶음 집계 | `filejob/FileJobBatch.kt` (새 파일, 안드로이드 의존 없음) | 진행 중 작업 id 집합, 이번 묶음의 실패 여부, 끝난 묶음 결과 `FinishedBatch(seq, isSuccessful)?`. 규칙: 모르는 id·이미 끝난 id의 끝 보고는 무시(중복 무시), 집합이 비면 결과를 만들고 seq를 1 올림(앞 결과는 덮어씀 — SRS A8 "마지막 묶음만"), 새 시작이 오면 남은 결과를 지움(REQ-30-08), `consume(seq)`는 seq가 같을 때만 결과를 지움. 상태 값 `FileJobState(runningCount, finished: FinishedBatch?)`. | REQ-30-01, 04, 08, 15 |
-| K2 서비스 연결 | `filejob/FileJobService.kt` (기존) | ① companion `startJob`(`:104-113`) 처음에 `onJobStarted(job.id)` ② 실행기 작업(`:57-63`)을 `try { isSuccessful = job.runOn(this) } finally { 메인으로 넘겨 onJobFinished(job.id, isSuccessful) }`로 감싼다 — `isSuccessful` 기본값 `false`라 `Throwable`로 끝나도 실패로 보고되며, 예외는 지금처럼 그대로 위로 나간다(잡지 않음) ③ companion `cancelJob`(`:198-202`)에서 대기 목록에서 지운 작업, 서비스 `cancelJob`(`:69-74`)·`onDestroy`(`:76-87`)에서 지운 작업마다 `onJobFinished(id, false)`. 메인으로 넘기기는 기존 `mainExecutorCompat`(`compat/ContextCompat.kt:48`). `runningJobs`·잠금 처리는 바꾸지 않는다(4장 R5). | REQ-30-01, 04, 16 |
+| K2 서비스 연결 | `filejob/FileJobService.kt` (기존) | ① companion `startJob`(`:104-113`) 처음에 `onJobStarted(job.id)` ② 실행기 작업(`:57-63`)을 `try { isSuccessful = job.runOn(this) } finally { runningJobs 정리·잠금 갱신(`:59-62`를 여기로 옮김, #34); 메인으로 넘겨 onJobFinished(job.id, isSuccessful) }`로 감싼다 — `isSuccessful` 기본값 `false`라 `Throwable`로 끝나도 실패로 보고되고 `runningJobs`에서도 지워지며(#34 해소), 예외는 지금처럼 그대로 위로 나간다(잡지 않음) ③ companion `cancelJob`(`:198-202`)에서 대기 목록에서 지운 작업, 서비스 `cancelJob`(`:69-74`)·`onDestroy`(`:76-87`)에서 지운 작업마다 `onJobFinished(id, false)`. 메인으로 넘기기는 기존 `mainExecutorCompat`(`compat/ContextCompat.kt:48`). `runningJobs`·잠금 처리는 ②의 `finally` 이동(#34) 외에는 바꾸지 않는다(6장 R5). | REQ-30-01, 04, 16 |
 | K3 결과 반환 | `filejob/FileJob.kt` `runOn` (기존, `:19-33`) | 반환형을 `Boolean`(성공 여부)으로: `run()`이 끝나고 K4 기록이 없으면 `true`, `InterruptedIOException`·`Exception` 경로는 `false`. 잡는 범위·토스트·`finally`의 알림 지우기는 그대로. 기록용 필드 `hasUnresolvedError`(K4가 씀)를 둔다. | REQ-30-04, 16 |
-| K4 건너뛴 오류 기록 (SRS Q2 임시 기본값) | `filejob/FileJobs.kt` `showErrorDialog` (기존, `:499-526`) | 답을 받은 뒤, 고른 답이 **"다시 시도"가 아니면** `hasUnresolvedError = true`. "다시 시도"는 `action == POSITIVE`이고 그 창의 양성 버튼 글이 `getString(R.string.retry)`인 경우로 판정한다 — 양성 버튼이 늘 다시 시도인 것은 아니기 때문이다: "자기 안으로 복사·이동" 창(`:1201-1224`)과 "자기 위로 복사·이동" 창(`:1241-1264`)은 양성 버튼이 "건너뛰기"(`getString(R.string.skip)`)이고 POSITIVE가 그 파일을 건너뛴다(`:1217-1224`). 판정에 쓰는 값(`positiveButtonText`)은 이미 이 함수의 인자라 호출부를 바꾸지 않는다. 반환값·예외는 그대로다. 작업 본문의 호출부(`:1021-1055`, `:1201-1231`, `:1241-1271`, `:1392-1431`, `:2293-2310` 등)는 바꾸지 않는다. 오류 창 하나의 함수라 모든 작업에 같이 적용된다. Q2가 "성공"으로 결정되면 이 구성요소를 뺀다. | REQ-30-04, 16 |
+| K4 건너뛴 오류 기록 (SRS Q2 오너 결정) | `filejob/FileJobs.kt` `showErrorDialog` (기존, `:499-526`) | 답을 받은 뒤, 고른 답이 **"다시 시도"가 아니면** `hasUnresolvedError = true`. "다시 시도"는 `action == POSITIVE`이고 그 창의 양성 버튼 글이 `getString(R.string.retry)`인 경우로 판정한다 — 양성 버튼이 늘 다시 시도인 것은 아니기 때문이다: "자기 안으로 복사·이동" 창(`:1201-1224`)과 "자기 위로 복사·이동" 창(`:1241-1264`)은 양성 버튼이 "건너뛰기"(`getString(R.string.skip)`)이고 POSITIVE가 그 파일을 건너뛴다(`:1217-1224`). 판정에 쓰는 값(`positiveButtonText`)은 이미 이 함수의 인자라 호출부를 바꾸지 않는다. 반환값·예외는 그대로다. 작업 본문의 호출부(`:1021-1055`, `:1201-1231`, `:1241-1271`, `:1392-1431`, `:2293-2310` 등)는 바꾸지 않는다. 오류 창 하나의 함수라 모든 작업에 같이 적용된다. 충돌 창(`showConflictDialog`)은 기록하지 않는다(충돌 "건너뛰기" = 성공, Q2 결정). | REQ-30-04, 16 |
 | K5 표시 시간 규칙 | `filelist/FileJobIndicatorTimeline.kt` (새 파일, 안드로이드 의존 없음) | 입력: 현재 시각(ms, 주입), 설정 켬 여부, `FileJobState`. 출력: 표시 단계 `FileJobIndicatorPhase`(`HIDDEN`·`RUNNING`·`SUCCEEDED`·`FAILED`), 다음에 다시 계산할 시각, 소비할 seq. 규칙은 3.3. 상수 `MIN_RUNNING_MILLIS = 1000`, `RESULT_MILLIS = 1500`(SRS A4). | REQ-30-05, 06, 07, 08, 10, 11, 15 |
 | K6 표시 제어 | `filelist/FileListHostFragment.kt` (기존, `onActivityCreated` `:103-` 의 관찰 등록 자리) | 뷰 수명 동안 K5 인스턴스 하나를 가진다(화면 단위 — 창 이동에도 시간이 이어짐, 화면 재생성 시 새로, SRS REQ-30-07). `FileJobStateTracker.stateLiveData`와 `Settings.FILE_JOB_INDICATOR`를 `viewLifecycleOwner`로 관찰하고(시작됨 상태일 때만 받음 = "화면이 보일 때"), K5 결과를 K7에 쓴다. 다음 시각은 뷰의 `postDelayed`로 예약하고 멈춤 때 지운다. K5가 결과 단계로 들어가면 `consumeResult(seq)`, 설정이 꺼진 채 결과를 받으면 바로 `consumeResult(seq)`(SRS A7). | REQ-30-03, 07, 11, 15 |
 | K7 표시 단계 전달 | `filelist/DualPaneViewModel.kt` (기존) | `fileJobIndicatorPhaseLiveData: LiveData<FileJobIndicatorPhase>`(초기 `HIDDEN`)와 설정 함수. 두 창이 같은 값을 본다. 기존 활성 창·창 모드 LiveData와 같은 방식(`:10-51`). | REQ-30-03 |
@@ -75,19 +75,18 @@ flowchart LR
 | 시작 함수 호출 | 메인(`@MainThread`, `FileJobService.kt:104`) | K2 ① | `onJobStarted(id)` |
 | 대기 중 취소 | 메인(`:198-200`) | K2 ③ | `onJobFinished(id, false)` |
 | 실행 중 취소 | 메인(`FileJobReceiver`는 메인에서 받음) | K2 ③ | `onJobFinished(id, false)` — 즉시. 끼어들기 뒤 스레드가 늦게 끝나며 보내는 보고는 중복이라 무시(K1a) |
-
-- **먼저 온 보고가 이긴다**(K1a). 취소와 정상 끝이 거의 같이 일어나면 — 작업 스레드가 끝났지만 그 보고가 아직 메인에 닿기 전에 취소가 메인에서 처리되면(`FileJobService.kt:57-63`의 `remove` 전에 `:69-74`가 먼저 지움) — 취소(실패)로 판정된다. 사용자가 취소를 누른 경우라 넘어짐이 맞다고 본다. 반대로 끝 보고가 먼저면 뒤의 취소 보고는 모르는 id라 무시된다.
 | 본문 끝(성공·실패·취소·`Throwable`) | 작업 스레드 | K2 ② `finally` | 메인으로 넘겨 `onJobFinished(id, isSuccessful)` |
 | 서비스 끝 | 메인(`onDestroy`) | K2 ③ | 남은 작업마다 `onJobFinished(id, false)` |
 
 - `id`는 `FileJob.id`(`FileJob.kt:14`, `Random().nextInt()`)다. 같은 순간 두 작업의 id가 겹칠 확률은 무시할 만하지만 겹치면 집계가 하나로 합쳐진다(R4).
 - 작업 스레드는 시작·끝에 한 번씩 메인으로 넘길 뿐이다(SRS 3.2). 진행률은 다루지 않는다.
+- **먼저 온 보고가 이긴다**(K1a). 취소와 정상 끝이 거의 같이 일어나면 — 작업 스레드가 끝났지만 그 보고가 아직 메인에 닿기 전에 취소가 메인에서 처리되면(`FileJobService.kt:57-63`의 `remove` 전에 `:69-74`가 먼저 지움) — 취소(실패)로 판정된다. 사용자가 취소를 누른 경우라 넘어짐이 맞다고 본다. 반대로 끝 보고가 먼저면 뒤의 취소 보고는 모르는 id라 무시된다.
 
 ### 3.2 결과 판정 (SRS REQ-30-04 ↔ 코드)
 | 끝난 길 | `runOn` 반환(K3) | 판정 |
 |---|---|---|
 | `run()` 정상 반환, `hasUnresolvedError == false` | `true` | 성공 |
-| `run()` 정상 반환, `hasUnresolvedError == true`(오류 창에서 건너뛰기·닫기 — "자기 안·위로 복사·이동" 창의 양성 버튼 "건너뛰기" 포함 `FileJobs.kt:1217-1224`·`:1257-1264`, 텍스트 저장의 오류 창 취소 `FileJobs.kt:2309`) | `false` | 실패(Q2 임시 기본값) |
+| `run()` 정상 반환, `hasUnresolvedError == true`(오류 창에서 건너뛰기·닫기 — "자기 안·위로 복사·이동" 창의 양성 버튼 "건너뛰기" 포함 `FileJobs.kt:1217-1224`·`:1257-1264`, 텍스트 저장의 오류 창 취소 `FileJobs.kt:2309`) | `false` | 실패(Q2 오너 결정) |
 | `InterruptedIOException`(`FileJob.kt:24`) — 알림 취소, 오류·충돌 창 "취소" | `false` | 취소 |
 | 그 밖의 `Exception`(`FileJob.kt:27`) | `false` | 실패 |
 | `Throwable`(`Exception` 아님) — `runOn` 밖으로 나감 | 반환 없음 → K2의 기본값 `false` | 실패 |
@@ -168,8 +167,8 @@ flowchart LR
 | R2 | 알림 영역: 창 이동으로 새 뷰가 나타날 때 같은 문구를 한 번 더 읽을 수 있다. 검색 펼침 중에는 알림이 빠질 수 있다. | 창 이동은 사용자의 조작 직후라 한 번 더 읽어도 반복 낭독(같은 상태에서 계속)은 아니라고 본다. TalkBack 수동 확인(REQ-30-12)으로 확인하고, 문제면 LLD에서 창 이동 시 새 뷰의 알림 영역을 한 프레임 늦게 켠다. |
 | R3 | 폰에서 툴바가 위로 밀려 가려져도 애니메이터가 돈다(3.4). | 24dp 선 다섯 개라 비용이 작다. 필요하면 LLD에서 앱바 오프셋으로 멈춘다. |
 | R4 | `FileJob.id`가 `Random().nextInt()`라 동시에 도는 두 작업의 id가 겹칠 수 있다(알림 id도 같은 값을 쓰는 기존 동작). | 겹치면 두 작업이 하나로 세어져 먼저 끝난 쪽에서 묶음이 끝날 수 있다. 확률이 무시할 만하고 기존 알림도 같은 가정이라 받아들인다. |
-| R5 | 범위 밖 결함: 작업이 `Throwable`로 끝나면 `runningJobs.remove`·잠금 갱신이 건너뛰어진다(`FileJobService.kt:57-63`이 `finally`가 아님). | 이 설계는 K1 쪽에서만 실패로 끝낸다(표시는 멈춤). `runningJobs`·잠금은 바꾸지 않고 별도 이슈로 올린다(PM 보고). |
-| R6 | SRS Q1~Q3 오너 결정 전이다. | Q1 제외로 결정되면 K2 ①에 작업 종류 판정 하나(`OpenFileJob`·`InstallApkJob` 등은 `onJobStarted`를 부르지 않음 — 끝 보고는 모르는 id라 무시됨). Q2 성공으로 결정되면 K4 삭제. Q3 보이기로 결정되면 `overlayToolbar`에도 K9를 두고 K8 판정에 선택 모드를 더한다. |
+| R5 | 기존 결함 #34: 작업이 `Throwable`로 끝나면 `runningJobs.remove`·잠금 갱신이 건너뛰어진다(`FileJobService.kt:57-63`이 `finally`가 아님). | **이 기능에서 함께 고친다**(PM 결정, #34를 #30에 흡수): K2 ②의 `finally`로 옮긴다. 예외 전파·작업 본문은 그대로다. feature PR 본문에 #34를 적는다. |
+| R6 | (닫힘) SRS Q1~Q3. | 오너 결정(2026-11-04)으로 v1.1 설계 그대로 확정: Q1 모두 포함(K2 ①에 작업 종류 제외 없음), Q2 오류 건너뛰기는 실패·충돌 건너뛰기는 성공(K4 유지), Q3 선택 모드·검색 중 가려짐 허용(K9a `overlayToolbar`에 두지 않음). |
 | R7 | #29와 같은 파일(`FileListFragment.kt`) 수정. | 4.1 조율점. |
 | R8 | 낭독 중복 방지(3.5): 같은 단계 반복 설정을 건너뛰려면 `HIDDEN`이 될 때 마지막 설명을 지워야 다음 묶음의 "진행 중"이 다시 낭독된다. 또 설명은 뷰를 보이게 하기 전에 설정해야 나타날 때 옛 설명을 읽지 않는다. | LLD에서 K9 함수 명세로 정한다. |
 | R9 | K11의 `ValueAnimator.areAnimatorsEnabled()`는 시스템 설정 배율 0 말고도 절전 모드 등으로 애니메이터가 꺼진 경우 거짓일 수 있다고 알려져 있다(미확인). 그러면 SRS 용어(배율 0)보다 넓고, API 23~25 경로(설정값 읽기)와 판정이 다를 수 있다. | 애니메이터가 꺼지면 어차피 그림이 끝 프레임으로 건너뛰므로 넓게 판정해 정지 자세를 쓰는 편이 맞다고 본다(REQ-30-10의 목적과 같음). LLD에서 API 문서·동작으로 확인하고, 다르면 SRS 용어 정의를 설계팀이 고친다. |
@@ -180,3 +179,4 @@ flowchart LR
 |---|---|---|---|---|
 | 2026-11-03 | v1 | 초안 | SRS v1.1 검수 통과 | 설계팀 |
 | 2026-11-04 | v1.1 | K4 "다시 시도" 판정을 양성 버튼 글로(자기 안·위로 복사·이동 창의 양성 = 건너뛰기), K4 추적에 REQ-30-16, 3.1 먼저 온 보고가 이김, 3.3 멈춤에서 돌아올 때 규칙, D3 대안, R8~R10 | HLD 검수 1회차 M1·m1~m6 (PR #32) | 검수팀 |
+| 2026-11-04 | v1.2 | 3.1 표 가운데의 문단을 표 아래로 옮김(표 분리 해소). SRS Q1~Q3 결정 반영(K4 제목·설명, 3.2, R6 닫음). K2 ②의 `finally`에 `runningJobs` 정리·잠금 갱신을 옮겨 #34 해소, R5 갱신 | HLD 검수 2회차 경미 n1, 오너 결정(이슈 #30 issuecomment-6617754053, 2026-11-04), #34 흡수(PM 결정) | 검수팀·오너·PM |
