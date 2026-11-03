@@ -68,6 +68,9 @@ class FileListViewModel : ViewModel() {
     val fileListStateful: Stateful<List<FileItem>>
         get() = _fileListLiveData.valueCompat
 
+    fun isExplicitLoadFailure(stateful: Stateful<List<FileItem>>): Boolean =
+        _fileListLiveData.isExplicitLoadFailure(stateful)
+
     var isFileListObserved: Boolean
         get() = _fileListLiveData.isSourceObserved
         set(value) {
@@ -279,6 +282,13 @@ class FileListViewModel : ViewModel() {
                 value = liveData.value
             }
         }
+
+        // Search results are only loaded explicitly.
+        fun isExplicitLoadFailure(stateful: Stateful<List<FileItem>>): Boolean =
+            when (val liveData = liveData) {
+                is FileListLiveData -> liveData.isExplicitLoadFailure(stateful)
+                else -> true
+            }
 
         fun reload() {
             when (val liveData = liveData) {

@@ -27,6 +27,7 @@ class FileListLoaderTest {
 
     private val started = mutableListOf<Boolean>()
     private val finished = mutableListOf<String>()
+    private val finishedForChange = mutableListOf<Boolean>()
 
     private lateinit var loader: FileListLoader<String>
 
@@ -36,7 +37,10 @@ class FileListLoaderTest {
         repeat(10) { gates += CountDownLatch(1) }
         loader = FileListLoader(
             backgroundExecutor, { mainQueue.put(it) }, ::load, { started += it },
-            { finished += it }, { loader.requestReloadOnChange() }
+            { result, isForChange ->
+                finished += result
+                finishedForChange += isForChange
+            }, { loader.requestReloadOnChange() }
         )
     }
 
@@ -102,6 +106,8 @@ class FileListLoaderTest {
         finishLoad(1)
         runMainTask()
         assertEquals(listOf("load0", "load1"), finished)
+        // The results tell which kind of load they are from.
+        assertEquals(listOf(false, true), finishedForChange)
         assertNoMainTask()
         assertEquals(2, loadCount.get())
         assertFalse(loader.isLoading)

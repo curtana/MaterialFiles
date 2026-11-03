@@ -24,7 +24,8 @@ import java.util.concurrent.Future
  *
  * @param load Loads the result on [backgroundExecutor]. It should not throw.
  * @param onLoadStarted Called when a load starts, with whether it was started for a change.
- * @param onLoadFinished Called with the result of the current load.
+ * @param onLoadFinished Called with the result of the current load, and whether it was started for
+ * a change.
  * @param onPendingChange Called after [onLoadFinished] if a change was requested during the
  * load; it should call [requestReloadOnChange] if the change is still wanted.
  */
@@ -33,7 +34,7 @@ class FileListLoader<T>(
     private val mainExecutor: Executor,
     private val load: () -> T,
     private val onLoadStarted: (isForChange: Boolean) -> Unit,
-    private val onLoadFinished: (T) -> Unit,
+    private val onLoadFinished: (T, isForChange: Boolean) -> Unit,
     private val onPendingChange: () -> Unit
 ) {
     private var future: Future<*>? = null
@@ -73,16 +74,16 @@ class FileListLoader<T>(
         onLoadStarted(isForChange)
         future = backgroundExecutor.submit {
             val result = load()
-            mainExecutor.execute { onFinished(generation, result) }
+            mainExecutor.execute { onFinished(generation, result, isForChange) }
         }
     }
 
-    private fun onFinished(generation: Int, result: T) {
+    private fun onFinished(generation: Int, result: T, isForChange: Boolean) {
         if (generation != this.generation) {
             return
         }
         future = null
-        onLoadFinished(result)
+        onLoadFinished(result, isForChange)
         if (isChangePending) {
             isChangePending = false
             onPendingChange()

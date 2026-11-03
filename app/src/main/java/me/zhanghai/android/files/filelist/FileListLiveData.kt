@@ -22,12 +22,12 @@ import java.io.IOException
 import java.util.concurrent.ExecutorService
 
 class FileListLiveData(private val path: Path) : CloseableLiveData<Stateful<List<FileItem>>>() {
-    // Loads for a change show the loading state as well for now, although the loader tells which
-    // kind of load it is.
     private val loader = FileListLoader(
         AsyncTask.THREAD_POOL_EXECUTOR as ExecutorService, mainExecutor, ::loadFileList,
-        { onLoadStarted() }, { value = it }, { onChangeObserved() }
+        ::onLoadStarted, ::onLoadFinished, ::onChangeObserved
     )
+
+    private var explicitLoadFailure: Failure<List<FileItem>>? = null
 
     private val observer: PathObserver
 
@@ -39,13 +39,25 @@ class FileListLiveData(private val path: Path) : CloseableLiveData<Stateful<List
         observer = PathObserver(path) { onChangeObserved() }
     }
 
+    // An explicit load, which always shows the loading state.
     fun loadValue() {
         loader.reload()
     }
 
-    private fun onLoadStarted() {
-        value = Loading(value?.value)
+    // A load for a change doesn't show the loading state if there is already a list shown.
+    private fun onLoadStarted(isForChange: Boolean) {
+        if (!shouldLoadSilently(isForChange, value)) {
+            value = Loading(value?.value)
+        }
     }
+
+    private fun onLoadFinished(value: Stateful<List<FileItem>>, isForChange: Boolean) {
+        explicitLoadFailure = if (!isForChange && value is Failure) value else null
+        this.value = value
+    }
+
+    fun isExplicitLoadFailure(stateful: Stateful<List<FileItem>>): Boolean =
+        stateful === explicitLoadFailure
 
     private fun loadFileList(): Stateful<List<FileItem>> =
         try {
@@ -78,8 +90,8 @@ class FileListLiveData(private val path: Path) : CloseableLiveData<Stateful<List
 
     override fun onActive() {
         if (isChangedWhileInactive) {
-            loadValue()
             isChangedWhileInactive = false
+            loader.requestReloadOnChange()
         }
     }
 
