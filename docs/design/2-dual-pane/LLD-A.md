@@ -16,7 +16,7 @@
 ### 0.1 이 단계가 하는 것 / 하지 않는 것
 - **한다**: 지금 `FileListFragment` 하나가 가진 화면 단위 책임(서랍 두 종류, `NavigationFragment`와 그 `Listener`, 고정 메뉴 열림 설정에 따른 서랍 열고 닫기, 서랍 뒤로 가기 콜백, 툴바 메뉴 단추(서랍 열기) 처리, 저장소·알림 권한 요청 흐름 전체)을 새 `FileListHostFragment`(K2)로 옮긴다. 권한 요청 진행 상태는 새 `DualPaneViewModel`(K3 기본)로 옮긴다. `FileListActivity`(K1)는 호스트를 붙이고 단축키를 호스트 → 활성 창으로 넘기며, #10을 고친다.
 - **창은 하나다**. 호스트는 창 컨테이너 하나(`R.id.paneContainer`)에 `FileListFragment` 하나를 붙인다. 활성 창은 늘 창 1(인덱스 0)이다.
-- **하지 않는다(#6~#9 몫)**: `DualPaneLayout`·너비 판단·쓸기·탭 활성화·RTL 반전(K4, #6), 창 2 생성·선택 모드 판단(`isDualPaneEnabled`)·`togglePane()`·`paneMode`·`panePaths`(K3 나머지, #6), 창 표시 줄(K7, #7), 확인 창(K6, #8), 반대쪽 복사·이동(#9). 이들이 붙을 자리는 4장.
+- **하지 않는다(#6~#9 몫)**: `DualPaneLayout`·너비 판단·쓸기·탭 활성화·RTL 반전(K4, #6), 창 2 생성·선택 모드 판단(`isDualPaneEnabled`)·`togglePane()`·`paneMode`(K3 나머지, #6)·`panePaths`(#7(v1.2 이후 정정: `panePaths`는 #7 소유 — LLD-B FB-4, PM 결정 PR #17. API는 LLD-C 4장)), 창 표시 줄(K7, #7), 확인 창(K6, #8), 반대쪽 복사·이동(#9). 이들이 붙을 자리는 4장.
 - **이 단계에서 미루는 K5 항목**(설계 피드백 F1·F3, **PM 결정으로 #6으로 미룸 확정** — 2026-10-28, #5 코멘트 "🗂 PM 결정 — LLD-A"): HLD D2의 "툴바 자체 메뉴(`MenuHost`)로 바꾸기"와 "격자 열 수를 창 너비로 계산"은 창이 하나인 이 단계에서 하면 **사용자에게 보이는 변화가 생긴다**(근거 F1·F3). 이 단계는 지금처럼 창 툴바를 `setSupportActionBar`로 지정하고 열 수 공식도 그대로 둔다. 두 항목은 창 2가 생기는 #6에서 한다.
 
 ### 0.2 추적 — 이 단계의 몫
@@ -390,10 +390,10 @@ class FileListHostFragment : Fragment(), FileListFragment.Listener, NavigationFr
 
 | 하위 이슈 | 붙을 자리 | 이 단계에서 준비한 것 |
 |---|---|---|
-| #6 B (K3·K4) | `R.id.paneContainer`(두 레이아웃 변형)를 `DualPaneLayout`(창 컨테이너 둘)로 바꾼다. 호스트 `onActivityCreated` 알고리즘 2에서 선택 모드가 아니면 창 2(`FileListFragment.Args(Intent())`)를 더한다(HLD 3.7). `DualPaneViewModel`에 `setActivePane`/`togglePane()`/`paneMode`/`panePaths`/`isDualPaneEnabled`와 공개 `activePaneLiveData`를 더한다. 전달 콜백(3.3)은 `activePaneLiveData`를 관찰해 대상 창과 `backPressedEnabledLiveData` 관찰을 바꾼다. `observeCurrentPath`는 활성 창 경로를 따라가도록(예: `activePaneLiveData.switchMap`) 바꾼다. `refreshPanes()`는 이미 모든 창. **K5 미룬 항목**: D2 툴바 `MenuHost`(F1의 동등성 목록 포함), 열 수를 창 너비로(F3), 창 `Args`에 창 번호. | `panes` 목록, `activePane` 게터, K3의 `activePane`, 창 전용 디스패처, 호스트 전달 콜백, `refreshPanes()`, 창 `Listener` |
+| #6 B (K3·K4) | `R.id.paneContainer`(두 레이아웃 변형)를 `DualPaneLayout`(창 컨테이너 둘)로 바꾼다. 호스트 `onActivityCreated` 알고리즘 2에서 선택 모드가 아니면 창 2(`FileListFragment.Args(Intent())`)를 더한다(HLD 3.7). `DualPaneViewModel`에 `setActivePane`/`togglePane()`/`paneMode`/`isDualPaneEnabled`(`panePaths`는 #7(v1.2 이후 정정: `panePaths`는 #7 소유 — LLD-B FB-4, PM 결정 PR #17. API는 LLD-C 4장))와 공개 `activePaneLiveData`를 더한다. 전달 콜백(3.3)은 `activePaneLiveData`를 관찰해 대상 창과 `backPressedEnabledLiveData` 관찰을 바꾼다. `observeCurrentPath`는 활성 창 경로를 따라가도록(예: `activePaneLiveData.switchMap`) 바꾼다. `refreshPanes()`는 이미 모든 창. **K5 미룬 항목**: D2 툴바 `MenuHost`(F1의 동등성 목록 포함), 열 수를 창 너비로(F3), 창 `Args`에 창 번호. | `panes` 목록, `activePane` 게터, K3의 `activePane`, 창 전용 디스패처, 호스트 전달 콜백, `refreshPanes()`, 창 `Listener` |
 | #7 C (K7) | 창 앱바 include(`res/layout/file_list_fragment_app_bar_include.xml`)의 경로 표시줄 아래 새 줄. | 창 레이아웃이 창 단위 앱바를 가짐 |
 | #8 D (K6) | `FileListFragment.pasteFiles`(`:1167-1179`)가 확인 창을 거치게. 창의 자식 대화상자(`ConfirmDeleteFilesDialogFragment` 패턴). | 바꾸지 않음 |
-| #9 E | `updateOverlayToolbar`(`:850-914`)·`onOverlayActionModeMenuItemClicked`(`:916-955`)에 반대쪽 명령. 반대쪽 경로는 #6의 `panePaths`. | 바꾸지 않음 |
+| #9 E | `updateOverlayToolbar`(`:850-914`)·`onOverlayActionModeMenuItemClicked`(`:916-955`)에 반대쪽 명령. 반대쪽 경로는 #7의 `panePaths`(v1.2 이후 정정: `panePaths`는 #7 소유 — LLD-B FB-4, PM 결정 PR #17. API는 LLD-C 4장). | 바꾸지 않음 |
 
 ## 5. 테스트 설계
 
@@ -469,3 +469,4 @@ class FileListHostFragment : Fragment(), FileListFragment.Listener, NavigationFr
 | 2026-10-28 | v1.2 | T-14(c) 왼쪽 인셋 구성 방법 보강 | LLD 2회차 검수 n1 | 검수팀 |
 | 2026-10-28 | v1.3 | PM 결정 반영: 0.1(F1·F3 확정), 0.3(F2 오너 수용), 2.1 `restoreHostFragment` 신규(m1)와 `onCreate` 갱신, 1장 표 1행, T-17 기대 결과, 6장 F1~F3 결정 표기, 7장 R8 | #5 "🗂 PM 결정 — LLD-A" | PM |
 | 2026-10-28 | v1.4 | 2.1 `restoreHostFragment` 사후조건의 뷰모델 서술 정정, T-17 교체 분기 확인 방법(임시 로그, 미발동 시 미확인), 0.3에 업데이트 직후 상태 손실 한 줄 | LLD 4회차 검수 m-a·m-b·m-c | 검수팀 |
+| 2026-11-01 | v1.4.1 | 0.1·4장의 `panePaths` 소유를 #6 → #7로(LLD-C 4장) | LLD-C 검수 1회차 경미 3 | 검수팀 |
