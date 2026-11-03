@@ -4,7 +4,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 작성 중(v1.1) |
+| 상태 | 작성 중(v1.2) |
 | 근거 | SRS v4.8, HLD v4.9 (`docs/design/2-dual-pane/`), LLD-A v1.4, LLD-B v1.3, LLD-D v1.3.1, `docs/STANDARDS_TRACEABILITY.md`(develop) |
 | 기준 코드 | `origin/develop` 0cca1b4 (#6 머지 PR #22 — #5·#6·#8 구현 포함). 인용 줄 번호는 이 커밋 기준 |
 | 이슈 | #7 (하위 이슈 C, 상위 #2). 선행 #6(머지됨). K3 `panePaths`를 소유하고 #9(E)가 쓴다 |
@@ -358,8 +358,22 @@ SRS·HLD는 개발팀이 고치지 않았다. 아래는 설계팀에 보낸 것�
 | 이 LLD의 위험 C-2 | 앱바가 48dp(+3dp) 높아져 작은 화면에서 목록이 줄어든다(0.3). 요구된 표시의 결과이며 터치 대상 48dp 필수 조항 때문에 줄일 수 없다. |
 | R1~R5·R8·R9·R11 | #5·#6·#8에서 처리(이 단계와 무관). |
 
+### 7.1 업스트림 동기화 후 재확인 (PM 지시 2026-11-03)
+오너가 fork를 동기화해 `origin/master`에 업스트림 커밋 29개가 들어왔고 develop에는 아직 합치지 않았다(동기화 여부는 오너 결정 대기). 이 LLD는 develop 0cca1b4 기준이다. 동기화하면 아래를 다시 확인한다 — 동기화 PR 또는 #7 구현 착수 시점 중 먼저 오는 쪽에서. 근거는 `git diff origin/develop...origin/master`(develop 0cca1b4 대비).
+
+| # | 업스트림 변화 | 영향받을 수 있는 이 LLD 지점 | 재확인 |
+|---|---|---|---|
+| S1 | `targetSdk` 34 → 36(`app/build.gradle`) — 예측 뒤로 가기가 기본으로 켜지고(`onBackPressed` 대신 `OnBackInvokedCallback` 경로), API 35+ edge-to-edge가 강제된다 | (a) 뒤로 가기 순서 자체는 LLD-B 4.2·HLD 3.5의 몫이지만, 창 표시 전환 뒤에도 뒤로 가기가 새 활성 창을 따르는지 (b) edge-to-edge에서 앱바(새 창 표시 줄·선 포함)가 상태 표시줄 아래에 바르게 놓이고 두 창 인셋 분배(K4, LLD-B T-B22)가 그대로인지 | LLD-B T-B12·T-B17·T-B22, 이 LLD T-C04·T-C12 재실행 |
+| S2 | lifecycle 2.9.2 → 2.11.0, fragment 1.8.8 → 1.9.1, activity 1.10.1 → 1.13.0 | `map`/`switchMap`의 처음 값 즉시 변환(LLD-B v1.3 2.5 미러의 이유)과 자식 프래그먼트 `onActivityCreated`·`ON_START` 순서(2.3 "전제", 2.4 `post`)가 같은지. 같은 소유자 콜백 등록 순서(LLD-A 3.2) | T-C01·T-C02·T-C13, LLD-B T-B01·T-B12 재실행. 라이브러리 변경 기록 확인 |
+| S3 | appcompat 1.7.1 → 1.8.0, core 1.16.0 → 1.19.1 | `ViewCompat.replaceAccessibilityAction`·`AccessibilityDelegateCompat`의 동작 목록 처리(2.3), `Toolbar`의 자체 뒤로 콜백(LLD-B 3장 ④), `WindowInsetsCompat` 제스처 인셋(LLD-B FB-2) | T-C03·T-C05(b), LLD-B T-B15·T-B17 재실행 |
+| S4 | Material 1.12.0 → 1.14.0, 테마 변경(`themes.xml`·`themes_material3.xml` — `Platform.V23`, `windowLightStatusBar`) | 앱바 배경·들림 색(`?colorAppBarSurface`), `?textAppearanceListItemSecondary`·`?colorControlNormal` 값 → 대비(3장) | T-C09 재실행(밝은·어두운·검은 밤 모드, M3 켬·끔) |
+| S5 | `OverlayToolbarActionMode(toolbar, overlaidLayout)`로 생성자 변경, 선택 툴바가 보이는 동안 일반 툴바 묶음의 초점을 막음(f983dc4) | 창 표시 줄은 툴바 묶음(`FrameLayout`, `app_bar_include.xml:22-48`) 밖이라 막히지 않는다 — 파일 선택 중에도 창 표시 컨트롤에 키보드 초점이 가는지, 의도와 맞는지 | T-C06을 파일 선택 상태에서 한 번 더 |
+| S6 | `minSdk` 21 → 23 | 2.5의 `android:backgroundTint`(API 21+) 등 이 LLD의 API 전제는 그대로 성립 | 없음(기록만) |
+| S7 | 업스트림 `FileListFragment.kt`는 #5 이전 구조(권한 요청 코드가 창 안에 있음)라 develop의 화면/창 분리와 겹친다 | 동기화 PR의 충돌 해결 결과에 따라 이 LLD가 인용한 `F:` 줄 번호가 바뀐다 | 구현 착수 시 `F:`·`H:` 줄 번호를 동기화 뒤 develop 기준으로 다시 맞춘다(Work Order에 적음) |
+
 ## 8. 변경 이력
 | 일자 | 버전 | 변경 | 사유 | 요청자 |
 |---|---|---|---|---|
 | 2026-11-01 | v1 | 최초 작성 | 이슈 #7 LLD 단계(`panePaths` 소유·#9 API 포함) | PM |
 | 2026-11-01 | v1.1 | FB-C1~C4 결과 반영: 근거 HLD v4.9, 선 색 `?colorControlNormal`(2.5 XML·선 색 설명, 3장), `styles.xml` 줄 정정(`:61-62`), T-C09에 검은 밤 모드·노랑 테마, 6장 결과 | 설계팀 회신(HLD v4.9, 2edec99) | 설계팀 |
+| 2026-11-03 | v1.2 | 7.1 업스트림 동기화 후 재확인 항목 S1~S7 | 업스트림 29개 커밋이 master에 들어옴(develop 미반영) | PM |
