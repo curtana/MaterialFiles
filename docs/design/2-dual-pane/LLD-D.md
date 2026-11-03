@@ -4,7 +4,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 결정 반영(v1.3.1) — F1 오너 확정, F3 오너 승인, F5 PM 승인(PR #16 코멘트 6473368985·정정 6473374204). v1.2 검수 통과, v1.3 바뀐 절 재검수 |
+| 상태 | 결정 반영(v1.3.2 — 7장 v1.3.2는 문구 정정만) — F1 오너 확정, F3 오너 승인, F5 PM 승인(PR #16 코멘트 6473368985·정정 6473374204). v1.2 검수 통과, v1.3 바뀐 절 재검수 |
 | 근거 | SRS v4.7, HLD v4.7 (`docs/design/2-dual-pane/`), LLD-A v1.4(구조·확장 지점 4장) |
 | 기준 코드 | `origin/develop` a76055e (#5 화면/창 분리 머지 뒤). HLD의 `FileListFragment.kt` 줄 번호는 #5 이전 기준이라 이 문서는 a76055e에서 다시 찾은 줄을 쓴다(6장 F2). |
 | 이슈 | #8 (하위 이슈 D, 상위 #2, 선행 #5) |
@@ -15,7 +15,7 @@
 
 ### 0.1 이 단계가 하는 것 / 하지 않는 것
 - **한다**: 새 확인 창 `ConfirmCopyMoveDialogFragment`(K6)와 그 판단 로직(순수 함수), 확인 창 문자열(K9의 확인 창 몫). 기존 붙여넣기(`FileListFragment.pasteFiles`, a76055e `:1104-1116`)가 작업을 바로 시작하지 않고 확인 창을 거치게 한다. "실행"에서 작업을 시작하는 리스너는 붙여넣기·반대쪽 명령 두 출처를 모두 처리한다(HLD K6 책임).
-- **#9(E)를 위해 준비만 한다**: 진입 API `ConfirmCopyMoveDialogFragment.show(copy, files, targetDirectory, Origin.OTHER_PANE, fragment)`와 리스너의 `OTHER_PANE` 갈래(선택 해제). #9는 선택 메뉴 항목 두 개(`res/menu/file_list_select.xml`)와 그 클릭에서 이 API를 부르는 것만 더한다. 반대쪽 경로(`DualPaneViewModel.panePaths`)는 #6 몫이다.
+- **#9(E)를 위해 준비만 한다**: 진입 API `ConfirmCopyMoveDialogFragment.show(copy, files, targetDirectory, Origin.OTHER_PANE, fragment)`와 리스너의 `OTHER_PANE` 갈래(선택 해제). #9는 선택 메뉴 항목 두 개(`res/menu/file_list_select.xml`)와 그 클릭에서 이 API를 부르는 것만 더한다. 반대쪽 경로(`DualPaneViewModel.panePaths`)는 #7 몫이다(v1.2 이후 정정: `panePaths`는 #7 소유 — LLD-B FB-4, PM 결정 PR #17. API는 LLD-C 4장).
 - **하지 않는다**: 반대쪽 복사·이동 메뉴·읽기 전용 비활성 판단(#9), 창 2·활성 창(#6), 창 표시 줄(#7). `filejob/`·`provider/`는 바꾸지 않는다(SRS C-1) — `CopyMoveType`(`filejob/FileJobs.kt:575-579`)과 `FileJobService.copy/move`(`filejob/FileJobService.kt:126-140`)를 그대로 쓴다.
 
 ### 0.2 추적 — 이 단계의 몫
@@ -287,7 +287,7 @@ class ConfirmCopyMoveDialogFragment : AppCompatDialogFragment() {
 
 | 하위 이슈 | 붙을 자리 | 이 단계에서 준비한 것 |
 |---|---|---|
-| #9 E | 선택 메뉴 `res/menu/file_list_select.xml`에 "반대쪽으로 복사"·"반대쪽으로 이동" 두 항목, `updateOverlayToolbar`(기존 `:787-851`, 선택 메뉴 부분 `:807-833`)에서 반대쪽 경로 읽기 전용·선택 읽기 전용 판단(HLD 3.6 읽기 전용 규칙), `onOverlayActionModeMenuItemClicked`(기존 `:853-892`)에서 `ConfirmCopyMoveDialogFragment.show(copy, viewModel.selectedFiles, <반대쪽 경로>, Origin.OTHER_PANE, this)`. 반대쪽 경로는 #6의 `DualPaneViewModel.panePaths`. | `show` API(살아 있는 선택 집합을 넘겨도 됨 — 복사본을 만든다), `Origin.OTHER_PANE`, 리스너의 선택 해제 갈래, 판정·문구 전부 |
+| #9 E | 선택 메뉴 `res/menu/file_list_select.xml`에 "반대쪽으로 복사"·"반대쪽으로 이동" 두 항목, `updateOverlayToolbar`(기존 `:787-851`, 선택 메뉴 부분 `:807-833`)에서 반대쪽 경로 읽기 전용·선택 읽기 전용 판단(HLD 3.6 읽기 전용 규칙), `onOverlayActionModeMenuItemClicked`(기존 `:853-892`)에서 `ConfirmCopyMoveDialogFragment.show(copy, viewModel.selectedFiles, <반대쪽 경로>, Origin.OTHER_PANE, this)`. 반대쪽 경로는 #7의 `DualPaneViewModel.panePaths`(v1.2 이후 정정: `panePaths`는 #7 소유 — LLD-B FB-4, PM 결정 PR #17. API는 LLD-C 4장). | `show` API(살아 있는 선택 집합을 넘겨도 됨 — 복사본을 만든다), `Origin.OTHER_PANE`, 리스너의 선택 해제 갈래, 판정·문구 전부 |
 | #6 B | 두 창이 되어도 확인 창은 연 창의 자식이라(`show`가 `fragment.childFragmentManager`에 `showNow`) 그 창의 뷰모델로 실행·정리한다. 바꿀 것 없음. | — |
 
 ## 5. 위험 처리 (HLD 6장 중 이 단계 몫)
@@ -314,4 +314,5 @@ class ConfirmCopyMoveDialogFragment : AppCompatDialogFragment() {
 | 2026-10-29 | v1.1 | 2.2 `show`에 빈 입력 계약·중복 열림 방지(태그 + `showNow`)와 T-22, T-21(자기 하위 A9), T-03을 3개로, 2.1 의존 서술 정정, 48dp 테마 연결 줄, U-03 마지막 경우의 수동 대응 없음 명시, F1에 HLD 문구 차이·SRS A7 영향, F4 보강, F5 | LLD 1회차 검수 M1·m1~m5 | 검수팀 |
 | 2026-10-29 | v1.2 | 2.2 클래스 골격에 companion(`TAG`·`show`), `show` 입력·전제를 빈 입력 허용으로, T-22 1차 확인을 코드 검수로·기기 입력을 한 셸 연속으로, 4장 #6 행 표기 | LLD 2회차 검수 n1~n3 | 검수팀 |
 | 2026-10-29 | v1.3 | 결정 반영: 상태, F1(LLD 안 확정)·F2·F3(JUnit 승인)·F5(승인) 결정 기록, 1장 변경 파일 7개(`app/build.gradle`, 단위 시험 파일), 3.2 단위 시험 필수화와 시험 대역·실패 시 처리, U-01 범위(압축 경우는 T-04), U-03 마지막 경우를 단위 시험이 맡음, 2.1 서두(JVM 단위 시험 대상), 3.1 끝의 U 필수 줄, 5장 R9(3) | PR #16 PM·오너 결정(코멘트 6473368985, 정정 6473374204) | PM |
+| 2026-11-01 | v1.3.2 | 0.1·4장의 `panePaths` 소유를 #6 → #7로(LLD-C 4장) | LLD-C 검수 1회차 경미 3 | 검수팀 |
 | 2026-10-29 | v1.3.1 | 1장 범위 공지 문구, 3.2 `TestPath` 구현 멤버와 `getRoot` 조건, T-04(c) 혼합 선택(U-01 일부 압축 경우의 수동 대응) | LLD 4회차 검수 m1~m3 | 검수팀 |
