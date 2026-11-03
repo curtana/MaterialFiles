@@ -296,6 +296,13 @@
         <item quantity="other">%1$,d개 항목의 원래 위치가 대상과 같은 폴더입니다.</item>
     </plurals>
     <string name="file_list_confirm_copy_move_positive">실행</string>
+    <string name="file_list_pane_switcher_description_format">창 %1$d / %2$d</string>
+    <string name="file_list_pane_switcher_action_format">창 %1$d로 전환</string>
+    <string name="file_list_pane_name_format">창 %1$d</string>
+    <string name="file_list_pane_name_active_format">창 %1$d · 활성</string>
+    <string name="file_list_pane_name_active_description_format">창 %1$d, 활성</string>
+    <string name="file_list_pane_activate_action">이 창을 활성 창으로</string>
+    <string name="file_list_pane_other_path_format">창 %1$d: %2$s</string>
     <string name="file_list_empty">파일 없음</string>
     <string name="file_list_action_create_file">파일</string>
     <string name="file_list_action_create_directory">폴더</string>

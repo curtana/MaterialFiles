@@ -171,7 +171,8 @@ class FileListHostFragment : Fragment(), FileListFragment.Listener, NavigationFr
         }
         // The panes don't use a support action bar or the toolbar's own back callback (which would
         // also catch the search view of an inactive pane), so collapsing the search view of the
-        // active pane is added last to take precedence over all the others.
+        // active pane is added last to take precedence over the others within the activity
+        // dispatcher; on API 33+, an open modal drawer still goes first.
         val searchViewOnBackPressedCallback = object : OnBackPressedCallback(false) {
             override fun handleOnBackPressed() {
                 activePane.collapseSearchView()
@@ -263,6 +264,26 @@ class FileListHostFragment : Fragment(), FileListFragment.Listener, NavigationFr
                 !Settings.FILE_LIST_PERSISTENT_DRAWER_OPEN.valueCompat
             )
         }
+    }
+
+    override fun onPaneIndicatorClicked(paneIndex: Int, hasInputFocus: Boolean) {
+        if (viewModel.paneMode.isDualPane) {
+            // A tap has already activated the pane, but not a key press or an accessibility click.
+            viewModel.setActivePane(paneIndex)
+            return
+        }
+        // The indicator of the hidden pane is gone.
+        if (paneIndex != viewModel.activePane) {
+            return
+        }
+        viewModel.togglePane()
+        if (viewModel.activePane == paneIndex) {
+            return
+        }
+        // Toggling requests a layout, which runs before the posted focus change, so that the new
+        // pane is laid out when it receives the focus.
+        val pane = panes[viewModel.activePane]
+        binding.dualPaneLayout.post { pane.focusPaneIndicator(hasInputFocus) }
     }
 
     override val currentPath: Path

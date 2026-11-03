@@ -53,5 +53,55 @@
             android:layout_height="wrap_content"
             android:paddingStart="@dimen/content_start_margin_minus_12dp"
             android:paddingEnd="@dimen/screen_edge_margin_minus_12dp" />
+
+        <LinearLayout
+            android:id="@+id/paneIndicatorLayout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingStart="@dimen/content_start_margin_minus_12dp"
+            android:paddingEnd="@dimen/screen_edge_margin_minus_12dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/paneIndicatorText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="@dimen/touch_target_size"
+                android:minHeight="@dimen/touch_target_size"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:background="?selectableItemBackground"
+                android:focusable="true"
+                android:gravity="center"
+                android:singleLine="true"
+                android:textAppearance="?textAppearanceListItemSecondary"
+                android:textColor="?android:textColorPrimary" />
+
+            <!--
+              ~ Ellipsize in the middle to keep both the pane name and the last directory. The
+              ~ secondary text color is below 4.5:1 in the light Material 3 theme.
+              -->
+            <TextView
+                android:id="@+id/otherPanePathText"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:ellipsize="middle"
+                android:singleLine="true"
+                android:textAppearance="?textAppearanceListItemSecondary"
+                android:textColor="?android:textColorPrimary" />
+        </LinearLayout>
+
+        <!-- ?colorControlNormal is a color state list, so it's applied as a tint. -->
+        <View
+            android:id="@+id/activePaneLine"
+            android:layout_width="match_parent"
+            android:layout_height="3dp"
+            android:background="@android:color/white"
+            android:backgroundTint="?colorControlNormal"
+            android:importantForAccessibility="no"
+            android:visibility="gone" />
     </me.zhanghai.android.files.ui.CoordinatorAppBarLayout>
 </merge>
