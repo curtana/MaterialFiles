@@ -3,6 +3,7 @@ package me.zhanghai.android.files.filelist
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
+import java8.nio.file.Path
 import me.zhanghai.android.files.util.valueCompat
 
 class DualPaneViewModel : ViewModel() {
@@ -49,6 +50,22 @@ class DualPaneViewModel : ViewModel() {
         _paneModeLiveData.value = mode
     }
 
+    // The current path of each pane, published by the pane itself; null until it's known.
+    private val _panePathLiveDatas = List(PANE_COUNT) { MutableLiveData<Path?>(null) }
+
+    fun getPanePathLiveData(index: Int): LiveData<Path?> = _panePathLiveDatas[index]
+
+    fun getPanePath(index: Int): Path? = _panePathLiveDatas[index].value
+
+    fun setPanePath(index: Int, path: Path) {
+        val liveData = _panePathLiveDatas[index]
+        // The pane emits a new value even when it reloads the same path.
+        if (path == liveData.value) {
+            return
+        }
+        liveData.value = path
+    }
+
     private val _isRequestingStorageAccessLiveData = MutableLiveData(false)
     var isStorageAccessRequested: Boolean
         get() = _isRequestingStorageAccessLiveData.valueCompat
@@ -62,7 +79,13 @@ class DualPaneViewModel : ViewModel() {
         set(value) {
             _isRequestingNotificationPermissionLiveData.value = value
         }
+
+    companion object {
+        const val PANE_COUNT = 2
+    }
 }
+
+internal fun otherPaneIndex(paneIndex: Int): Int = 1 - paneIndex
 
 /**
  * The pane mode decided by [DualPaneLayout], where [paneWidthDp] is the width of a single pane for

@@ -337,6 +337,14 @@
         <item quantity="other">The original location of %1$,d items is the same folder as the target.</item>
     </plurals>
     <string name="file_list_confirm_copy_move_positive">Start</string>
+    <string name="file_list_pane_switcher_format" translatable="false">%1$d / %2$d</string>
+    <string name="file_list_pane_switcher_description_format">Pane %1$d of %2$d</string>
+    <string name="file_list_pane_switcher_action_format">Switch to pane %1$d</string>
+    <string name="file_list_pane_name_format">Pane %1$d</string>
+    <string name="file_list_pane_name_active_format">Pane %1$d · Active</string>
+    <string name="file_list_pane_name_active_description_format">Pane %1$d, active</string>
+    <string name="file_list_pane_activate_action">Make this the active pane</string>
+    <string name="file_list_pane_other_path_format">Pane %1$d: %2$s</string>
     <string name="file_list_empty">No files</string>
     <string name="file_list_action_create_file">File</string>
     <string name="file_list_action_create_directory">Folder</string>

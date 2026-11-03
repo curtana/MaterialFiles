@@ -23,6 +23,8 @@ import android.view.MenuInflater
 import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
+import android.view.accessibility.AccessibilityNodeInfo
+import android.widget.Button
 import android.widget.EditText
 import android.widget.ProgressBar
 import android.widget.TextView
@@ -33,8 +35,13 @@ import androidx.appcompat.widget.Toolbar
 import androidx.core.content.pm.ShortcutInfoCompat
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.drawable.IconCompat
+import androidx.core.text.BidiFormatter
 import androidx.core.util.Consumer
+import androidx.core.view.AccessibilityDelegateCompat
 import androidx.core.view.MenuProvider
+import androidx.core.view.ViewCompat
+import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
+import androidx.core.view.accessibility.AccessibilityNodeInfoCompat.AccessibilityActionCompat
 import androidx.core.view.isVisible
 import androidx.core.view.updatePaddingRelative
 import androidx.fragment.app.Fragment
@@ -205,6 +212,12 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
         }
         binding.appBarLayout.syncBackgroundColorTo(binding.overlayToolbar)
         binding.breadcrumbLayout.setListener(this)
+        ViewCompat.setAccessibilityDelegate(
+            binding.paneIndicatorText, paneIndicatorAccessibilityDelegate
+        )
+        binding.paneIndicatorText.setOnClickListener {
+            listener.onPaneIndicatorClicked(args.paneIndex, it.isFocused)
+        }
         if (!(activity.hasSw600Dp && activity.isOrientationLandscape)) {
             binding.swipeRefreshLayout.setProgressViewEndTarget(
                 true, binding.swipeRefreshLayout.progressViewEndOffset
@@ -331,7 +344,18 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
                 updateSpanCount()
             }
         }
-        dualPaneViewModel.paneModeLiveData.observe(viewLifecycleOwner) { updateSpanCount() }
+        dualPaneViewModel.paneModeLiveData.observe(viewLifecycleOwner) {
+            updateSpanCount()
+            schedulePaneIndicatorUpdate()
+        }
+        // The pane indicator stays hidden without a second pane.
+        if (dualPaneViewModel.isDualPaneEnabled) {
+            dualPaneViewModel.activePaneLiveData.observe(viewLifecycleOwner) {
+                schedulePaneIndicatorUpdate()
+            }
+            dualPaneViewModel.getPanePathLiveData(otherPaneIndex(args.paneIndex))
+                .observe(viewLifecycleOwner) { schedulePaneIndicatorUpdate() }
+        }
         viewModel.sortOptionsLiveData.observe(viewLifecycleOwner) { onSortOptionsChanged(it) }
         viewModel.viewSortPathSpecificLiveData.observe(viewLifecycleOwner) {
             onViewSortPathSpecificChanged(it)
@@ -556,8 +580,120 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
     }
 
     private fun onCurrentPathChanged(path: Path) {
+        dualPaneViewModel.setPanePath(args.paneIndex, path)
         updateOverlayToolbar()
         updateBottomToolbar()
+    }
+
+    private val paneIndicatorUpdateRunnable = Runnable {
+        if (view != null) {
+            updatePaneIndicator()
+        }
+    }
+
+    // When an inactive pane is tapped, the layout activates it before the indicator handles the
+    // same ACTION_UP, and making the indicator unclickable before that would leave it pressed. This
+    // also merges the updates from the same message.
+    private fun schedulePaneIndicatorUpdate() {
+        binding.paneIndicatorLayout.removeCallbacks(paneIndicatorUpdateRunnable)
+        binding.paneIndicatorLayout.post(paneIndicatorUpdateRunnable)
+    }
+
+    private fun updatePaneIndicator() {
+        val mode = getPaneIndicatorMode(
+            dualPaneViewModel.isDualPaneEnabled, dualPaneViewModel.paneMode.isDualPane,
+            args.paneIndex, dualPaneViewModel.activePane
+        )
+        val number = args.paneIndex + 1
+        val otherIndex = otherPaneIndex(args.paneIndex)
+        val otherNumber = otherIndex + 1
+        val count = DualPaneViewModel.PANE_COUNT
+        binding.paneIndicatorLayout.isVisible = mode != PaneIndicatorMode.HIDDEN
+        // The inactive pane keeps the space of the line, so that both app bars have the same
+        // height.
+        binding.activePaneLine.visibility = when (mode) {
+            PaneIndicatorMode.ACTIVE -> View.VISIBLE
+            PaneIndicatorMode.INACTIVE -> View.INVISIBLE
+            else -> View.GONE
+        }
+        if (mode == PaneIndicatorMode.HIDDEN) {
+            return
+        }
+        val indicatorText = binding.paneIndicatorText
+        val actionLabel: String?
+        when (mode) {
+            PaneIndicatorMode.SWITCHER -> {
+                indicatorText.text =
+                    getString(R.string.file_list_pane_switcher_format, number, count)
+                indicatorText.contentDescription =
+                    getString(R.string.file_list_pane_switcher_description_format, number, count)
+                indicatorText.isClickable = true
+                actionLabel = getString(R.string.file_list_pane_switcher_action_format, otherNumber)
+            }
+            PaneIndicatorMode.ACTIVE -> {
+                indicatorText.text = getString(R.string.file_list_pane_name_active_format, number)
+                indicatorText.contentDescription =
+                    getString(R.string.file_list_pane_name_active_description_format, number)
+                indicatorText.isClickable = false
+                actionLabel = null
+            }
+            else -> {
+                indicatorText.text = getString(R.string.file_list_pane_name_format, number)
+                // The text is the label.
+                indicatorText.contentDescription = null
+                indicatorText.isClickable = true
+                actionLabel = getString(R.string.file_list_pane_activate_action)
+            }
+        }
+        // A null label removes the action, and a null command falls back to performClick().
+        ViewCompat.replaceAccessibilityAction(
+            indicatorText, AccessibilityActionCompat.ACTION_CLICK, actionLabel, null
+        )
+        // In dual pane mode, the path of the other pane is shown by its own breadcrumb.
+        val otherPath = if (mode == PaneIndicatorMode.SWITCHER) {
+            dualPaneViewModel.getPanePath(otherIndex)
+        } else {
+            null
+        }
+        if (otherPath != null) {
+            binding.otherPanePathText.isVisible = true
+            binding.otherPanePathText.text = getString(
+                R.string.file_list_pane_other_path_format, otherNumber,
+                BidiFormatter.getInstance().unicodeWrap(otherPath.toLocationDisplayString())
+            )
+        } else {
+            binding.otherPanePathText.isVisible = false
+        }
+    }
+
+    // A button only when clickable, so that the active pane isn't announced as a button.
+    private val paneIndicatorAccessibilityDelegate = object : AccessibilityDelegateCompat() {
+        override fun onInitializeAccessibilityNodeInfo(
+            host: View,
+            info: AccessibilityNodeInfoCompat
+        ) {
+            super.onInitializeAccessibilityNodeInfo(host, info)
+            if (host.isClickable) {
+                info.className = Button::class.java.name
+            }
+        }
+    }
+
+    /**
+     * Moves the accessibility focus, and the input focus if [requestInputFocus], to the pane
+     * indicator. The host calls this after layout when it toggles to this pane.
+     */
+    fun focusPaneIndicator(requestInputFocus: Boolean) {
+        if (view == null) {
+            return
+        }
+        val indicatorText = binding.paneIndicatorText
+        if (requestInputFocus) {
+            indicatorText.requestFocus()
+        }
+        indicatorText.performAccessibilityAction(
+            AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS, null
+        )
     }
 
     private fun onSearchViewExpandedChanged(expanded: Boolean) {
@@ -1470,6 +1606,8 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
         val hasPersistentDrawer: Boolean
         val isPersistentDrawerOpen: Boolean
         fun onNavigationIconClicked()
+        // hasInputFocus tells whether the indicator was clicked with the keyboard.
+        fun onPaneIndicatorClicked(paneIndex: Int, hasInputFocus: Boolean)
     }
 
     private class Binding private constructor(
@@ -1479,6 +1617,10 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
         val toolbar: Toolbar,
         val overlayToolbar: Toolbar,
         val breadcrumbLayout: BreadcrumbLayout,
+        val paneIndicatorLayout: ViewGroup,
+        val paneIndicatorText: TextView,
+        val otherPanePathText: TextView,
+        val activePaneLine: View,
         val contentLayout: ViewGroup,
         val progress: ProgressBar,
         val errorText: TextView,
@@ -1506,7 +1648,9 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
                 return Binding(
                     bindingRoot, includeBinding.persistentBarLayout, appBarBinding.appBarLayout,
                     appBarBinding.toolbar, appBarBinding.overlayToolbar,
-                    appBarBinding.breadcrumbLayout, contentBinding.contentLayout,
+                    appBarBinding.breadcrumbLayout, appBarBinding.paneIndicatorLayout,
+                    appBarBinding.paneIndicatorText, appBarBinding.otherPanePathText,
+                    appBarBinding.activePaneLine, contentBinding.contentLayout,
                     contentBinding.progress, contentBinding.errorText, contentBinding.emptyView,
                     contentBinding.swipeRefreshLayout, contentBinding.recyclerView,
                     bottomBarBinding.bottomBarLayout, bottomBarBinding.bottomToolbar,
