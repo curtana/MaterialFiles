@@ -505,8 +505,11 @@ private fun FileJob.showErrorDialog(
     positiveButtonText: CharSequence?,
     negativeButtonText: CharSequence?,
     neutralButtonText: CharSequence?
-): ErrorResult =
-    try {
+): ErrorResult {
+    // Compared before waiting for the answer, because the configuration (e.g. the locale) of the
+    // service may change meanwhile.
+    val isPositiveRetry = positiveButtonText?.toString() == getString(R.string.retry)
+    val result: ErrorResult = try {
         runBlocking {
             suspendCoroutine { continuation ->
                 BackgroundActivityStarter.startActivity(
@@ -524,6 +527,11 @@ private fun FileJob.showErrorDialog(
     } catch (e: InterruptedException) {
         throw InterruptedIOException().apply { initCause(e) }
     }
+    if (!isFileJobErrorResolved(result.action, isPositiveRetry)) {
+        hasUnresolvedError = true
+    }
+    return result
+}
 
 private fun FileJob.getReadOnlyFileStore(path: Path, exception: IOException): PosixFileStore? {
     if (exception !is ReadOnlyFileSystemException || !path.isLinuxPath) {

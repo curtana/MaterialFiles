@@ -46,6 +46,12 @@
             android:title="@string/settings_file_list_animation_title"
             android:defaultValue="@bool/pref_default_value_file_list_animation" />
 
+        <SwitchPreferenceCompat
+            android:key="@string/pref_key_file_job_indicator"
+            android:title="@string/settings_file_job_indicator_title"
+            android:summary="@string/settings_file_job_indicator_summary"
+            android:defaultValue="@bool/pref_default_value_file_job_indicator" />
+
         <rikka.preference.SimpleMenuPreference
             android:key="@string/pref_key_file_name_ellipsize"
             android:title="@string/settings_file_name_ellipsize_title"

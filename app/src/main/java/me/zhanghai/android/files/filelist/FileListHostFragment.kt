@@ -12,6 +12,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
+import android.os.SystemClock
 import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.View
@@ -25,6 +26,8 @@ import androidx.drawerlayout.widget.DrawerLayout
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.commit
 import androidx.fragment.app.commitNow
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.switchMap
 import java8.nio.file.Path
@@ -34,6 +37,7 @@ import me.zhanghai.android.files.app.application
 import me.zhanghai.android.files.compat.checkSelfPermissionCompat
 import me.zhanghai.android.files.databinding.FileListHostFragmentBinding
 import me.zhanghai.android.files.databinding.FileListHostFragmentIncludeBinding
+import me.zhanghai.android.files.filejob.FileJobStateTracker
 import me.zhanghai.android.files.navigation.NavigationFragment
 import me.zhanghai.android.files.settings.Settings
 import me.zhanghai.android.files.ui.DrawerLayoutOnBackPressedCallback
@@ -87,6 +91,10 @@ class FileListHostFragment : Fragment(), FileListFragment.Listener, NavigationFr
     private lateinit var navigationFragment: NavigationFragment
 
     private lateinit var panes: List<FileListFragment>
+
+    private lateinit var fileJobIndicatorTimeline: FileJobIndicatorTimeline
+
+    private val fileJobIndicatorUpdateRunnable = Runnable { updateFileJobIndicator() }
 
     private val activePane: FileListFragment
         get() = panes[viewModel.activePane]
@@ -187,6 +195,42 @@ class FileListHostFragment : Fragment(), FileListFragment.Listener, NavigationFr
                 onPersistentDrawerOpenChanged(it)
             }
         }
+
+        // A new timeline for each view, so that the minimum running time continues across pane
+        // changes but restarts after recreation. The phase of the previous view is cut.
+        fileJobIndicatorTimeline = FileJobIndicatorTimeline()
+        viewModel.setFileJobIndicatorPhase(FileJobIndicatorPhase.HIDDEN)
+        FileJobStateTracker.stateLiveData.observe(viewLifecycleOwner) { updateFileJobIndicator() }
+        Settings.FILE_JOB_INDICATOR.observe(viewLifecycleOwner) { updateFileJobIndicator() }
+        viewLifecycleOwner.lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onStart(owner: LifecycleOwner) {
+                updateFileJobIndicator()
+            }
+
+            override fun onStop(owner: LifecycleOwner) {
+                binding.root.removeCallbacks(fileJobIndicatorUpdateRunnable)
+                fileJobIndicatorTimeline.stop()
+            }
+        })
+    }
+
+    private fun updateFileJobIndicator() {
+        if (!viewLifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+            return
+        }
+        val nowMillis = SystemClock.uptimeMillis()
+        val output = fileJobIndicatorTimeline.update(
+            nowMillis, Settings.FILE_JOB_INDICATOR.valueCompat,
+            FileJobStateTracker.stateLiveData.valueCompat
+        )
+        viewModel.setFileJobIndicatorPhase(output.phase)
+        val root = binding.root
+        root.removeCallbacks(fileJobIndicatorUpdateRunnable)
+        output.nextUpdateMillis?.let {
+            root.postDelayed(fileJobIndicatorUpdateRunnable, (it - nowMillis).coerceAtLeast(0))
+        }
+        // This must be the last, because consuming may call this method again synchronously.
+        output.seqToConsume?.let { FileJobStateTracker.consumeResult(it) }
     }
 
     override fun onResume() {

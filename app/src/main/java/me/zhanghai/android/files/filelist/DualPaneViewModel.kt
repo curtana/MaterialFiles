@@ -50,6 +50,20 @@ class DualPaneViewModel : ViewModel() {
         _paneModeLiveData.value = mode
     }
 
+    // Set by the host for the whole screen, and drawn by one of the panes.
+    private val _fileJobIndicatorPhaseLiveData = MutableLiveData(FileJobIndicatorPhase.HIDDEN)
+    val fileJobIndicatorPhaseLiveData: LiveData<FileJobIndicatorPhase>
+        get() = _fileJobIndicatorPhaseLiveData
+    val fileJobIndicatorPhase: FileJobIndicatorPhase
+        get() = _fileJobIndicatorPhaseLiveData.valueCompat
+
+    fun setFileJobIndicatorPhase(phase: FileJobIndicatorPhase) {
+        if (phase == fileJobIndicatorPhase) {
+            return
+        }
+        _fileJobIndicatorPhaseLiveData.value = phase
+    }
+
     // The current path of each pane, published by the pane itself; null until it's known.
     private val _panePathLiveDatas = List(PANE_COUNT) { MutableLiveData<Path?>(null) }
 

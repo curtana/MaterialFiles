@@ -16,17 +16,25 @@ abstract class FileJob {
     internal lateinit var service: FileJobService
         private set
 
-    fun runOn(service: FileJobService) {
+    // Whether an error dialog was answered with anything other than retrying. Only accessed on the
+    // job thread.
+    internal var hasUnresolvedError = false
+
+    // Returns whether the job succeeded.
+    fun runOn(service: FileJobService): Boolean {
         this.service = service
-        try {
+        return try {
             run()
             // TODO: Toast
+            !hasUnresolvedError
         } catch (e: InterruptedIOException) {
             // TODO
             e.printStackTrace()
+            false
         } catch (e: Exception) {
             e.printStackTrace()
             service.showToast(e.toString())
+            false
         } finally {
             service.notificationManager.cancel(id)
         }

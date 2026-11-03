@@ -70,6 +70,9 @@
     <string name="notification_channel_background_activity_start_description">Take actions while app is in the background</string>
     <string name="notification_channel_file_job_name">File operations</string>
     <string name="notification_channel_file_job_description">Display and control file operations</string>
+    <string name="file_job_indicator_running_description">File operation in progress</string>
+    <string name="file_job_indicator_succeeded_description">File operation finished</string>
+    <string name="file_job_indicator_failed_description">File operation failed or canceled</string>
     <string name="notification_channel_ftp_server_name">FTP server</string>
     <string name="notification_channel_ftp_server_description">Display and control the FTP server</string>
 
@@ -782,6 +785,8 @@
     </string-array>
     <string name="settings_black_night_mode">Black night mode</string>
     <string name="settings_file_list_animation_title">File list animation</string>
+    <string name="settings_file_job_indicator_title">File operation indicator</string>
+    <string name="settings_file_job_indicator_summary">Show a running figure in the toolbar during file operations</string>
     <string name="settings_file_name_ellipsize_title">Display long file name</string>
     <string-array name="settings_file_name_ellipsize_entries">
         <item>Ellipsize the beginning</item>

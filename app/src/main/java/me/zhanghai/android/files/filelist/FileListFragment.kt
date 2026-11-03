@@ -89,6 +89,7 @@ import me.zhanghai.android.files.settings.Settings
 import me.zhanghai.android.files.terminal.Terminal
 import me.zhanghai.android.files.ui.AppBarLayoutExpandHackListener
 import me.zhanghai.android.files.ui.CoordinatorAppBarLayout
+import me.zhanghai.android.files.ui.FileJobIndicatorView
 import me.zhanghai.android.files.ui.FixQueryChangeSearchView
 import me.zhanghai.android.files.ui.OverlayToolbarActionMode
 import me.zhanghai.android.files.ui.PersistentBarLayout
@@ -380,6 +381,32 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
                 binding.toolbar.addMenuProvider(menuProvider, owner)
             }
         })
+        observeFileJobIndicator()
+    }
+
+    // Not added to the observers of the pane mode and the active pane above, so that the pane
+    // indicator code stays as is.
+    private fun observeFileJobIndicator() {
+        val viewLifecycleOwner = viewLifecycleOwner
+        dualPaneViewModel.fileJobIndicatorPhaseLiveData.observe(viewLifecycleOwner) {
+            updateFileJobIndicator()
+        }
+        dualPaneViewModel.paneModeLiveData.observe(viewLifecycleOwner) { updateFileJobIndicator() }
+        dualPaneViewModel.activePaneLiveData.observe(viewLifecycleOwner) {
+            updateFileJobIndicator()
+        }
+    }
+
+    private fun updateFileJobIndicator() {
+        val paneIndex = getFileJobIndicatorPaneIndex(
+            dualPaneViewModel.isDualPaneEnabled, dualPaneViewModel.paneMode.isDualPane,
+            dualPaneViewModel.activePane
+        )
+        binding.fileJobIndicator.phase = if (args.paneIndex == paneIndex) {
+            dualPaneViewModel.fileJobIndicatorPhase
+        } else {
+            FileJobIndicatorPhase.HIDDEN
+        }
     }
 
     private val menuProvider = object : MenuProvider {
@@ -1619,6 +1646,7 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
         val persistentBarLayout: PersistentBarLayout,
         val appBarLayout: CoordinatorAppBarLayout,
         val toolbar: Toolbar,
+        val fileJobIndicator: FileJobIndicatorView,
         val overlayToolbar: Toolbar,
         val breadcrumbLayout: BreadcrumbLayout,
         val paneIndicatorLayout: ViewGroup,
@@ -1651,7 +1679,8 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
                 val speedDialBinding = FileListFragmentSpeedDialIncludeBinding.bind(bindingRoot)
                 return Binding(
                     bindingRoot, includeBinding.persistentBarLayout, appBarBinding.appBarLayout,
-                    appBarBinding.toolbar, appBarBinding.overlayToolbar,
+                    appBarBinding.toolbar, appBarBinding.fileJobIndicator,
+                    appBarBinding.overlayToolbar,
                     appBarBinding.breadcrumbLayout, appBarBinding.paneIndicatorLayout,
                     appBarBinding.paneIndicatorText, appBarBinding.otherPanePathText,
                     appBarBinding.activePaneLine, contentBinding.contentLayout,
