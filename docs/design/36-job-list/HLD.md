@@ -2,8 +2,8 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 작성 중 |
-| 근거 | SRS v1.3 (v1.1 검수 통과, PR #37 2회차. v1.2·v1.3 보정은 이 HLD 검수에서 함께 재검수) |
+| 상태 | 재검수 대기(v1.1 — 요구사항 v4 반영, 1회차 반려 지적 수정) |
+| 근거 | SRS v2.0 (요구사항 v4) |
 | 기준 코드 | `origin/develop` a1a8a3e(#30 PR #35 머지 커밋) — 줄 번호는 이 커밋 기준 |
 | 브랜치 | `design/36-job-list` — #35가 이미 develop에 머지되어 있어 develop에서 분기했다(PM 지시의 `feature/30-job-runner` 분기·대상은 머지 전 전제였음). 설계 PR #37은 develop 대상. |
 
@@ -32,14 +32,16 @@ flowchart LR
     T["FileJobStateTracker (K8)\n+ 작업별 항목·듣는 쪽"]
     B["FileJobBatch (변경 없음)"]
     X["취소 표시 점검 (K16)"]
+    Z["정리 실패 기록·알림 (K18)"]
     VM["FileJobListViewModel (K10)\n+ FileJobListRows (K9)"]
     D["FileJobListDialogFragment (K11)\n+ 어댑터·배치 (K12)"]
   end
   subgraph filelist["filelist/"]
     M["FileListFragment 메뉴 (K13)"]
   end
-  subgraph provider["provider/ (변경 없음)"]
+  subgraph provider["provider/ (지우기 동작 변경 없음)"]
     C["백엔드별 실패 시 대상 정리 (K14)"]
+    Y["정리 실패 통로 CopyOption (K17)"]
   end
   J --> O
   S -- "취소 표시" --> X --> N
@@ -51,10 +53,12 @@ flowchart LR
   D -- "취소·모두 취소" --> S
   M -- "show()" --> D
   N -. "copyTo/moveTo 실패 시 정리" .-> C
+  C -- "지우지 못함" --> Y --> Z
+  Z -- "토스트 · 줄 표시" --> T
 ```
 - 작업 쪽은 **알리기만** 더한다: 시작 때 정보(K4·K5), 알림을 만들 때 같은 값(K6·K7), 끝 때 끝난 방식(K1~K4).
 - 상태의 주인은 #30과 같이 `filejob/`의 `FileJobStateTracker`다(K8). 목록 화면도 작업을 다루는 화면이라 `filejob/`에 둔다 — 기존 오류·충돌 창(`FileJobErrorDialogFragment`·`FileJobConflictDialogFragment`)과 같은 자리다. 파일 목록(`filelist/`)은 메뉴에서 그 화면을 여는 일만 한다(지금도 `FileListFragment`가 `filejob/`의 `FileJobService`를 부른다, `:78`).
-- **새 경계 없음**. 백엔드(`provider/`)는 바꾸지 않는다(K14, 5장 D5).
+- **새 경계 없음**. 백엔드(`provider/`)의 지우기 동작은 바꾸지 않고, 실패를 밖으로 알리는 복사 옵션 하나만 더한다(K14·K17, 5장 D5·D10).
 
 ## 2. 구성요소
 
@@ -73,9 +77,11 @@ flowchart LR
 | K11 목록 화면 | `filejob/FileJobListDialogFragment.kt` (새 파일) | `AppCompatDialogFragment` + `MaterialAlertDialogBuilder` + `RecyclerView`(`PermissionListDialogFragment.kt:41-63`과 같은 꼴). 제목 "파일 작업". 버튼: 긍정 = "닫기"(`R.string.close`, `res/values/strings.xml:12`), 중립 = "모두 취소" — `setOnShowListener`에서 클릭을 바꿔 창을 닫지 않게(`ColorPreferenceDialogFragment.kt:83-84`), `activeIds`가 비면 비활성. 빈 목록 글(`permission_list_dialog.xml`의 `emptyView`와 같은 꼴). 뒤로 가기·창 밖 누르기로 닫힌다(대화상자 기본). `companion fun show(fragment: Fragment)`. | REQ-36-01, 02, 06, 14, 15 |
 | K12 줄 어댑터·배치 | `filejob/FileJobListAdapter.kt`, `res/layout/file_job_list_dialog.xml`, `res/layout/file_job_list_item.xml`, `res/values/strings.xml`·`res/values-ko/strings.xml` (새·기존) | 줄: 1행 = 종류 · 대상 이름(K5 → 문자열 자원, "a.txt 외 2개", "→ 목적지"), 2행 = 진행 글(K6) 또는 끝난 방식 글, 진행 막대 `LinearProgressIndicator`(Material, 이미 씀 `res/layout/add_lan_smb_server_fragment.xml:33`; 불확정/확정 전환), 끝 쪽 취소 `ImageButton`(닫기 아이콘, 48dp, 설명 "<대상 이름> 취소", 끝난 줄은 비활성). 끝난 방식 글은 진행 글과 다른 `TextView`에 두고 그 뷰에만 `accessibilityLiveRegion="polite"`를 준다 — 진행 갱신은 낭독하지 않고 끝날 때 한 번만 낭독(SRS 3.3). 배치는 start/end. 문자열은 기본(영어)과 한국어를 함께 넣는다. | REQ-36-03, 04, 05, 07 |
 | K13 메뉴 항목 | `res/menu/file_list.xml` (기존, `action_refresh` `:89-94` 근처), `filelist/FileListFragment.kt` (기존) | 더 보기 메뉴에 `action_file_jobs`("파일 작업", `showAsAction="never"`). `MenuBinding`(`:1717-`)에 항목을 더하고, `onToolbarMenuItemSelected`(`:480-`)에서 `FileJobListDialogFragment.show(this)`. 고르기 모드에서 숨김: `updateSelectAllMenuItem`(`:975-981`)과 같은 자리·같은 방식으로 `isVisible = viewModel.pickOptions == null`, 메뉴를 만들 때(`:425`)와 고르기 상태가 바뀔 때(`:969`) 부른다. 두 창의 `FileListFragment` 각각에 같은 항목이 생긴다. | REQ-36-01 |
-| K14 대상 파일 정리 | `provider/` 각 백엔드 (기존, **변경 없음**) | 취소된 작업의 깨진 대상 파일은 백엔드 복사 함수의 실패 정리가 지운다(3.3 표). 이 설계는 그 정리가 모든 취소 경로에서 작업 스레드 위에서 끝까지 돈다는 것을 근거로 하고(3.3), 작업 쪽에 별도 지우기를 더하지 않는다(5장 D5). 검증은 백엔드별 수동 시험과 코드 검수(6장 R2). | REQ-36-10, 11 |
+| K14 대상 파일 정리 | `provider/` 각 백엔드 (기존, **지우기 동작 변경 없음**) | 취소된 작업의 깨진 대상 파일은 백엔드 복사 함수의 실패 정리가 지운다(3.3 표). 이 설계는 그 정리가 모든 취소 경로에서 작업 스레드 위에서 끝까지 돈다는 것을 근거로 하고(3.3), 작업 쪽에 별도 지우기를 더하지 않는다(5장 D5). 지우기 호출·조건·순서는 그대로다. 검증은 3.6의 수동 시험과 코드 검수. | REQ-36-10, 11 |
+| K15 추적표 | `docs/STANDARDS_TRACEABILITY.md` 4장 (기존) | #36 행 추가(SRS 5장 조항, REQ-36-01~16, 새 권한·편차 없음). 구현 PR에서 개발팀이 고친다(#30과 같은 방식, 추적표 v0.8 이력). | REQ-36-12, 13(규격 근거 추적) |
 | K16 취소 표시 점검 | `filejob/FileJob.kt`(기존), `filejob/FileJobService.kt`(기존 `:76-88`, `:90-105`), `filejob/FileJobs.kt`(기존 `throwIfInterrupted` `:230-234`, `showUserAction` `:485`, `showErrorDialog` `:500`, `showConflictDialog` `:555`) | `FileJob`에 `@Volatile internal var isCanceled`. 서비스가 `Future.cancel(true)` **앞에** 켠다(`:80`, `:99`). `throwIfInterrupted`는 `Thread.interrupted() \|\| isCanceled`이면 던지고, 창을 띄우는 세 함수는 맨 앞에서 `isCanceled`면 `InterruptedIOException`을 던진다. 이미 취소된 작업에서만 달라진다(C-1). 끼어들기 방식 자체는 그대로다. | REQ-36-05, 13 |
-| K15 추적표 | `docs/STANDARDS_TRACEABILITY.md` 4장 (기존) | #36 행 추가(SRS 5장 조항, REQ-36-01~15, 새 권한·편차 없음). 구현 PR에서 개발팀이 고친다(#30과 같은 방식, 추적표 v0.8 이력). | REQ-36-12, 13(규격 근거 추적) |
+| K17 정리 실패 통로 | `provider/common/CleanupFailureCopyOption.kt` (새 파일), `provider/common/CopyOptions.kt`(기존), 각 백엔드의 정리 `catch`(기존, 3.3.1 표) | `ProgressCopyOption`(`provider/common/ProgressCopyOption.kt:19-37`)과 같은 꼴의 `CopyOption` + `Parcelable`: 듣는 함수 `() -> Unit`을 `RemoteCallback`으로 감싸 프로세스를 넘긴다. 인자가 없다 — 어느 파일인지는 부른 쪽(K18)이 안다. `ParcelableCopyOptions`는 `Parcelable` 옵션을 그대로 넘기므로(`provider/remote/ParcelableCopyOptions.kt:33-37`) 원격 쪽 변경이 없다. `CopyOptions`에 필드를 더하고(`toArray`·`toCopyOptions` `:20-38`·`:41-71`), 옵션을 다시 만드는 여섯 곳(`ForeignCopyMove.kt:138`, `LinuxCopyMove.kt:285`, `SftpCopyMove.kt:276`, `SmbCopyMove.kt:220`, `WebDavCopyMove.kt:166`, `FtpCopyMove.kt:161`)이 그 필드를 넘긴다. 각 백엔드는 정리 `catch`에서 기존 기록에 더해 이 함수를 한 번 부른다. 대상이 이미 없다는 오류는 실패로 치지 않는다(각 백엔드의 기존 변환 함수로 가림, 예: `SftpCopyMove.kt:81-84`). | REQ-36-16 |
+| K18 정리 실패 기록·알림 | `filejob/FileJob.kt`, `filejob/FileJobs.kt`(기존 `copyOrMove` 옵션 `:1287-1299`, 압축 정리 `:647-653`), `filejob/FileJobStateTracker.kt`, K9·K12 | `FileJob`에 `synchronized` 경로 기록을 둔다. 규칙: ① 실패 보고가 오면 `isCanceled`(K16)면 바로 알리고, 아니면 기록한다. ② `copyOrMove`가 같은 대상 파일을 끝까지 쓰면 기록에서 지운다(오류 뒤 다시 시도). ③ `runOn`이 `CANCELED`로 끝날 때 기록을 알린다(오류 창의 "취소"는 `isCanceled`가 꺼져 있다). `SUCCEEDED`·`FAILED`로 끝나면 버린다(REQ-36-13). 알리기 = 메인으로 넘겨 토스트(`showToast` `FileJobs.kt:162-166`, 길게, 이름·폴더 이름은 입출력 없음 `:168-173`) + `FileJobStateTracker.onJobCleanupFailed(id)` → 듣는 쪽 → K9가 그 줄에 표시, K12가 끝난 방식 글에 덧붙임. 진행 중 항목 표에 없는 id도 듣는 쪽에 넘긴다(끝난 줄에 늦게 오는 보고, 3.3.1). 압축은 작업 안의 정리라 `:649`·`:651`의 `catch`에서 같은 기록을 부른다. | REQ-36-16 |
 
 ## 3. 데이터 흐름·상태
 
@@ -106,11 +112,29 @@ flowchart LR
 | 문서 공급자(SAF) | `DocumentResolver.kt:154-169`(직접 복사) | 공급자 복사(`:106-107`)는 끼어들 수 없어 끝까지 간다(SRS A7). |
 | 루트 모드 | 원격 프로세스에서 위 로컬 경로가 돈다 | 앱 쪽 끼어들기 → `RemoteFileSystemProvider.kt:145-146`이 원격 콜백으로 알림 → 원격 `RemoteFileSystemProviderInterface.kt:91-98`의 `future.cancel(true)`가 원격 스레드에 끼어들어 `LinuxCopyMove`의 정리가 원격에서 돈다. 앱 쪽은 원격 정리를 기다리지 않고 바로 끝난다(정리는 뒤따라 끝남). |
 | 압축 | `FileJobs.kt:645-655`(압축 파일 전체 삭제) | 압축 파일은 `CREATE_NEW`로 열어(`:629-631`) 기존 파일을 덮지 않는다. |
-| 저장 | 복사와 같음(`FileJobs.kt:1731` → `copyOrMove`) | 늘 바꾸기(`:1730`) — 기존 파일 선삭제(SRS Q1). |
-| 쓰기 | 지우지 않음 | `:2283`(SRS Q5). |
+| 저장 | 복사와 같음(`FileJobs.kt:1731` → `copyOrMove`) | 늘 바꾸기(`:1730`) — 기존 파일 선삭제(SRS L1, #42). |
+| 쓰기 | 지우지 않음 | `:2283`. 잘린 파일이 남는다(요구사항 v4 6, SRS L5). |
 
-- 덮어쓰기("바꾸기")에서 기존 파일은 백엔드가 쓰기 **전에** 지운다(SRS Q1). 따라서 쓰기가 시작된 뒤 취소되면 그 자리에 남는 것은 이번 작업이 쓴 조각이고, 위 정리가 그것을 지운다. 기존 파일을 지키려면 엔진을 바꿔야 해 범위 밖이다.
-- 폴더(`LinuxCopyMove.kt:142-147`, `ForeignCopyMove.kt:79-85`)와 끝까지 쓴 파일은 남는다(SRS A3).
+- 덮어쓰기("바꾸기")에서 기존 파일은 백엔드가 쓰기 **전에** 지운다. 따라서 쓰기가 시작된 뒤 취소되면 그 자리에 남는 것은 이번 작업이 쓴 조각이고, 위 정리가 그것을 지운다. 기존 파일은 남지 않는다 — 알려진 한계이고 #42에서 다룬다(SRS L1). 이 설계는 다루지 않는다.
+- 폴더(`LinuxCopyMove.kt:142-147`, `ForeignCopyMove.kt:79-85`)와 끝까지 쓴 파일은 남는다(요구사항 v4 6).
+
+### 3.3.1 정리 실패를 알 수 있는 곳 (REQ-36-16)
+지금은 모두 실패를 기록만 하고 삼킨다. K17은 이 `catch`에 듣는 함수 호출 한 줄만 더한다.
+
+| 백엔드 | 실패가 삼켜지는 곳 | 알릴 수 있나 | 비고 |
+|---|---|---|---|
+| 로컬 | `LinuxCopyMove.kt:117-121` | 예 | `ENOENT`는 실패 아님 |
+| 공급자 간(압축 풀기, 저장소 간 이동) | `ForeignCopyMove.kt:66-74` | 예 | `deleteIfExists`라 이미 없으면 실패 아님. `UnsupportedOperationException`도 실패로 알림 |
+| SFTP | `SftpCopyMove.kt:115-119` | 예 | |
+| SMB | `smb/client/Client.kt:403-407` | 일부 | `deleteOnClose`(`:404`)의 실패만 안다. 닫기(`targetFile.use`)에서의 실패는 알 수 없다(SRS L4). `Client.copyFile`에 인자 하나 추가, 호출 `SmbCopyMove.kt:85-88` |
+| FTP·WebDAV | `FtpCopyMove.kt:84-88`, `WebDavCopyMove.kt:89-93` | 예 | |
+| SAF 직접 복사 | `DocumentResolver.kt:163-168`(`addSuppressed`) | 예 | `copy`·`copyApi24`·`copyManually`·`move`·`moveByCopy`와 `DocumentCopyMove.kt:44`·`:76`에 인자 추가 |
+| 압축 | `FileJobs.kt:647-653` | 예 | 작업 안의 정리, K18이 직접 기록 |
+| 루트 모드 | 원격 프로세스의 위 로컬 경로 | 조건부 | 원격이 살아 있으면 `RemoteCallback`으로 온다. 앱은 원격 끝을 기다리지 않으므로(`RemoteFileSystemProvider.kt:145-147`) **작업이 끝난 뒤 늦게** 올 수 있다 — `isCanceled`가 이미 켜져 있어 규칙 ①로 바로 알린다. 원격이 죽으면 오지 않는다(SRS L2) |
+| 서비스·프로세스 종료 | — | 아니오 | 정리 자체가 돌지 못할 수 있다(SRS L3) |
+
+- 원격 연결이 끊긴 채 멈춰 있으면 정리 호출이 라이브러리 시간 제한까지 걸려 알림이 늦을 수 있다. 줄은 그 전에 이미 "취소됨"이다(3.2). 시간 제한 값은 미확인.
+- 다시 시도: 정리가 실패한 조각이 남은 채 "다시 시도"를 고르는 흐름은 기존 동작이다(충돌 창이 뜰 수 있음). 끝까지 쓰면 K18 ②로 기록에서 지운다.
 
 ### 3.4 수명주기
 - K8은 프로세스 전역 `object`이고 진행 중 항목만 가진다. 끝난 항목은 즉시 지운다(이력 없음).
@@ -120,12 +144,23 @@ flowchart LR
 
 ### 3.5 오류 전파
 - 진행 값 넘기기(K7)는 실패하지 않는 메모리 일이다. 작업 본문의 예외 흐름은 그대로다(C-1).
-- 깨진 파일 정리가 실패하면 백엔드가 기록만 하고 넘어간다(SRS A4). 이 기능은 새 오류 표시를 더하지 않는다.
+- 깨진 파일 정리의 실패는 작업의 예외 흐름에 넣지 않는다. 옆길(K17)로 K18에 보고만 하고, 작업은 원래 예외로 끝난다. 끝난 방식은 그대로 "취소됨"이다.
+
+### 3.6 수동 시험 항목 (구현 PR)
+| 항목 | 절차 | 확인 | 추적 |
+|---|---|---|---|
+| T1 깨진 파일 | 로컬·루트·SFTP·SMB(같은 공유 안·다른 공유 간) 각각 큰 파일 복사·이동·압축 풀기·압축 중 취소 | 쓰던 파일 없음, 끝난 파일·폴더 남음, 이동 원본 온전 | REQ-36-10, 11 |
+| T2 SFTP·SMB 여러 파일 취소 | 작은 파일 수백 개를 SFTP·SMB로 복사(원격 → 같은 공급자 원격 포함) 중 줄 취소, 모두 취소, 알림 취소 각각. sshj·smbj의 끼어들기 소비 여부를 여기서 확인한다 | 목적지 파일 수가 더 늘지 않음, 오류·충돌 창 없음, 줄 "취소됨" | REQ-36-05 |
+| T3 정리 실패 알림 | SFTP 큰 파일 복사 중 서버 폴더 쓰기 권한 제거 또는 연결 끊기 후 취소 | 토스트에 파일 이름, 줄에 "일부 파일을 지우지 못함" | REQ-36-16 |
+| T4 TalkBack 낭독(K12) | TalkBack 켬, 목록을 연 채 큰 복사 | 진행 중 반복 낭독 없음, 끝날 때 끝난 방식 한 번 낭독, 취소 버튼에 "<대상 이름> 취소". `accessibilityLiveRegion`이 한 번만 읽히는지는 코드로 확인할 수 없어 이 시험이 근거다 | REQ-36-07, SRS 3.3 |
+| T5 알림 꺼짐 | 앱 알림 끈 상태에서 T1·T3 일부 | 목록 진행률·취소 동작, 토스트 표시 여부 기록(미확인 항목 R9) | REQ-36-12, 16 |
+| T6 취소 안 한 작업 불변 | 쓰기 금지 폴더로 복사 후 오류 창 선택지 각각 | 이 기능 이전과 같음 | REQ-36-13 |
 
 ## 4. 외부 인터페이스
 - 매니페스트: 새 구성요소 없음(대화상자 프래그먼트). 새 권한 없음.
 - 메뉴: `res/menu/file_list.xml`에 `@+id/action_file_jobs`.
-- 문자열(새): 메뉴·제목 "파일 작업", "모두 취소", 줄 취소 설명 "%1$s 취소", 종류 16개, "%1$s 외 %2$d개"(복수형), 목적지 표기, 진행 글(크기 "%1$s / %2$s", 개수 "%1$d / %2$d", 항목 위치), "준비 중"·"진행 중"·"대기 중", 끝난 방식 "완료"·"취소됨"·"실패", 빈 목록 글. 기존 "닫기"(`R.string.close`) 재사용. 영어 기본 + 한국어.
+- 복사 옵션(새, 앱 프로세스↔루트 프로세스): `CleanupFailureCopyOption`(K17). 같은 APK라 판 차이가 없다.
+- 문자열(새): 지우지 못함 토스트, "일부 파일을 지우지 못함", 메뉴·제목 "파일 작업", "모두 취소", 줄 취소 설명 "%1$s 취소", 종류 16개, "%1$s 외 %2$d개"(복수형), 목적지 표기, 진행 글(크기 "%1$s / %2$s", 개수 "%1$d / %2$d", 항목 위치), "준비 중"·"진행 중"·"대기 중", 끝난 방식 "완료"·"취소됨"·"실패", 빈 목록 글. 기존 "닫기"(`R.string.close`) 재사용. 영어 기본 + 한국어.
 - 내부 API 변화(같은 모듈): `FileJob.runOn(): FileJobOutcome`, `runJobAndReport`의 형, `FileJobStateTracker.onJobStarted(id, info)`·`onJobProgress`·`onJobFinished(id, outcome)`·듣는 쪽. 호출부는 `FileJobService`뿐이다(`grep` 결과: `FileJobService.kt:61·67·86·104·124·220`). 기존 단위 테스트(`app/src/test/.../filejob/FileJobBatchTest.kt`, `FileJobServiceTest.kt`)는 형 변경에 맞춰 고치되 #30의 기대값은 그대로다(REQ-36-09).
 - 설정 키: 없음.
 
@@ -139,22 +174,26 @@ flowchart LR
 | D5 | 깨진 파일 지우기는 백엔드의 기존 정리에 맡긴다(작업 쪽 새 지우기 없음) | `copyOrMove`에서 `copyTo`/`moveTo`가 `InterruptedIOException`으로 끝나면 대상 파일을 한 번 더 `deleteIfExists` | 3.3대로 모든 백엔드가 같은 스레드에서 이미 지운다. 작업 쪽에서 한 번 더 지우면 위험하다: ① 루트 모드에서는 앱 쪽이 원격 작업 끝을 기다리지 않고 바로 `InterruptedIOException`을 던지므로(`RemoteFileSystemProvider.kt:145-147`) 원격 **이동**이 막 끝나 원본이 지워진 순간 앱이 목적지를 지우면 자료를 잃는다. ② 바꾸기 모드에서 백엔드가 기존 파일을 지우기 전에 끼어들면(예: 대상 확인 중) 그 자리 파일은 이번 작업의 조각이 아니라 기존 파일이다 — 밖에서는 구분할 수 없다. |
 | D6 | 듣는 쪽(리스너) + 연 순간 목록 | `LiveData<List<FileJobEntry>>` 하나 | 끝난 방식은 "끝 사건"이고 목록 화면이 열린 동안에만 필요하다. 진행 중 목록만 담는 `LiveData`로는 사라진 항목의 끝난 방식을 알 수 없고, 끝난 항목을 통로에 남기면 이력 보관이 된다(범위 밖). 리스너는 메인에서 동기로 불려 사건이 합쳐지지 않는다. |
 | D7 | "모두 취소" = 화면이 `cancelJob`을 줄마다 | 서비스에 `cancelAll` 추가 | SRS REQ-36-06은 "그 순간 목록의 줄"이 대상이다(창을 연 뒤 다른 화면에서 시작된 작업도 목록에 있으므로 사실상 같지만, 기준을 목록에 둔다). 서비스 API를 늘리지 않는다. |
-| D9 | 취소된 작업의 멈춤 = `FileJob.isCanceled`를 점검 지점에서 함께 봄(K16) | ① 그대로 둠 ② `copyOrMove`에서 `ClosedByInterruptException`만 `InterruptedIOException`으로 바꿈 ③ 백엔드마다 끼어들기 예외 변환 | ①은 취소 뒤에도 작업이 이어지거나 오류 창이 떠 REQ-36-05를 못 지킨다(R8). ②는 쓰기 경로 하나만 막고 속성·연결 호출에서 소비된 경우를 놓친다. ③은 백엔드 전체를 고쳐야 한다. K16은 한 곳이고 취소된 작업에만 작용한다. |
 | D8 | 화면 쪽 파일 위치 = `filejob/` | `filelist/` | 작업 쪽 화면(오류·충돌 창)이 이미 `filejob/`에 있고, 목록 화면이 다루는 것은 작업이다. `filelist/`는 여는 일만 한다. |
+| D9 | 취소된 작업의 멈춤 = `FileJob.isCanceled`를 점검 지점에서 함께 봄(K16) | ① 그대로 둠 ② `copyOrMove`에서 `ClosedByInterruptException`만 `InterruptedIOException`으로 바꿈 ③ 백엔드마다 끼어들기 예외 변환 | 오너 승인(요구사항 v4 3). ①은 취소 뒤에도 작업이 이어지거나 오류 창이 떠 REQ-36-05를 못 지킨다(R8). ②는 쓰기 경로 하나만 막고 속성·연결 호출에서 소비된 경우를 놓친다. ③은 백엔드 전체를 고쳐야 한다. K16은 한 곳이고 취소된 작업에만 작용한다. |
+| D10 | 정리 실패 알리기 = 복사 옵션의 듣는 함수(K17) | ① 작업 쪽에서 실패 뒤 대상 파일이 있는지 확인 ② 예외에 실어 보냄(`addSuppressed`·새 예외 형) ③ 스레드 지역 변수 | ①은 틀리게 알린다: 바꾸기에서 기존 파일이 아직 있으면 조각으로 보이고, 루트 모드는 원격 정리가 끝나기 전에 확인하게 되며(D5 ①과 같은 이유), 연결이 끊기면 확인 자체가 실패한다. ②는 정리가 `finally` 안이라 이미 날아가는 예외를 잡아야 하고, 루트 모드에서는 앱이 원격 결과를 읽지 않아 전달되지 않는다. ③은 프로세스를 넘지 못한다. 옵션은 진행 값과 같은 통로라 이미 프로세스를 넘고, 지우기 조건·순서를 건드리지 않아 D5의 안전 근거가 그대로다. 대가는 백엔드 파일 여러 개에 한 줄씩 변경이 생기는 것이다(R10). |
 
 ## 6. 위험과 미결 사항
 | ID | 내용 | 대응 |
 |---|---|---|
 | R1 | 오류·충돌 창이 떠 있는 작업을 목록에서 취소하면 그 창(별도 액티비티)이 남을 수 있다. 지금 알림 취소와 같은 동작이다. | 범위 밖(엔진 동작). 구현 단계 수동 시험에서 관찰해 기록한다. 바꿀 필요가 보이면 이슈로. |
-| R2 | 백엔드 정리의 실기 확인: SMB 서버 복사(`Client.kt:389`)의 끼어들기 반응, 루트 모드 원격 정리 완료 여부는 코드로 확정하지 못했다(미확인). | 구현 PR 수동 시험 표에 로컬·루트·SFTP·SMB(같은 공유 안·다른 공유 간)를 넣는다(SRS 3.1). 깨진 파일이 남는 백엔드가 나오면 그 백엔드의 정리 결함으로 따로 설계 피드백. |
+| R2 | 백엔드 정리의 실기 확인: SMB 서버 복사(`Client.kt:389`)의 끼어들기 반응, 루트 모드 원격 정리 완료 여부는 코드로 확정하지 못했다(미확인). | 3.6 T1로 확인한다. 깨진 파일이 남는 백엔드가 나오면 그 백엔드의 정리 결함으로 따로 설계 피드백. |
 | R3 | 서비스가 끝나며 취소하는 경우(`FileJobService.kt:90-105`) 프로세스가 곧 끝나면 작업 스레드의 정리가 끝나기 전에 멈출 수 있다. | 지금도 같다. 사용자 취소 경로(목록·알림)에는 해당 없음. 기록만. |
-| R4 | 지금 `copyOrMove`는 `InterruptedIOException`을 오류 창 없이 다시 던진다(`FileJobs.kt:1384-1385`). 백엔드가 `SocketTimeoutException`을 그대로 올리면(예: `SmbCopyMove.kt:90`이 원인을 그대로 던짐) 오류 창 없이 작업이 끝난다. 이 기능은 그것을 "실패"로 표시하지만 동작은 바꾸지 않는다. | 범위 밖 기존 동작 → 이슈로 등록해 PM에게 보고(재현은 미확인). |
-| R8 | 원격 백엔드에서 취소가 멈추지 않을 수 있다(코드 읽기로 찾음, 실행 미확인). ① 같은 공급자 복사의 스트림이 끼어들기 예외를 바꾸지 않는다: `SftpCopyMove.kt:86-100`·`smb/client/Client.kt:394-397`은 `Channels` 스트림을 그대로 쓰고, `ForeignCopyMove`가 쓰는 `Path.newOutputStream`만 바꿔 준다(`PathExtensions.kt:220-221`, `:272-275`). 그래서 `ClosedByInterruptException`(`sftp/client/FileByteChannel.kt:107-110`, `smb/client/FileByteChannel.kt:107`)이 일반 `IOException`으로 `FileJobs.kt:1386`에 닿아 취소 뒤 오류 창(다시 시도 포함)이 뜬다. ② 표시를 소비한 오류를 삼키는 곳이 있다(`ForeignCopyMove.kt:117-123`의 시간 설정). 그러면 `throwIfInterrupted`가 통과되어 다음 파일로 넘어간다. 이 스레드는 이미 `runningJobs`에서 빠져 다시 취소할 수 없다. 라이브러리(sshj·smbj)가 표시를 소비하는지는 소스를 읽지 못했고, 근거는 `InterruptedException`을 원인으로 찾는 위 분기다. | K16으로 막는다. 알림 취소도 같은 경로라 함께 나아진다(취소 뒤 오류 창이 뜨지 않음) — 기존 동작이 바뀌는 유일한 곳이라 PM에 보고한다. 구현 PR 수동 시험에 SFTP·SMB 여러 파일 복사 취소를 넣는다. |
+| R4 | 지금 `copyOrMove`는 `InterruptedIOException`을 오류 창 없이 다시 던진다(`FileJobs.kt:1384-1385`). 백엔드가 `SocketTimeoutException`을 그대로 올리면(예: `SmbCopyMove.kt:90`이 원인을 그대로 던짐) 오류 창 없이 작업이 끝난다. 이 기능은 그것을 "실패"로 표시하지만 동작은 바꾸지 않는다. | 범위 밖 기존 동작. #39로 등록했다(재현 미확인). |
 | R5 | `FileJob.id`는 무작위 `Int`(`FileJob.kt:14`)라 드물게 겹칠 수 있다. | #30 규칙(겹치면 하나로 셈)을 K8 항목 표에도 그대로 적용. 겹친 두 번째 작업은 목록에 줄이 없다. 기록만. |
 | R6 | RTL에서 목적지 표기("→")의 방향. | 문자열 자원에 방향 기호를 넣고 RTL 강제로 확인(SRS 3.5). 구체 방식은 LLD. |
-| R7 | SRS 4.3 Q1~Q5는 오너 확인 전이다. Q2·Q5 답이 달라지면 K14(지우기 범위)가 바뀐다. | 설계는 제안대로 진행하고, 답이 다르면 SRS·HLD를 고친다(변경 이력). |
+| R7 | (닫음) 오너 확인 전 질문 | 요구사항 v4로 모두 결정됐다(SRS 4.3). |
+| R8 | 원격 백엔드에서 취소가 멈추지 않을 수 있다(코드 읽기로 찾음, 실행 미확인). ① 같은 공급자 복사의 스트림이 끼어들기 예외를 바꾸지 않는다: `SftpCopyMove.kt:86-100`·`smb/client/Client.kt:394-397`은 `Channels` 스트림을 그대로 쓰고, `ForeignCopyMove`가 쓰는 `Path.newOutputStream`만 바꿔 준다(`PathExtensions.kt:220-221`, `:272-275`). 그래서 `ClosedByInterruptException`(`sftp/client/FileByteChannel.kt:107-110`, `smb/client/FileByteChannel.kt:107`)이 일반 `IOException`으로 `FileJobs.kt:1386`에 닿아 취소 뒤 오류 창(다시 시도 포함)이 뜬다. ② 표시를 소비한 오류를 삼키는 곳이 있다(`ForeignCopyMove.kt:117-123`의 시간 설정). 그러면 `throwIfInterrupted`가 통과되어 다음 파일로 넘어간다. 이 스레드는 이미 `runningJobs`에서 빠져 다시 취소할 수 없다. 라이브러리(sshj·smbj)가 표시를 소비하는지는 소스를 읽지 못했고, 근거는 `InterruptedException`을 원인으로 찾는 위 분기다. | K16으로 막는다(오너 승인, 요구사항 v4 3). 알림 취소도 같은 경로라 함께 고쳐진다. 3.6 T2로 확인한다. |
+| R9 | 토스트가 알림을 끈 기기나 앱이 뒤에 있을 때 항상 보이는지는 Android 판마다 다를 수 있어 미확인이다. 목록을 닫고 다른 앱에 있으면 토스트를 놓칠 수 있고, 다시 보여 줄 곳이 없다(이력 보관 없음). | 3.6 T5로 확인해 기록한다. 부족하면 PM에 올린다 — 알림·이력은 범위 밖이라 설계팀이 정하지 않는다. |
+| R10 | K17은 `provider/` 약 12개 파일을 한 줄씩 고친다(PROCESS_ROLES 11-1의 5개 초과 → 범위를 미리 알림). 듣는 함수가 예외를 던지면 정리 `finally`의 흐름을 바꿀 수 있다. | 듣는 함수는 예외를 던지지 않게 한다(메인으로 넘기기와 `synchronized` 기록뿐, `RemoteCallback` 실패는 삼킨다). LLD·코드 검수 항목. |
 
 ## 7. 변경 이력
 | 일자 | 버전 | 변경 | 사유 | 요청자 |
 |---|---|---|---|---|
 | 2026-11-04 | v1.0 | 첫 판 | SRS v1.2 | PM |
+| 2026-11-04 | v1.1 | 요구사항 v4 반영: K16 승인 표기, K17·K18·D10·3.3.1(정리 실패 알림), 3.6 수동 시험(T2 SFTP·SMB 여러 파일, T4 TalkBack), L1·#42 연결, 2·5·6장 표 번호 정렬, 머리표 상태 | HLD 1회차 반려 → 오너 결정 v4 | PM·오너 |
