@@ -187,6 +187,46 @@ class FileJobRunBodyTest {
         assertEquals(listOf(false), results)
     }
 
+    private class CountingJob : FileJob() {
+        var canceledWithoutRunCount = 0
+
+        override fun run() {}
+
+        override fun onCanceledWithoutRun() {
+            ++canceledWithoutRunCount
+        }
+    }
+
+    // U-J15
+    @Test
+    fun finishWithoutRun_showsOneToastAndCallsHookOnce() {
+        val job = CountingJob()
+        var toastCount = 0
+        job.finishWithoutRun { ++toastCount }
+        job.finishWithoutRun { ++toastCount }
+        assertEquals(1, toastCount)
+        assertEquals(1, job.canceledWithoutRunCount)
+    }
+
+    // U-J16
+    @Test
+    fun finishWithoutRun_toastThrows_stillCallsHook() {
+        val job = CountingJob()
+        job.finishWithoutRun { throw RuntimeException() }
+        assertEquals(1, job.canceledWithoutRunCount)
+    }
+
+    // U-J17
+    @Test
+    fun finishWithoutRun_afterRunClaimedEnd_doesNothing() {
+        val job = CountingJob()
+        job.claimEndForRun()
+        var toastCount = 0
+        job.finishWithoutRun { ++toastCount }
+        assertEquals(0, toastCount)
+        assertEquals(0, job.canceledWithoutRunCount)
+    }
+
     // U-C01
     @Test
     fun throwIfCanceled() {

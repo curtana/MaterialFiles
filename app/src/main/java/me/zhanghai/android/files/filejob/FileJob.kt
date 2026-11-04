@@ -120,14 +120,20 @@ abstract class FileJob {
 
     // The job body doesn't run if the job is canceled while pending or before its thread starts.
     internal fun notifyCanceledWithoutRun(context: Context) {
-        if (!tryClaimEnd()) {
-            return
-        }
-        try {
+        finishWithoutRun {
             showFileJobEndToast(
                 context, info,
                 fileJobEndNoticeOf<Path>(false, FileJobOutcome.CANCELED, null, emptyList())!!
             )
+        }
+    }
+
+    internal fun finishWithoutRun(showToast: () -> Unit) {
+        if (!tryClaimEnd()) {
+            return
+        }
+        try {
+            showToast()
         } catch (e: Exception) {
             e.printStackTrace()
         }

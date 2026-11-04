@@ -224,6 +224,10 @@ class FileJobEnd(val outcome: FileJobOutcome, val notice: FileJobEndNotice<Path>
 - **알고리즘**: `if (tryClaimEnd()) { showFileJobEndToast(context, info, fileJobEndNoticeOf(false, CANCELED, null, emptyList())!!); onCanceledWithoutRun() }`. 완료가 아니므로 `null`이 되지 않는다.
 - **오류**: `Exception`을 삼킨다.
 
+#### `internal fun FileJob.finishWithoutRun(showToast: () -> Unit)`
+- **추적**: K4·K20 / REQ-36-18, 19, HLD R16
+- **책임**: `notifyCanceledWithoutRun`의 본문. `Context` 없이 JVM에서 시험할 수 있게 뗐다(U-J15~17). 토스트가 던져도 `onCanceledWithoutRun`은 부른다.
+
 #### `protected open fun onCanceledWithoutRun()`
 - **추적**: K20 / REQ-36-19, HLD R16
 - **책임**: 본문이 돌지 않은 작업의 뒷정리. 기본은 아무것도 안 한다. 토스트를 내지 않는다. `WriteFileJob`만 재정의한다(2.20).
@@ -752,6 +756,9 @@ data class FileJobEndNotice<T>(val outcome: FileJobOutcome, val detail: FileJobF
 | U-J08 | | `IOException` 끝 | `FAILED`, 세부 `Error` 토스트 하나 |
 | U-J09 | | 표시 켠 뒤 `IOException` | `CANCELED`, 세부 없음(원시 예외 안 보임) |
 | U-J10 | | `tryClaimEnd`에 짐 + 기록 있음 | `notice` `null`, `separateFailures`에 기록 |
+| U-J15 | `finishWithoutRun` | 두 번 호출 | 토스트·`onCanceledWithoutRun` 한 번씩 |
+| U-J16 | | 토스트가 던짐 | `onCanceledWithoutRun` 한 번 |
+| U-J17 | | `runOn`이 이미 차지함 | 아무것도 안 함 |
 | U-J14 | `OnceResultReporter` | 두 번 호출(거짓 뒤 참) | 첫 값 한 번 |
 | U-J13 | `FileJob.finishEnd` | `info`를 넣지 않아 `endOf`가 던짐, 표시 꺼짐 / 켜짐 | 던지지 않음, `bodyOutcome` / `CANCELED` |
 | U-J11 | `runReportingResult` (#44) | 값 참/거짓 | `report` 그 값으로 한 번 |
@@ -904,3 +911,4 @@ HLD T12(루트 원격 죽음)·T13(SMB·SFTP 일반 취소는 "취소됨" 하나
 | 2026-11-04 | v1.2 | 검수 2회차 지적 1·3·4·5 반영: L6 PM 판단 사항(0.6), 압축 닫기 관찰(2.14), 해제 `catch`를 `Exception`으로(2.17), 시간 제한 값(2.14) | LLD 2회차 조건부 | 검수팀 |
 | 2026-11-04 | v1.3 | 요구사항 v7 끝 토스트(0.8, 2.2, 2.18, 2.19), R13 닫음, #44 흡수(2.20), L6 수용, #43 재사용 대비 | 오너 결정 v7, PM 분류 #44·#43 | PM·오너 |
 | 2026-11-04 | v1.4 | R15 "취소됨"(2.7), R16 시작 전 취소한 저장의 듣는 함수(2.2, 2.20), R13 남은 창 수용, 재귀 속성 확정. 기준 develop 9c1b2f9: `filejob/`·`provider/`·`filelist/` 줄 번호 변화 없음(`git diff a1a8a3e 9c1b2f9 --stat`, `ui/`·`util/`만 바뀜) | PM 결정 | PM |
+| 2026-11-04 | v1.5 | `finishWithoutRun` 분리와 U-J15~17(코드 검수 1회차 지적 2) | 코드 검수 | 검수팀 |
