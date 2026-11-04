@@ -4,7 +4,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 검수 통과(v1.2 — PR #32 LLD 검수 2회차, 614ad6a), v1.3 #38·#40 개정 — 검수 통과(PR #41 issuecomment-6619906340, cf8b79e, 검수 범위: 0.2 R9·R11·#40, 0.3, 1.1, 2.12, 2.15, 3.1 U-A02, 3.2 M-08·M-16·M-18·M-19, 3.3, 4장 FB-6. 함께: HLD v1.5 3.4.1 마지막 항목·R11, FB-6 반영 줄(HLD v1.6 R9·R11, SRS v1.5 REQ-30-10)) |
+| 상태 | 검수 통과(v1.2 — PR #32 LLD 검수 2회차, 614ad6a), v1.3 #38·#40 개정 — 검수 통과(PR #41 issuecomment-6619906340, cf8b79e), v1.4 구현 결과 반영 — 코드 검수와 함께 검수 대기(0.2 R11·#40, 3.3 실행 메모·결과, 검수 범위 v1.3: 0.2 R9·R11·#40, 0.3, 1.1, 2.12, 2.15, 3.1 U-A02, 3.2 M-08·M-16·M-18·M-19, 3.3, 4장 FB-6. 함께: HLD v1.5 3.4.1 마지막 항목·R11, FB-6 반영 줄(HLD v1.6 R9·R11, SRS v1.5 REQ-30-10)) |
 | 근거 | SRS v1.3, HLD v1.3 (`docs/design/30-job-runner/`, PR #32 — v1.3은 이 LLD의 FB-1~FB-5 반영, 74dff1a), 오너 결정 이슈 #30 issuecomment-6617754053, #34 흡수(PM 결정). v1.3: SRS v1.5, HLD v1.6, 이슈 #38 요구사항 정리 v1, #40 흡수(PM 분류) |
 | 기준 코드 | `origin/develop` 4437e43 — 인용 줄 번호는 이 커밋 기준. 단 v1.3에서 쓴 곳(0.2 R9 정정·R11·#40, 1.1, 2.12의 #38·#40 항목, 2.15, 3.3)은 #30 구현이 들어간 a1a8a3e 기준, 프레임워크는 android-35 소스 |
 | 이슈 | #30 (흡수 #34). 하위 이슈 없음(HLD 2.1) — feature 브랜치 `feature/30-job-runner` 하나. v1.3: #38 (흡수 #40) — `feature/38-battery-saver` 한 브랜치에서 설계·구현(PM 지시) |
@@ -24,8 +24,8 @@
 | R8 | ① 뷰 초기화에서 `importantForAccessibility = YES`·`accessibilityLiveRegion = POLITE`·`contentDescription = null`을 정한다. ② `HIDDEN`이 되면 **바로** `contentDescription = null`. ③ 나타날 때는 `visibility = VISIBLE`을 **먼저** 하고 그 뒤 설명을 넣는다(HLD R8 문장의 순서와 반대 — 4장 FB-3). | `View.setContentDescription`(android-35 `View.java:11886-11903`)은 같은 값이면 아무 일도 하지 않고 돌아가며(`:11887-11893`), 값이 처음 생길 때 `importantForAccessibility`가 `AUTO`면 라이브 영역 내용 변경 대신 하위 트리 변경만 보낸다(`:11896-11898`) → ①. 라이브 영역 뷰의 변경 알림은 `notifyViewAccessibilityStateChangedIfNeeded`(`:15792-15796`)가 `sendAccessibilityEventUnchecked`로 보내는데 `sendAccessibilityEventUncheckedInternal`은 `isShown()`이 거짓이면 버린다(`:9032-9034`) → 보이기 전에 설명을 넣으면 그 알림이 사라진다 → ③. ②로 숨김 중에 옛 설명이 남지 않으므로 "나타날 때 옛 설명을 읽지 않는다"(HLD R8의 목적)는 ②가 지킨다. | 2.12 |
 | R9 | **API 문서상 그렇다(구현 미확인).** API 26 이상 `ValueAnimator.areAnimatorsEnabled()`는 문서 주석에 따르면 절전 모드에서도 거짓이다. 값은 정적 `sDurationScale == 0`의 반대이고, `sDurationScale`은 창 관리자의 `getCurrentAnimatorScale()`(시작 때)과 `onAnimatorScaleChanged`(바뀔 때)로 채워진다. API 문서가 "개발자 옵션의 배율 0 **또는 절전 모드**(모든 애니메이션을 끔)"로 바뀐다고 명시한다. 창 관리자 쪽 구현(절전 모드가 배율을 0으로 보고하는 코드)은 SDK sources에 없어 **미확인**. API 23~25 경로(설정값 읽기)는 절전 모드를 반영하지 않는다 — 그 버전에서 절전 모드가 애니메이터를 끄는지 자체가 **미확인**. HLD R9 대응대로 넓게 판정(API 26 이상은 `areAnimatorsEnabled`)하고, SRS 1.4 "모션 줄이기" 정의를 설계팀이 넓힌다(4장 FB-1). **(v1.3 정정, #38)** 위 API 문서 서술은 실제 기기와 다르다: 오너 태블릿(Android 11)은 절전 모드가 켜져도 애니메이션 정책이 꺼져 있어 애니메이터가 돌았다. 그래서 K11이 `powerManager.isPowerSaveMode`를 따로 읽어 모든 API에서 같게 판정한다(2.15, SRS 1.4 ③, HLD R9 v1.4). | android-35 `android/animation/ValueAnimator.java:396-411`(문서 주석과 `return !(sDurationScale == 0)`), `:312-313`·`:338-339`, `android/view/WindowManagerGlobal.java:214-215`·`:236-240`. | 2.15 |
 | R10 | K6 `updateFileJobIndicator`는 `consumeResult`를 **마지막 문장**에서 부르고, K5 `update`는 같은 입력을 다시 받아도 같은 출력을 내며(멱등) 자기가 보인 결과(`shownSeq`)를 두 번 소비하라고 하지 않는다. 상태 관찰 콜백 안에서 소비하면 `LiveData`가 재귀 호출하지 않고 콜백이 끝난 뒤 다시 돌린다. 설정 관찰·타이머·시작 콜백에서 소비하면 상태 관찰 콜백이 **동기적으로 중첩 호출**된다 — 그때 바깥 호출은 할 일을 다 마친 상태다. | androidx `lifecycle-livedata-core:2.11.0`(`app/build.gradle:140`) `LiveData.dispatchingValue` `javap -c`: 오프셋 0~12 — `mDispatchingValue`가 참이면 `mDispatchInvalidated = true` 후 반환(재귀 없음). | 2.7, 2.8 |
-| R11 | **미확인 유지(HLD v1.5부터, PM 판단) — 구현 단계 에뮬레이터 확인으로 닫는다.** 절전 모드가 Animator를 끄는 기기에서 꺼짐 방송이 Animator 복구보다 먼저 오면 K11이 아직 참이라 다음 재판정(단계 변경·재부착)까지 정지 그림이 남는다. 타이머를 두지 않는다. 사전 확인(API 36 AVD, 이번 LLD에서 실행, 앱 없이 `dumpsys power`만): 이 재현에 쓸 설정 키는 `animation_disabled`가 아니라 `disable_animation`이다(4장 FB-6). 방송·복구 순서 자체는 아직 미확인이다. | 3.3 사전 확인 표, E-6. 시스템 서버 쪽 순서는 SDK 소스에 없음(HLD R11). | 2.12, 3.3 E-6 |
-| #40 | **프레임워크 소스로 확인, 기기 재현은 구현 단계(E-7).** `View.dispatchDetachedFromWindow`는 `onDetachedFromWindow()`를 `mAttachInfo`를 지우기 전에 부르므로 콜백 안에서 `isAttachedToWindow`가 아직 참이다. 부모에서 제거될 때 `isShown()`도 참이다. 그래서 `updatePoseAnimator(false)`의 `shouldRun`이 참이 되어 취소하지 못한다. 조건을 보지 않고 멈춘다(2.12 `stopPoseAnimator`). | android-35 `View.java:22935-22953`, 이슈 #40 근거(`ViewGroup.java:5627`·`:5636`), `FileJobIndicatorView.kt:125-126`·`:134-137`·`:171-175`. | 2.12 |
+| R11 | **미확인 유지(HLD v1.5부터, PM 판단) — 구현 단계 에뮬레이터 확인으로 닫는다.** 절전 모드가 Animator를 끄는 기기에서 꺼짐 방송이 Animator 복구보다 먼저 오면 K11이 아직 참이라 다음 재판정(단계 변경·재부착)까지 정지 그림이 남는다. 타이머를 두지 않는다. 사전 확인(API 36 AVD, 이번 LLD에서 실행, 앱 없이 `dumpsys power`만): 이 재현에 쓸 설정 키는 `animation_disabled`가 아니라 `disable_animation`이다(4장 FB-6). 방송·복구 순서 자체는 아직 미확인이다. **(v1.4 실행 결과)** E-6에서 5회 중 1회 재현: 꺼짐 방송 때 `areAnimatorsEnabled()`가 아직 거짓이라 정지로 남았다. 고치지 않고 PM에게 보고한다(HLD R11). | 3.3 사전 확인 표, E-6. 시스템 서버 쪽 순서는 SDK 소스에 없음(HLD R11). | 2.12, 3.3 E-6 |
+| #40 | **프레임워크 소스로 확인, 기기 재현도 확인(v1.4, E-7: 검색 펼침·회전 모두 수정 전 실패, 수정 후 통과).** `View.dispatchDetachedFromWindow`는 `onDetachedFromWindow()`를 `mAttachInfo`를 지우기 전에 부르므로 콜백 안에서 `isAttachedToWindow`가 아직 참이다. 부모에서 제거될 때 `isShown()`도 참이다. 그래서 `updatePoseAnimator(false)`의 `shouldRun`이 참이 되어 취소하지 못한다. 조건을 보지 않고 멈춘다(2.12 `stopPoseAnimator`). | android-35 `View.java:22935-22953`, 이슈 #40 근거(`ViewGroup.java:5627`·`:5636`), `FileJobIndicatorView.kt:125-126`·`:134-137`·`:171-175`. | 2.12 |
 
 ### 0.3 사용자에게 보이는 변화
 - **의도된 변화**: 파일 작업 중 툴바 끝 쪽(메뉴 바로 앞)에 24dp 선 사람이 달리고, 끝나면 만세 또는 넘어짐 1.5초 뒤 사라진다. 설정 > 인터페이스에 "파일 작업 표시" 스위치(기본 켬).
@@ -724,7 +724,9 @@ data class StickFigurePose(
 
 **움직임 판독**: `adb -s emulator-<port> exec-out screencap -p` 5장을 이어서 찍어 툴바 끝 쪽 같은 영역을 비교한다. 달리면 자세가 달라지고, 정지면 다섯 장이 같다.
 
-**작업 준비**: `shell dd`로 2 GB 파일을 `/sdcard/Download`에 만들고, 디버그 APK를 `-s`로 설치, `appops set me.zhanghai.android.files MANAGE_EXTERNAL_STORAGE allow`. 복사가 판독에 짧으면 파일을 늘린다.
+**작업 준비**: 작은 파일이 많은 폴더를 `/storage/emulated/0/Download`에 만들고(4000개×64 KB, 복사 90~200초. 큰 파일 하나는 빠르고 저장 공간이 모자랐다), 디버그 APK를 `-s`로 설치, `appops set me.zhanghai.android.files MANAGE_EXTERNAL_STORAGE allow`.
+
+**실행 메모 (v1.4)**: ① API 36의 기본 절전 정책은 `enable_night_mode=true`라 절전을 켜고 끌 때 화면이 다시 만들어진다. 그러면 새 뷰의 재판정만 보이므로, 뷰 안 전환(E-2·E-3·E-3a·E-5·E-6)은 `battery_saver_constants`에 `enable_night_mode=false`를 넣고 본다. E-0·E-1은 기본값으로 본다. ② 검색 접기는 BACK 두 번이다(첫 번째는 키보드만 닫음). ③ `uiautomator dump`는 절전 방송을 되풀이하게 하는 것으로 보인다(dump를 멈추면 12초간 0회, 추정). 재판정은 값이 같으면 아무것도 하지 않아 동작 영향은 없었다. ④ 결과 시간(1.5초) 안의 조작은 기기 안 `logcat | while read` 감시 스크립트로 보낸다.
 
 | 테스트 | 근거 | 절차 | 기대 |
 |---|---|---|---|
@@ -759,3 +761,4 @@ data class StickFigurePose(
 | 2026-11-04 | v1.1 | 근거를 SRS·HLD v1.3으로, 4장 FB-1~FB-5 결과 기록 | 설계팀 답(74dff1a) | 개발팀 |
 | 2026-11-04 | v1.2 | 2.5 호출부 13곳, 2.12 `shouldRun`에 `windowVisibility`·`phase` 설정자 순서 규칙·`start()` 전 `cancel()`, 0.2 R9 단정 완화, U-L16·U-L17·M-03a 추가, 2.15 설정 읽기 입출력 미확인 | LLD 검수 1회차 경미 m1~m6 (PR #32 issuecomment-6618249202) | 검수팀 |
 | 2026-11-04 | v1.3 | 근거 SRS v1.5·HLD v1.6. 0.2 R9 정정·R11·#40, 0.3, 1.1, 2.12 수신기·`updateReducedMotion`·`stopPoseAnimator`·붙음·떼어짐, 2.15 절전 모드와 순수 함수, U-A02, M-08·M-16·M-18·M-19, 3.3 에뮬레이터 확인(사전 확인 포함), FB-6 | 이슈 #38 요구사항 정리 v1, #40 흡수(PM 분류). 검수 경미 1~4 반영(PR #41 issuecomment-6619884831) | 오너·PM |
+| 2026-11-04 | v1.4 | 3.3 작업 준비·실행 메모, 0.2 R11·#40 실행 결과 | 구현 단계 에뮬레이터 확인 결과 | 개발팀 |

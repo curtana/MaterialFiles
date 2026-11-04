@@ -18,4 +18,13 @@ class AnimatorScaleTest {
             assertFalse(isReducedMotion(scale))
         }
     }
+
+    // U-A02
+    @Test
+    fun isReducedMotion_powerSaveModeOrAnimatorsDisabled() {
+        assertFalse(isReducedMotion(isPowerSaveMode = false, areAnimatorsDisabled = false))
+        assertTrue(isReducedMotion(isPowerSaveMode = false, areAnimatorsDisabled = true))
+        assertTrue(isReducedMotion(isPowerSaveMode = true, areAnimatorsDisabled = false))
+        assertTrue(isReducedMotion(isPowerSaveMode = true, areAnimatorsDisabled = true))
+    }
 }
