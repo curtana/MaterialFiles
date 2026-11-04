@@ -6,9 +6,13 @@
 package me.zhanghai.android.files.ui
 
 import android.animation.ValueAnimator
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.os.PowerManager
 import android.util.AttributeSet
 import android.view.View
 import android.view.animation.LinearInterpolator
@@ -17,6 +21,7 @@ import androidx.core.graphics.withScale
 import androidx.interpolator.view.animation.FastOutSlowInInterpolator
 import me.zhanghai.android.files.R
 import me.zhanghai.android.files.filelist.FileJobIndicatorPhase
+import me.zhanghai.android.files.util.RuntimeBroadcastReceiver
 import me.zhanghai.android.files.util.dpToDimension
 import me.zhanghai.android.files.util.getColorByAttr
 import me.zhanghai.android.files.util.isReducedMotion
@@ -50,6 +55,14 @@ class FileJobIndicatorView : View {
 
     // The last shown phase, which is still drawn while fading out.
     private var drawnPhase: FileJobIndicatorPhase? = null
+
+    private val powerSaveModeReceiver = RuntimeBroadcastReceiver(
+        IntentFilter(PowerManager.ACTION_POWER_SAVE_MODE_CHANGED), object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                updateReducedMotion()
+            }
+        }, context
+    )
 
     var phase = FileJobIndicatorPhase.HIDDEN
         set(value) {
@@ -125,10 +138,7 @@ class FileJobIndicatorView : View {
         val shouldRun = phase != FileJobIndicatorPhase.HIDDEN && !isReducedMotion &&
             isAttachedToWindow && windowVisibility == VISIBLE && isShown
         if (!shouldRun) {
-            poseAnimator.cancel()
-            if (phase == FileJobIndicatorPhase.SUCCEEDED || phase == FileJobIndicatorPhase.FAILED) {
-                posePhase = 1f
-            }
+            stopPoseAnimator()
             return
         }
         if (!restart) {
@@ -162,16 +172,55 @@ class FileJobIndicatorView : View {
         poseAnimator.start()
     }
 
+    private fun stopPoseAnimator() {
+        poseAnimator.cancel()
+        // A result that was interrupted isn't animated again from the start.
+        if (phase == FileJobIndicatorPhase.SUCCEEDED || phase == FileJobIndicatorPhase.FAILED) {
+            posePhase = 1f
+        }
+    }
+
+    // Only changes how the current phase is drawn, so that nothing is announced again and the
+    // timing rules are unaffected.
+    private fun updateReducedMotion() {
+        val isReducedMotion = context.isReducedMotion()
+        if (this.isReducedMotion == isReducedMotion) {
+            return
+        }
+        this.isReducedMotion = isReducedMotion
+        if (phase == FileJobIndicatorPhase.HIDDEN) {
+            // Canceling the fade out also removes its end action.
+            if (isReducedMotion && visibility != GONE) {
+                animate().cancel()
+                visibility = GONE
+                alpha = 1f
+            }
+            return
+        }
+        if (isReducedMotion) {
+            poseAnimator.cancel()
+            posePhase = getStaticPosePhase(phase)
+            invalidate()
+        } else {
+            updatePoseAnimator(false)
+        }
+    }
+
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
 
+        // Registered first so that a change after reading the state isn't missed.
+        powerSaveModeReceiver.register()
+        updateReducedMotion()
         updatePoseAnimator(false)
     }
 
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
 
-        updatePoseAnimator(false)
+        powerSaveModeReceiver.unregister()
+        // Not updatePoseAnimator(), because the view still appears attached and shown here.
+        stopPoseAnimator()
     }
 
     override fun onVisibilityChanged(changedView: View, visibility: Int) {
