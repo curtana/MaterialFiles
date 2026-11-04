@@ -2,7 +2,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 재검수 대기(v2.2, 요구사항 v4 반영. v1.1은 PR #37 2회차 통과) |
+| 상태 | 검수 통과(v2.2, PR #37 a5a1183) |
 | 근거 | 요구사항 정리 v4 (이슈 #36 issuecomment-6619674200, 오너 2026-11-04 — 요구사항 3을 대체, 2·6 보강) + v3(요구사항 5) + v2(나머지) |
 | 마일스톤 | v1.7.5 |
 | 선행 작업 | #30(PR #35, develop에 머지됨 a1a8a3e)의 작업 상태 통로 `FileJobStateTracker`·`FileJobBatch`·`runJobAndReport`·`FileJob.runOn(): Boolean`을 이어 쓴다. |
