@@ -2,8 +2,8 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 재검수 대기(v1.2 — HLD 2회차 조건부 경미 반영) |
-| 근거 | SRS v2.1 (요구사항 v4) |
+| 상태 | 재검수 대기(v1.3 — HLD 3회차 조건부 경미 반영) |
+| 근거 | SRS v2.2 (요구사항 v4) |
 | 기준 코드 | `origin/develop` a1a8a3e(#30 PR #35 머지 커밋) — 줄 번호는 이 커밋 기준 |
 | 브랜치 | `design/36-job-list` — #35가 이미 develop에 머지되어 있어 develop에서 분기했다(PM 지시의 `feature/30-job-runner` 분기·대상은 머지 전 전제였음). 설계 PR #37은 develop 대상. |
 
@@ -80,8 +80,8 @@ flowchart LR
 | K14 대상 파일 정리 | `provider/` 각 백엔드 (기존, **지우기 동작 변경 없음**) | 취소된 작업의 깨진 대상 파일은 백엔드 복사 함수의 실패 정리가 지운다(3.3 표). 이 설계는 그 정리가 모든 취소 경로에서 작업 스레드 위에서 끝까지 돈다는 것을 근거로 하고(3.3), 작업 쪽에 별도 지우기를 더하지 않는다(5장 D5). 지우기 호출·조건·순서는 그대로다. 검증은 3.6의 수동 시험과 코드 검수. | REQ-36-10, 11 |
 | K15 추적표 | `docs/STANDARDS_TRACEABILITY.md` 4장 (기존) | #36 행 추가(SRS 5장 조항, REQ-36-01~16, 새 권한·편차 없음). 구현 PR에서 개발팀이 고친다(#30과 같은 방식, 추적표 v0.8 이력). | REQ-36-12, 13(규격 근거 추적) |
 | K16 취소 표시 점검 | `filejob/FileJob.kt`(기존), `filejob/FileJobService.kt`(기존 `:76-88`, `:90-105`), `filejob/FileJobs.kt`(기존 `throwIfInterrupted` `:230-234`, `showUserAction` `:485`, `showErrorDialog` `:500`, `showConflictDialog` `:555`) | `FileJob`에 `@Volatile internal var isCanceled`. 서비스가 `Future.cancel(true)` **앞에** 켠다(`:80`, `:99`). `throwIfInterrupted`는 `Thread.interrupted() \|\| isCanceled`이면 던지고, 창을 띄우는 세 함수는 맨 앞에서 `isCanceled`면 `InterruptedIOException`을 던진다. 이미 취소된 작업에서만 달라진다(C-1). 끼어들기 방식 자체는 그대로다. | REQ-36-05, 13 |
-| K17 정리 실패 통로 | `provider/common/CleanupFailureCopyOption.kt` (새 파일), `provider/common/CopyOptions.kt`(기존), 각 백엔드의 정리 `catch`(기존, 3.3.1 표) | `ProgressCopyOption`(`provider/common/ProgressCopyOption.kt:19-37`)과 같은 꼴의 `CopyOption` + `Parcelable`: 듣는 함수 `() -> Unit`을 `RemoteCallback`으로 감싸 프로세스를 넘긴다. 인자가 없다 — 어느 파일인지는 부른 쪽(K18)이 안다. `ParcelableCopyOptions`는 `Parcelable` 옵션을 그대로 넘기므로(`provider/remote/ParcelableCopyOptions.kt:33-37`) 원격 쪽 변경이 없다. `CopyOptions`에 필드를 더하고(`toArray`·`toCopyOptions` `:20-38`·`:41-71`), 옵션을 다시 만드는 여섯 곳(`ForeignCopyMove.kt:138`, `LinuxCopyMove.kt:285`, `SftpCopyMove.kt:276`, `SmbCopyMove.kt:220`, `WebDavCopyMove.kt:166`, `FtpCopyMove.kt:161`)이 그 필드를 넘긴다. 각 백엔드는 정리 `catch`에서 기존 기록에 더해 이 함수를 한 번 부른다. 대상이 이미 없다는 오류는 실패로 치지 않는다(각 백엔드의 기존 변환 함수로 가림, 예: `SftpCopyMove.kt:81-84`). | REQ-36-16 |
-| K18 정리 실패 기록·알림 | `filejob/FileJob.kt`, `filejob/FileJobs.kt`(기존 `copyOrMove` 옵션 `:1287-1299`, 압축 정리 `:647-653`), `filejob/FileJobStateTracker.kt`, K9·K12 | `FileJob`에 `synchronized` 경로 기록을 둔다. 규칙: ① 실패 보고가 오면 `isCanceled`(K16)면 바로 알리고, 아니면 기록한다. ② `copyOrMove`가 같은 대상 파일을 끝까지 쓰면 기록에서 지운다(오류 뒤 다시 시도). ③ `runOn`이 끝날 때 `CANCELED`이거나 `isCanceled`이면 기록을 알린다(오류 창의 "취소"는 `isCanceled`가 꺼져 있고, 서비스 취소와 본문의 정상 마무리가 겹치면 `CANCELED`가 아닐 수 있다). 그 밖에는 버린다(REQ-36-13). 한 경로는 한 번만 알린다(①과 ③이 겹쳐도). 알리기 = 메인으로 넘겨 토스트(`showToast` `FileJobs.kt:162-166`, 길게, 이름·폴더 이름은 입출력 없음 `:168-173`) + `FileJobStateTracker.onJobCleanupFailed(id)` → 듣는 쪽 → K9가 그 줄에 표시, K12가 끝난 방식 글에 덧붙임. 진행 중 항목 표에 없는 id도 듣는 쪽에 넘긴다(끝난 줄에 늦게 오는 보고, 3.3.1). 압축은 작업 안의 정리라 `:649`·`:651`의 `catch`에서 같은 기록을 부른다. | REQ-36-16 |
+| K17 정리 실패 통로 | `provider/common/CleanupFailureCopyOption.kt` (새 파일), `provider/common/CopyOptions.kt`(기존), 각 백엔드의 정리 `catch`(기존, 3.3.1 표) | `ProgressCopyOption`(`provider/common/ProgressCopyOption.kt:19-37`)과 같은 꼴의 `CopyOption` + `Parcelable`: 듣는 함수 `() -> Unit`을 `RemoteCallback`으로 감싸 프로세스를 넘긴다. 인자가 없다 — 어느 파일인지는 부른 쪽(K18)이 안다. `ParcelableCopyOptions`는 `Parcelable` 옵션을 그대로 넘기므로(`provider/remote/ParcelableCopyOptions.kt:33-37`) 원격 쪽 변경이 없다. `CopyOptions`에 필드를 더하고(`toArray`·`toCopyOptions` `:20-38`·`:41-71`), 옵션을 다시 만드는 여섯 곳(`ForeignCopyMove.kt:138`, `LinuxCopyMove.kt:285`, `SftpCopyMove.kt:276`, `SmbCopyMove.kt:220`, `WebDavCopyMove.kt:166`, `FtpCopyMove.kt:161`)이 그 필드를 넘긴다. 각 백엔드는 정리 `catch`에서 기존 기록에 더해 이 함수를 한 번 부른다. 대상이 이미 없다는 오류는 실패로 치지 않는다(각 백엔드의 기존 변환 함수로 가림, 예: `SftpCopyMove.kt:81-84`. FTP 제외, 3.3.1). | REQ-36-16 |
+| K18 정리 실패 기록·알림 | `filejob/FileJob.kt`, `filejob/FileJobs.kt`(기존 `copyOrMove` 옵션 `:1287-1299`, 압축 정리 `:647-653`), `filejob/FileJobStateTracker.kt`, K9·K12 | `FileJob`에 `synchronized` 경로 기록을 둔다. 규칙: ① 실패 보고가 오면 `isCanceled`(K16)면 바로 알리고, 아니면 기록한다. ② `copyOrMove`가 같은 대상 파일을 끝까지 쓰면 기록에서 지운다(오류 뒤 다시 시도). ③ `runOn`이 끝날 때 `CANCELED`이거나 `isCanceled`이면 기록을 알린다(오류 창의 "취소"는 `isCanceled`가 꺼져 있고, 서비스 취소와 본문의 정상 마무리가 겹치면 `CANCELED`가 아닐 수 있다). 그 밖에는 버린다(REQ-36-13). 알린 경로는 기록에서 지우고 다시 알리지 않는다(①과 ③이 겹쳐도 한 번). 알리기 = 메인으로 넘겨 토스트(`showToast` `FileJobs.kt:162-166`, 길게, 이름·폴더 이름은 입출력 없음 `:168-173`) + `FileJobStateTracker.onJobCleanupFailed(id)` → 듣는 쪽 → K9가 그 줄에 표시, K12가 끝난 방식 글에 덧붙임. 진행 중 항목 표에 없는 id도 듣는 쪽에 넘긴다(끝난 줄에 늦게 오는 보고, 3.3.1). 압축은 작업 안의 정리라 `:649`·`:651`의 `catch`에서 같은 기록을 부른다. | REQ-36-16 |
 
 ## 3. 데이터 흐름·상태
 
@@ -127,7 +127,7 @@ flowchart LR
 | 공급자 간(압축 풀기, 저장소 간 이동) | `ForeignCopyMove.kt:66-74` | 예 | `deleteIfExists`라 이미 없으면 실패 아님. `UnsupportedOperationException`도 실패로 알림 |
 | SFTP | `SftpCopyMove.kt:115-119` | 예 | 이미 없음: `toFileSystemException`이 `NoSuchFileException`(`:81-84`와 같은 꼴) |
 | SMB | `smb/client/Client.kt:403-407` | 일부 | 이미 없음은 해당 없음(파일을 연 채 표시). `deleteOnClose`(`:404`)의 실패만 안다. 닫기(`targetFile.use`)에서의 실패는 알 수 없다(SRS L4). `Client.copyFile`에 인자 하나 추가, 호출 `SmbCopyMove.kt:85-88` |
-| FTP·WebDAV | `FtpCopyMove.kt:84-88`, `WebDavCopyMove.kt:89-93` | 예 | 이미 없음: WebDAV는 `NoSuchFileException`(`webdav/DavExceptionExtensions.kt:23`). FTP는 구별하지 않는다: 응답 550이 `NoSuchFileException`으로 바뀌지만(`provider/ftp/client/NegativeReplyCodeException.kt:19`) 550은 권한 거부에도 쓰일 수 있어(서버마다 다름) 진짜 실패를 삼킬 수 있다. 그래서 FTP는 모든 실패를 알린다 — 이미 없는 파일을 지우지 못했다고 잘못 알릴 수는 있어도 남은 조각을 놓치지 않는 쪽을 고른다 |
+| FTP·WebDAV | `FtpCopyMove.kt:84-88`, `WebDavCopyMove.kt:89-93` | 예 | 이미 없음: WebDAV는 `NoSuchFileException`(`webdav/DavExceptionExtensions.kt:23`). FTP는 구별하지 않는다: 응답 550이 `NoSuchFileException`으로 바뀌지만(`provider/ftp/client/NegativeReplyCodeException.kt:19`) 550은 파일 없음과 접근 거부를 함께 뜻해(RFC 959 4.2.2, 설계 판단 근거이며 추적표 조항은 아님) 진짜 실패를 삼킬 수 있다. 그래서 FTP는 모든 실패를 알린다 — 이미 없는 파일을 지우지 못했다고 잘못 알릴 수는 있어도 남은 조각을 놓치지 않는 쪽을 고른다 |
 | SAF 직접 복사 | `DocumentResolver.kt:163-168`(`addSuppressed`) | 예 | 이미 없음: `toFileSystemException`이 `NoSuchFileException`(`:358`과 같은 꼴). `copy`·`copyApi24`·`copyManually`·`move`·`moveByCopy`와 `DocumentCopyMove.kt:44`·`:76`에 인자 추가 |
 | 압축 | `FileJobs.kt:647-653` | 예 | 작업 안의 정리, K18이 직접 기록 |
 | 루트 모드 | 원격 프로세스의 위 로컬 경로 | 조건부 | 원격이 살아 있으면 `RemoteCallback`으로 온다. 앱은 원격 끝을 기다리지 않으므로(`RemoteFileSystemProvider.kt:145-147`) **작업이 끝난 뒤 늦게** 올 수 있다 — `isCanceled`가 이미 켜져 있어 규칙 ①로 바로 알린다. 원격이 죽으면 오지 않는다(SRS L2) |
@@ -198,3 +198,4 @@ flowchart LR
 | 2026-11-04 | v1.0 | 첫 판 | SRS v1.2 | PM |
 | 2026-11-04 | v1.1 | 요구사항 v4 반영: K16 승인 표기, K17·K18·D10·3.3.1(정리 실패 알림), 3.6 수동 시험(T2 SFTP·SMB 여러 파일, T4 TalkBack), L1·#42 연결, 2·5·6장 표 번호 정렬, 머리표 상태 | HLD 1회차 반려 → 오너 결정 v4 | PM·오너 |
 | 2026-11-04 | v1.2 | K8·K9·K12 추적에 REQ-36-16, 3.3.1에 백엔드별 "이미 없음" 구별, K18 ③ 조건을 `CANCELED` 또는 `isCanceled`로 넓힘·한 번만 알림, T3 절차 | HLD 2회차 조건부 m1~m4 | 검수팀 |
+| 2026-11-04 | v1.3 | K17에 FTP 예외, K18 한 번만 알리는 방법, FTP 근거를 RFC 959로 | HLD 3회차 조건부 N1·N2 | 검수팀 |
