@@ -2,7 +2,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 수정됨(v2.3), 재검수 대기 — 개발팀이 LLD v1.1과 함께 의뢰한다. 직전 통과본은 v2.2(PR #37 a5a1183) |
+| 상태 | 검수 통과(PR #37 해당 코멘트 기준) |
 | 근거 | 요구사항 정리 v6(이슈 #36 issuecomment-6620321027, 요구사항 8 추가, #39 흡수) + v5(issuecomment-6620294838, 요구사항 6 보강) + v4(issuecomment-6619674200, 요구사항 3을 대체, 2·6 보강) + v3(요구사항 5) + v2(나머지). 모두 오너 2026-11-04 |
 | 마일스톤 | v1.7.5 |
 | 선행 작업 | #30(PR #35, develop에 머지됨 a1a8a3e)의 작업 상태 통로 `FileJobStateTracker`·`FileJobBatch`·`runJobAndReport`·`FileJob.runOn(): Boolean`을 이어 쓴다. |
