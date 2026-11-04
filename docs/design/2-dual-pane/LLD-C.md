@@ -4,10 +4,10 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 검수 통과(v1.3 — PR #24 LLD 검수 2회차, 3d4252d). v1.4는 구현 중 설계 문의 반영(8장) — 바뀐 절 재검수 대상 |
-| 근거 | SRS v4.8, HLD v4.9 (`docs/design/2-dual-pane/`), LLD-A v1.4, LLD-B v1.3, LLD-D v1.3.1, `docs/STANDARDS_TRACEABILITY.md`(develop) |
+| 상태 | 검수 통과(v1.3 — PR #24 LLD 검수 2회차, 3d4252d). v1.4는 구현 중 설계 문의 반영(8장) — 바뀐 절 재검수 대상. v1.5는 #9 not planned 정리(8장) |
+| 근거 | SRS v4.8, HLD v4.9 (`docs/design/2-dual-pane/`), LLD-A v1.4, LLD-B v1.3, LLD-D v1.3.1, `docs/STANDARDS_TRACEABILITY.md`(develop). v1.5 정리는 SRS v4.9, HLD v4.11 기준 |
 | 기준 코드 | `origin/develop` 0cca1b4 (#6 머지 PR #22 — #5·#6·#8 구현 포함). 인용 줄 번호는 이 커밋 기준 |
-| 이슈 | #7 (하위 이슈 C, 상위 #2). 선행 #6(머지됨). K3 `panePaths`를 소유하고 #9(E)가 쓴다 |
+| 이슈 | #7 (하위 이슈 C, 상위 #2). 선행 #6(머지됨). K3 `panePaths`를 소유한다 |
 | HLD 구성요소 | K7(창 표시), K9(창 표시 문자열), K3 `panePaths`(소유), K5 자기 현재 경로 게시·창 표시 그리기, K2 창 표시 누르기 처리 |
 | 추적 REQ | REQ-2-08, 17, 20 (+ REQ-2-07의 두 창 모드 창 표시 활성화 경로, HLD 3.9) |
 
@@ -15,12 +15,12 @@
 
 ### 0.1 이 단계가 하는 것 / 하지 않는 것
 - **한다**
-  - K3 `DualPaneViewModel`: 창별 현재 경로 게시판 `panePaths`(2.1). #9가 쓸 API까지 정한다(4장).
+  - K3 `DualPaneViewModel`: 창별 현재 경로 게시판 `panePaths`(2.1). 창 표시 줄이 쓰는 계약은 4장.
   - K5 `FileListFragment`: 자기 현재 경로를 K3에 게시, 창 표시 줄(창 표시 컨트롤 + 반대쪽 경로)과 활성 창 선을 그림, 컨트롤 누르기 → 호스트, 전환 뒤 초점 받기(2.3).
   - K2 `FileListHostFragment`: 창 표시 누르기 처리 — 한 창 모드 `togglePane()` + 새로 보이는 창 컨트롤로 초점 이동, 두 창 모드 비활성 창 활성화(2.4).
   - 창 표시 모드를 정하는 순수 함수와 단위 시험(2.2, 5.1).
   - 앱바 레이아웃에 창 표시 줄과 활성 창 선(2.5), K9 문자열(영어·한국어, 2.6).
-- **하지 않는다**: 반대쪽 복사·이동 명령(#9 — 이 단계는 `panePaths` API만 준비), 확인 창(#8, 머지됨), K4의 쓸기·탭 인식 변경(#6 그대로 — 창 표시 줄은 이미 앱바 안이라 쓸기 제외 (b)에 들어 있다, `DualPaneLayout.kt:413-417`), 비활성 창 speed dial·붙여넣기 막대 숨김(HLD R6 — 7장).
+- **하지 않는다**: 확인 창(#8, 머지됨), K4의 쓸기·탭 인식 변경(#6 그대로 — 창 표시 줄은 이미 앱바 안이라 쓸기 제외 (b)에 들어 있다, `DualPaneLayout.kt:413-417`), 비활성 창 speed dial·붙여넣기 막대 숨김(HLD R6 — 7장).
 - 이 단계가 끝나면 #6이 남긴 "두 창 모드에서 어느 창이 활성인지 보이는 표시가 아직 없다"(LLD-B 0.1)가 닫힌다.
 
 ### 0.2 추적 — 이 단계의 몫
@@ -41,7 +41,7 @@
 |---|---|---|
 | `Args.paneIndex`(LLD-B 2.5 — "읽는 곳은 #7") | 창 번호·반대쪽 창 번호·경로 게시의 키로 읽는다 | 2.3 |
 | K3 `togglePane()`(LLD-B 2.2 — "#7의 창 표시 누르기가 함께 쓴다") | 호스트의 창 표시 누르기 처리가 부른다 | 2.4 |
-| `panePaths`(LLD-B FB-4 — #7 소유, PM 결정 PR #17) | K3에 만들고 #9가 쓸 API를 정한다 | 2.1, 4장 |
+| `panePaths`(LLD-B FB-4 — #7 소유, PM 결정 PR #17) | K3에 만들고 창 표시 줄이 쓰는 계약을 정한다 | 2.1, 4장 |
 | R10 남은 위험(LLD-B 7장 — "창 표시 컨트롤 경로는 #7") | 두 창 모드 비활성 창 컨트롤의 클릭 동작 | 2.3, 2.4, T-C05 |
 | 창 공개 `LiveData`는 붙기 전에 읽힐 수 있으면 미러로(LLD-B v1.3 2.5) | 이 단계의 새 관찰은 모두 호스트 범위 K3의 `LiveData`이고 창 뷰모델을 호스트가 읽지 않으므로 미러가 필요 없다 | 2.1, 2.3 |
 
@@ -73,7 +73,7 @@
 - 창 수. 창 표시의 전체 창 수와 게시판 크기에 쓴다. 창 수를 바꾸는 요구는 범위 밖(SRS 1.3)이라 상수다.
 
 #### `internal fun otherPaneIndex(paneIndex: Int): Int` (`DualPaneViewModel.kt` 파일 수준, 순수)
-- **추적**: HLD K3 "반대쪽 창", 3.6 `[반대쪽]` / REQ-2-17 (#9 REQ-2-12가 씀)
+- **추적**: HLD K3 "반대쪽 창" / REQ-2-17
 - **입력·전제**: `paneIndex`는 0 또는 1.
 - **출력**: `1 - paneIndex`.
 - **오류**: 없음(범위 밖 값은 호출자 결함 — 결과도 범위 밖이 되어 `getPanePath`가 `IndexOutOfBoundsException`을 던진다).
@@ -89,10 +89,10 @@
 | `fun getPanePath(index: Int): Path?` | 지금 값(`_panePathLiveDatas[index].value`). `null`이면 그 창이 아직 경로를 게시하지 않았다(창 2 첫 적재 전, 또는 선택 모드라 창 2가 없음). |
 | `fun setPanePath(index: Int, path: Path)` | **쓰는 곳은 그 창의 K5 하나뿐**(2.3 `onCurrentPathChanged`). **사후**: 지금 값과 `==`이면 아무것도 하지 않는다(관찰자 재호출 방지 — 같은 경로로 다시 적재해도 `TrailLiveData`가 새 값을 내므로, `FileListViewModel.kt:39`). 아니면 `value = path`. **오류**: 없음. 메인 스레드(`setValue`). |
 
-- **추적**: HLD K3 `panePaths[0..1]`(#7 소유), 2.1 분배표, 3.1(호스트 범위 상태), 3.8("반대쪽 경로를 아직 모를 때") / REQ-2-17 (#9 REQ-2-12)
+- **추적**: HLD K3 `panePaths[0..1]`(#7 소유), 2.1 분배표, 3.1(호스트 범위 상태) / REQ-2-17
 - **수명**: 호스트 프래그먼트 범위라 회전·크기 변경을 넘어 남는다. 이때 창의 `FileListViewModel`도 남으므로 값이 맞다. 프로세스 종료 뒤에는 `null`에서 다시 시작하고 창이 처음 관찰에서 다시 게시한다(HLD 3.1 "프로세스 종료 뒤 처음 값").
-- **초기화하지 않는다**: 호스트 `onActivityCreated`의 `setPaneMode(PaneMode(false, 0))`(`H:141-143`)와 달리 경로는 이전 구성의 값이 그대로 맞으므로 지우지 않는다. 지울 이유가 없고, 지우면 #9 반대쪽 명령이 창이 다시 게시할 때까지 잠깐 비활성이 된다(창 표시 줄은 새 뷰라 첫 갱신 전에는 어차피 보이지 않는다).
-- **값의 뜻**: 창의 `FileListViewModel.currentPath` 원래 값(정규화하지 않음). 복사·이동 대상으로 쓸 때의 `j` 변환(HLD 3.6-1)은 K6(`ConfirmCopyMoveDialogFragment.show` → `createCopyMoveConfirmation`, `CopyMoveConfirmation.kt`)이 한다.
+- **초기화하지 않는다**: 호스트 `onActivityCreated`의 `setPaneMode(PaneMode(false, 0))`(`H:141-143`)와 달리 경로는 이전 구성의 값이 그대로 맞으므로 지우지 않는다. 지울 이유가 없다.
+- **값의 뜻**: 창의 `FileListViewModel.currentPath` 원래 값(정규화하지 않음).
 - **기존 코드와의 관계**: LLD-B 2.2의 `activePaneLiveData`·`paneModeLiveData`와 같은 모양(비공개 `MutableLiveData` + 공개 `LiveData`). `valueCompat`은 non-null 값용이라 쓰지 않는다. 게시판을 `List<LiveData>` 공개 속성 대신 함수로 두는 이유: 쓰기(`setPanePath`)를 한 곳에 모으고 형식을 `LiveData`로 좁히기 위해서.
 
 ### 2.2 `PaneIndicator.kt` (신규, 순수 로직)
@@ -129,7 +129,7 @@
 - 새 관찰 대상은 모두 호스트 범위 K3의 `LiveData`다. 창 뷰모델을 호스트가 읽지 않으므로 LLD-B v1.3 2.5의 "붙기 전 읽힘" 문제와 무관하다.
 
 #### `private fun onCurrentPathChanged(path: Path)` (수정, 기존 `F:558-561`)
-- **추적**: HLD K5 "자기 현재 경로를 K3에 게시" / REQ-2-17 (#9 REQ-2-12)
+- **추적**: HLD K5 "자기 현재 경로를 K3에 게시" / REQ-2-17
 - 기존 두 갱신 앞에 `dualPaneViewModel.setPanePath(args.paneIndex, path)`.
 - **사후조건**: 창의 현재 경로가 바뀔 때마다(폴더 이동·뒤로·서랍 항목·경로 입력·`resetTo`) K3 게시판이 같은 값이 된다. 관찰은 창 뷰가 STARTED일 때 오고, 한 창 모드의 숨은 창도 RESUMED라(HLD 3.8) 계속 게시한다. 액티비티가 멈춘 동안에는 경로가 바뀌지 않는다.
 - 선택 모드에서도 창 1은 게시한다(쓰는 곳이 없어도 해가 없고 분기를 줄인다).
@@ -286,17 +286,16 @@
 - **선 색의 대비 계산(FB-C1 근거)**: WCAG 상대 휘도 대비, 앱바 배경 = 밝은 테마 `#FFFFFF`(`color_surface_light`), 어두운 테마 `#202124`(`google_grey_900`). 기본 강조색은 밝은 `#1A73E8` 4.51:1, 어두운 `#8AB4F8` 7.64:1로 통과. 사용자 선택 테마 색(`res/values/colors_custom.xml` 500 계열 / `res/values-night/colors_custom.xml` 300 계열): 밝은 테마에서 light_blue 2.63, cyan 2.30, green 2.78, light_green 2.10, lime 1.51, yellow 1.22, amber 1.63, orange 2.16, grey 2.68로 9개가 3:1 미만이다. 어두운 테마는 19개 모두 4.37:1 이상. `?android:textColorPrimary`(앱바 테마의 `colorControlNormal`, `res/values/styles.xml:61-62`)는 두 테마에서 약 16:1.
 - 실제 대비는 Accessibility Scanner(또는 화면 캡처 화소값)로 확인한다(T-C09, HLD 3.9 "실제 값은 LLD에서").
 
-## 4. #9가 쓰는 `panePaths` API (계약)
+## 4. `panePaths` 계약 (창 표시 줄이 쓴다)
 
 | 항목 | 계약 |
 |---|---|
-| 얻기 | 창 프래그먼트 안에서 기존 `dualPaneViewModel`(`F:136`, 호스트 범위 K3). 반대쪽 창 번호는 `otherPaneIndex(args.paneIndex)`. 반대쪽 명령을 내는 창은 활성 창이다(HLD 3.4 — 선택 메뉴는 누른 창 = 활성 창). |
-| 읽기 | 메뉴 실행 시점에 `dualPaneViewModel.getPanePath(otherPaneIndex(args.paneIndex))`. 메뉴 활성 여부를 따라가려면 `getPanePathLiveData(…)`를 `viewLifecycleOwner`로 관찰한다(경로가 바뀌면 읽기 전용 판단 `path.fileSystem.isReadOnly`도 다시 — HLD 3.6). |
-| `null` | "반대쪽 경로를 아직 모름". 창 2 첫 적재 전, 또는 선택 모드(창 2 없음 — 이때는 #9 명령 자체가 없다). #9는 `null`이면 반대쪽 명령을 비활성으로 둔다(HLD 3.8). |
-| 값 | 반대쪽 창 `FileListViewModel.currentPath` 원래 값. 정규화·`j` 변환을 하지 않는다 — `ConfirmCopyMoveDialogFragment.show(copy, files, <이 값>, Origin.OTHER_PANE, this)`(LLD-D 4장)가 판정·작업용 `j`를 만든다. |
-| 신선도 | 반대쪽 창이 폴더를 바꾸면 메인 스레드에서 같은 메시지 안에 게시된다(2.3 `onCurrentPathChanged`). 한 창 모드의 숨은 창도 게시한다. 확인 창이 떠 있는 동안 바뀐 값은 확인 창에 영향이 없다(인자로 굳힘, HLD 3.6). |
-| 쓰기 | **창 자신의 K5만**(`setPanePath`). #9는 쓰지 않는다. |
-| LLD-D와의 관계 | LLD-D 4장의 "반대쪽 경로는 #6의 `DualPaneViewModel.panePaths`"는 이 계약으로 바뀐다(소유가 #7로 옮겨짐 — LLD-B FB-4, PM 결정 PR #17). 호출 모양(`show`의 대상 인자)은 같다. |
+| 얻기 | 창 프래그먼트 안에서 기존 `dualPaneViewModel`(`F:136`, 호스트 범위 K3). 반대쪽 창 번호는 `otherPaneIndex(args.paneIndex)`. |
+| 읽기 | 창 표시 줄을 그릴 때(2.3 `updatePaneIndicator`) `dualPaneViewModel.getPanePath(otherPaneIndex(args.paneIndex))`. 경로가 바뀌면 다시 그리도록 `getPanePathLiveData(…)`를 `viewLifecycleOwner`로 관찰한다. |
+| `null` | "반대쪽 경로를 아직 모름". 창 2 첫 적재 전, 또는 선택 모드(창 2 없음). 창 표시 줄은 `null`이면 반대쪽 경로를 숨긴다(2.3). |
+| 값 | 반대쪽 창 `FileListViewModel.currentPath` 원래 값. 정규화·`j` 변환을 하지 않는다. |
+| 신선도 | 반대쪽 창이 폴더를 바꾸면 메인 스레드에서 같은 메시지 안에 게시된다(2.3 `onCurrentPathChanged`). 한 창 모드의 숨은 창도 게시한다. |
+| 쓰기 | **창 자신의 K5만**(`setPanePath`). |
 | 스레드 | 메인 스레드만(`LiveData.setValue`·`getValue`). |
 
 ## 5. 테스트 설계
@@ -337,7 +336,7 @@ LLD-B 5.2와 같다(빌드, 기준 APK = develop 0cca1b4 빌드, `adb logcat -b 
 | T-C11 RTL(`RTL-1`·`RTL-3`·`RTL-4`) | 2.5, `BidiFormatter` | 경계 | RTL 강제 + 히브리어 이름 폴더를 창 2 경로로, C1·C2. 언어를 아랍어로 바꿔 한 번 | 줄이 거울 배치(컨트롤이 오른쪽 시작), 반대쪽 경로 글자 순서가 깨지지 않음, 숫자 로캘 표기, `SWITCHER` 단추는 RTL에서도 "1 / 2"로 보임(v1.4) |
 | T-C12 좁은 창·긴 경로 | 2.5 | 경계 | C1에서 창 2를 깊은 폴더(경로 > 화면 너비)로. C4(`wm size 1700x1300`, `wm density 320`, 고정 메뉴 접음 → 두 창, 창 약 425dp)와 LLD-B T-B04의 600dp 경계(세로, `wm density 160` + `wm size 600x1000` → 두 창, 창 300dp) | 한 창: 경로가 가운데 줄임표로 줄고 "창 2:"와 끝 폴더가 보임, 컨트롤과 겹치지 않음. 두 창 300dp: "창 2 · 활성"이 잘리지 않음 |
 | T-C13 회전·복원 | K3 게시판 수명, 2.3 관찰 | 경계 | 창 2 활성·두 경로를 다르게 둔 뒤 C1↔C2 회전 ×3, `always_finish_activities` 켜고 다른 앱 갔다 오기. 회전 직후 화면 녹화(`adb shell screenrecord`)로 표시 단계 기록 | 표시·선·반대쪽 경로가 수 프레임 안에 맞음(2.3 "시작·회전 직후의 단계" — 중간 단계와 앱바 높이 변화는 기록만). 복원 뒤에도 맞음, 크래시 없음 |
-| T-C14 경로 게시(#9 계약) | `setPanePath`, 4장 | 정상 | 한 창 모드 창 1에서, 창 2를 각각 경로 표시줄 누르기·뒤로·탐색 서랍 항목·Ctrl+L 경로 입력·압축 파일 열기로 이동시킨 뒤 창 1 표시 확인 | 매번 "창 2: <새 경로>"(압축 내부는 "압축 파일 경로 + 내부 경로"). `setPanePath`의 같은 값 무시는 단위 시험이 없어(5.1 — `MutableLiveData`가 메인 루퍼를 요구) 코드 검수의 줄 대조로 확인한다 |
+| T-C14 경로 게시 | `setPanePath`, 4장 | 정상 | 한 창 모드 창 1에서, 창 2를 각각 경로 표시줄 누르기·뒤로·탐색 서랍 항목·Ctrl+L 경로 입력·압축 파일 열기로 이동시킨 뒤 창 1 표시 확인 | 매번 "창 2: <새 경로>"(압축 내부는 "압축 파일 경로 + 내부 경로"). `setPanePath`의 같은 값 무시는 단위 시험이 없어(5.1 — `MutableLiveData`가 메인 루퍼를 요구) 코드 검수의 줄 대조로 확인한다 |
 | T-C15 회귀 | LLD-B T-B08·T-B10·T-B12·T-B15(앱바 쓸기 부분), T-B21 | 회귀 | C1·C2에서 LLD-B 절차 | LLD-B 기대와 같음(앱바가 높아진 것 외). 창 표시 줄 위 탭은 그 창 활성화(T-B10의 "경로 표시줄" 경우와 같음) |
 
 | T-C16 큰 글꼴(`Font_Scaling`) | 2.5 | 경계 | 설정 글꼴 크기 최대(`adb shell settings put system font_scale 2.0`, 끝나면 1.0), C1과 600dp 경계 두 창(창 300dp) | 줄이 글자에 맞게 48dp 이상으로 늘고 "창 N · 활성"이 잘리지 않음, 한 창의 반대쪽 경로가 컨트롤과 겹치지 않고 줄임표로 줄어듦 |
@@ -384,3 +383,4 @@ SRS·HLD는 개발팀이 고치지 않았다. 아래는 설계팀에 보낸 것�
 | 2026-11-03 | v1.2 | 7.1 업스트림 동기화 후 재확인 항목 S1~S7 | 업스트림 29개 커밋이 master에 들어옴(develop 미반영) | PM |
 | 2026-11-03 | v1.3 | 검수 1회차 경미 1~6: 2.1 "초기화하지 않는다" 근거, 2.3 시작·회전 직후 단계·위임 설정 순서 근거, 2.5 선 `importantForAccessibility="no"`, T-C13 기대값, T-C14 단위 시험 한계, T-C16 큰 글꼴, 7.1 S1·S2·S4·S5 보완. LLD-A·LLD-D의 `panePaths` 소유(#6 → #7), LLD-B `F:422` | LLD 검수 1회차(PR #24 코멘트 6598275680) | 검수팀 |
 | 2026-11-03 | v1.4 | 2.3 `SWITCHER` 글자 LTR 격리, 2.5 반대쪽 경로 색 `?android:textColorPrimary`, 3장 대비 행, T-C09·T-C11 기대값, 6장 FB-C5. 7.1 S1~S7 재확인: develop 6e6a403에서 `F:`·`H:`·`V:`·`L:` 인용 줄 번호와 기호가 그대로 맞음(변경 없음) | 구현 중 T-C09·T-C11 실측 결과 설계 문의(설계팀 답변) | 개발팀 |
+| 2026-11-04 | v1.5 | #9 몫 삭제: 머리표 이슈, 0.1, 0.2 입력 표, 2.1 `otherPaneIndex`·`panePaths` 추적·"초기화하지 않는다" 근거·"값의 뜻", 2.3 `onCurrentPathChanged` 추적, T-C14 이름. 4장은 #7 창 표시 줄이 쓰는 계약만 남김(제목 변경, 번호 유지 — LLD-A·B·D 참조 때문). `panePaths`·REQ-2-17은 유지 | 오너 결정 2026-11-04, #9 not planned | PM |

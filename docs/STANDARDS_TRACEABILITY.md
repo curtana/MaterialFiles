@@ -1,6 +1,6 @@
 # 규격 추적표 — Android app quality guidelines
 
-- 상태: v0.9 (2026-11-04. v0.1~v0.2 PM 보조 작성, v0.3 오너 결정 기록, v0.4 4장 #2 행 REQ ID, v0.5 Q7~Q9 오너 결정, v0.6 `Keyboard_Shortcuts` 비고, v0.7 4장 #29 행, v0.8 4장 #30 행 — 5장 이력). 조항 해석·필수 여부 판정은 오너 승인 사항이다(PROCESS_ROLES 부록 S).
+- 상태: v0.10 (2026-11-04. v0.1~v0.2 PM 보조 작성, v0.3 오너 결정 기록, v0.4 4장 #2 행 REQ ID, v0.5 Q7~Q9 오너 결정, v0.6 `Keyboard_Shortcuts` 비고, v0.7 4장 #29 행, v0.8 4장 #30 행, v0.9 #9 not planned 반영 — 5장 이력). 조항 해석·필수 여부 판정은 오너 승인 사항이다(PROCESS_ROLES 부록 S).
 - 작성 규칙: 원문 문장은 옮기지 않고 한국어 요지만 적는다. 아래 근거 문서에서 직접 확인하지 못한 내용은 "원문 판독 필요"로 둔다.
 - 결과 로직을 바꾸는 PR은 이 표를 같은 PR에서 고친다(부록 S).
 
@@ -45,7 +45,7 @@
 | `Back_Gesture_Nav` | CQ, 시험 T-Back_Nav | 제스처 내비게이션의 뒤로·홈 이동을 지원한다. | 필수 | 예(이슈 #2) | 창 전환 쓸기가 가장자리 뒤로 제스처·하단 홈 제스처를 가로채지 않게 한다(GN-1~3 참조). 확인: API 29 이상·제스처 내비게이션에서 좌우 가장자리 쓸기 → 뒤로 가기만 일어남. |
 | `State_Preservation` | CQ, 시험 T-State_Preservation, T-Back_Nav | 앞에서 벗어날 때 상태를 저장하고 돌아오면 복원해 뜻하지 않은 데이터 손실을 막는다. 짧게(수 분) 떠나 있었으면 최대한 그대로, 오래 떠나 있었으면 복원하거나 첫 화면에서 다시 시작해도 된다. | 필수 | 예(이슈 #2) | 두 창의 경로·기록·선택·복사 목록·확인 창을 화면 재생성에 견디게 둔다. 확인: 홈으로 나갔다가 몇 분 안에 복귀, 최근 앱에서 복귀. 앱 프로세스가 종료된 뒤 기본 폴더로 시작하는 기존 동작(SRS A6)은 경로 복원이 없어 편차로 등록했다(3장, 오너 승인 2026-10-28, 해소 이슈 #11). |
 | `Orientation_Transitions` | CQ, 시험 T-Orientation_Transitions | 방향 전환·접기/펴기를 빠르게 반복해도 그리기 문제나 상태 손실이 없다. | 필수 | 예(이슈 #2) | 회전 시 한 창↔두 창 전환에서 상태 유지. 확인: 빠른 연속 회전 수동 시험. |
-| `Display_State_Parity` | CQ, 시험 T-Orientation_Transitions | 모든 방향·접힘 상태에서 같은 기능과 동작을 제공한다. | 필수 | 예(이슈 #2) | 한 창 모드에서도 두 창 모드와 같은 명령(반대쪽으로 복사·이동, 창 전환, 반대쪽 경로 확인)을 쓸 수 있게 한다. 확인: 세로·가로 각각 명령 목록 비교. |
+| `Display_State_Parity` | CQ, 시험 T-Orientation_Transitions | 모든 방향·접힘 상태에서 같은 기능과 동작을 제공한다. | 필수 | 예(이슈 #2) | 한 창 모드에서도 두 창 모드와 같은 명령(붙여넣기, 창 전환, 반대쪽 경로 확인)을 쓸 수 있게 한다. 확인: 세로·가로 각각 명령 목록 비교. |
 | `Fullscreen_Display` | CQ, 시험 T-Orientation_Transitions | 두 방향·접힘 상태 모두에서 창을 꽉 채우고 레터박스가 없다(작은 보정은 허용). | 필수 | 예 | 기존 화면 유지. 확인: 가로·세로·분할 화면에서 여백 띠가 없는지. |
 | `Consistent_UX` | CQ, 시험 T-Consistent_UX, T-SD_Card | 모든 사용 경우와 폼 팩터에서 일관된 경험을 준다. | 필수 | 예 | 두 창 기능의 동작을 기기 구성(SRS 3.2 C1~C4)에 관계없이 같게 한다. 확인: C1~C4 수동 시험. |
 | `Theme_Support` | CQ, 시험 T-Theme_Support | 앱 콘텐츠가 밝은·어두운 테마를 모두 지원한다. | 필수 | 예(이슈 #2) | 활성 창 표시가 두 테마에서 보이게 한다. 확인: 두 테마 각각 수동 확인. |
@@ -74,7 +74,7 @@
 | `Responsive_adaptive_layouts` | AQ2, 시험 T-Layout_Flow | 창 크기 등급에 따라 레이아웃이 반응·적응하고, 알맞은 곳에 다중 창(multi-pane) 레이아웃을 쓴다. 옛 액티비티 기반 앱은 Activity embedding을 쓰도록 안내한다. | 권장 | 예(이슈 #2) | 두 창 레이아웃이 이 조항의 다중 창 레이아웃에 해당한다. Activity embedding 미사용은 편차 아님(오너 결정, 2026-10-28 — 한 액티비티 안 두 창이 다중 창 레이아웃 권장을 충족). |
 | `UI_Secondary_Elements` | AQ2, 시험 T-Layout_Flow | 대화상자·메뉴 같은 보조 요소가 모든 화면 유형·상태에서 알맞게 배치된다(큰 화면에서 버튼·입력란을 전체 폭으로 늘이지 않음, 서랍은 큰 화면에서 펼친 레일 등). | 권장 | 예(이슈 #2) | 복사·이동 확인 창을 큰 화면에서 전체 폭으로 늘이지 않는다. 확인: C2·C4에서 확인 창 모양. |
 | `Touch_Targets` | AQ2, 시험 T-Touch_Targets | 터치 대상이 48dp 이상이고 어떤 표시 크기에서도 가려지지 않는다. | 권장 | 예(이슈 #2) | `Touch_Target_Size`와 같이 충족. 두 창 모드에서 좁아진 창의 버튼이 가려지지 않는지 확인. |
-| `Keyboard_Navigation` | AQ2, 시험 T-Keyboard_Navigation | 주요 작업 흐름을 Tab·방향키로 끝낼 수 있다. | 권장 | 예(이슈 #2) | 창 전환·반대쪽 복사를 키보드로 할 수 있는지 검토. 확인: 외부 키보드 시험. |
+| `Keyboard_Navigation` | AQ2, 시험 T-Keyboard_Navigation | 주요 작업 흐름을 Tab·방향키로 끝낼 수 있다. | 권장 | 예(이슈 #2) | 창 전환·붙여넣기를 키보드로 할 수 있는지 검토. 확인: 외부 키보드 시험. |
 | `Keyboard_Shortcuts` | AQ2, 시험 T-Keyboard_Shortcuts | 선택·잘라내기·복사·붙여넣기·실행 취소·다시 실행에 단축키가 있다. | 권장 | 예(앱 전반) | 선택·잘라내기·복사·붙여넣기 단축키 있음 — 선택 툴바·붙여넣기 막대가 떠 있을 때만 받는다(코드 확인: Ctrl+A·X·C `res/menu/file_list_select.xml:57`·`:16`·`:24`, Ctrl+V `res/menu/file_list_paste.xml:16`, 처리 경로 `FileListFragment.kt:547-567`. 그 밖에 툴바 메뉴 Ctrl+L·R·A·H `res/menu/file_list.xml:84`·`:91`·`:98`·`:105`, 선택 모드 Ctrl+A `file_list_pick.xml:30`. 실기는 #5 T-11), 실행 취소·다시 실행 없음(해당 메뉴 항목 없음). 이슈 #12. |
 | `Keyboard_Exit` | AQ2, 시험 T-Keyboard_Exit | Esc로 대화상자·메뉴 닫기, 검색 지우기, 선택 해제 등 현재 동작을 빠져나온다. | 권장 | 예(이슈 #2) | 확인 창이 Esc로 취소되고 취소는 아무것도 바꾸지 않는지(SRS REQ-2-15). |
 | `Context_Menus` | AQ2, 시험 T-Context_Menus | 오른쪽 클릭(트랙패드 보조 탭)으로 컨텍스트 메뉴가 열린다. | 권장 | 예(앱 전반) | 기존 지원 여부 미확인. |
@@ -126,7 +126,7 @@
 | 이슈 | 관련 조항 ID | REQ ID | 비고 |
 |---|---|---|---|
 | #2 두 창 파일 목록 — 시스템 뒤로 가기·제스처 충돌 | `Back_Button_Nav`, `Back_Gesture_Nav`, GN-1, GN-2, GN-3, GN-4 | REQ-2-02, REQ-2-09, REQ-2-10, REQ-2-11 | 제외 영역을 요청하지 않으면 GN-4는 영향 없음 |
-| #2 — 큰 화면·창 크기·멀티 윈도 | `Fullscreen_Display`, `Consistent_UX`, `Display_State_Parity`, `Multi-Window_Functionality`, `Responsive_adaptive_layouts`, WSC-1, WSC-2, WSC-3 | REQ-2-03, REQ-2-04, REQ-2-05, REQ-2-06, REQ-2-12, REQ-2-17, REQ-2-20 | WSC-3: 폰 가로도 두 창 유지(오너 결정, 3장) |
+| #2 — 큰 화면·창 크기·멀티 윈도 | `Fullscreen_Display`, `Consistent_UX`, `Display_State_Parity`, `Multi-Window_Functionality`, `Responsive_adaptive_layouts`, WSC-1, WSC-2, WSC-3 | REQ-2-03, REQ-2-04, REQ-2-05, REQ-2-06, REQ-2-13, REQ-2-17, REQ-2-20 | WSC-3: 폰 가로도 두 창 유지(오너 결정, 3장) |
 | #2 — 상태 유지(회전·구성 변경) | `State_Preservation`, `Orientation_Transitions`, `Config_Changes`, `Config_Combinations` | REQ-2-04, REQ-2-05, REQ-2-15, REQ-2-18 (SRS A6) | |
 | #2 — 접근성(터치 대상·쓸기 대체·TalkBack·색 외 구분) | `Touch_Target_Size`, `Touch_Targets`, `Visual_Contrast`, `Content_Description`, `Theme_Support`, `Mouse_Trackpad_Basic`, `Keyboard_Navigation`, A11Y-1, A11Y-2, A11Y-3, A11P-1, A11P-2, A11P-3, A11P-4 | REQ-2-07, REQ-2-08, REQ-2-15, REQ-2-17, REQ-2-20 (SRS 3.3) | A11P-1은 REQ-2-20(창 표시 누르기 전환·동작 설명, 요구사항 v2 결정 Q3)으로 충족하기로 결정됨. 두 창 모드 활성화는 REQ-2-07 |
 | #2 — 확인 대화상자 | `UI_Secondary_Elements`, `Keyboard_Exit` | REQ-2-14, REQ-2-15, REQ-2-21 | 복사·이동 전 확인 창 자체를 요구하는 조항은 확인한 문서에 없다 — 확인 창은 규격 요구가 아닌 요구사항 결정이다 |
@@ -147,4 +147,5 @@
 | 2026-10-28 | v0.6 | 2.2 `Keyboard_Shortcuts` 비고를 코드 확인 결과로 갱신(받는 조건·툴바 단축키 병기 포함, 선택·잘라내기·복사·붙여넣기 있음, 실행 취소·다시 실행 없음 — 이슈 #12 PM 분류) | 설계팀 |
 | 2026-11-03 | v0.7 | 4장에 #29 행(조용한 갱신 B3, SRS REQ-29-01~13) 추가 | 설계팀 |
 | 2026-11-04 | v0.8 | 4장에 #30 행(파일 작업 표시, SRS REQ-30-01~16) 추가 | 개발팀 |
-| 2026-11-04 | v0.9 | 4장에 #36 행(파일 작업 목록, SRS REQ-36-01~19) 추가 | 개발팀 |
+| 2026-11-04 | v0.9 | 오너 결정 2026-11-04(#9 코멘트, not planned) 반영: `Display_State_Parity`는 붙여넣기·창 전환·반대쪽 경로 확인으로 충족, `Keyboard_Navigation` 검토 대상을 창 전환·붙여넣기로, 4장 #2 행에서 REQ-2-12(삭제됨)를 빼고 붙여넣기 근거 REQ-2-13을 넣음. RTL-3의 반대쪽 경로 표시는 REQ-2-17이라 유지 | 설계팀 |
+| 2026-11-04 | v0.10 | 4장에 #36 행(파일 작업 목록, SRS REQ-36-01~19) 추가 | 개발팀 |

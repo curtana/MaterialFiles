@@ -90,8 +90,7 @@ class ConfirmCopyMoveDialogFragment : AppCompatDialogFragment() {
             .setMessage(message)
             .setPositiveButton(R.string.file_list_confirm_copy_move_positive) { _, _ ->
                 listener.copyMoveFiles(
-                    args.type, confirmation.sources, confirmation.targetDirectory, args.files,
-                    args.origin
+                    args.type, confirmation.sources, confirmation.targetDirectory
                 )
             }
             .setNegativeButton(android.R.string.cancel, null)
@@ -101,13 +100,7 @@ class ConfirmCopyMoveDialogFragment : AppCompatDialogFragment() {
     companion object {
         private val TAG = ConfirmCopyMoveDialogFragment::class.java.name
 
-        fun show(
-            copy: Boolean,
-            files: FileItemSet,
-            targetDirectory: Path,
-            origin: Origin,
-            fragment: Fragment
-        ) {
+        fun show(copy: Boolean, files: FileItemSet, targetDirectory: Path, fragment: Fragment) {
             if (files.isEmpty()) {
                 return
             }
@@ -116,13 +109,11 @@ class ConfirmCopyMoveDialogFragment : AppCompatDialogFragment() {
             if (fragmentManager.findFragmentByTag(TAG) != null) {
                 return
             }
-            // Freeze the files because the paste state and the selection are mutated in place.
+            // Freeze the files because the paste state is mutated in place.
             val frozenFiles = FileItemSet().apply { addAll(files) }
             // showNow() so that the tag check above sees this dialog right away.
             ConfirmCopyMoveDialogFragment()
-                .putArgs(
-                    Args(getCopyMoveType(copy, frozenFiles), frozenFiles, targetDirectory, origin)
-                )
+                .putArgs(Args(getCopyMoveType(copy, frozenFiles), frozenFiles, targetDirectory))
                 .showNow(fragmentManager, TAG)
         }
     }
@@ -131,22 +122,10 @@ class ConfirmCopyMoveDialogFragment : AppCompatDialogFragment() {
     class Args(
         val type: CopyMoveType,
         val files: FileItemSet,
-        val targetDirectory: @WriteWith<ParcelableParceler> Path,
-        val origin: Origin
+        val targetDirectory: @WriteWith<ParcelableParceler> Path
     ) : ParcelableArgs
 
-    enum class Origin {
-        PASTE,
-        OTHER_PANE
-    }
-
     interface Listener {
-        fun copyMoveFiles(
-            type: CopyMoveType,
-            sources: List<Path>,
-            targetDirectory: Path,
-            files: FileItemSet,
-            origin: Origin
-        )
+        fun copyMoveFiles(type: CopyMoveType, sources: List<Path>, targetDirectory: Path)
     }
 }

@@ -1356,27 +1356,17 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
             return
         }
         ConfirmCopyMoveDialogFragment.show(
-            pasteState.copy, pasteState.files, targetDirectory,
-            ConfirmCopyMoveDialogFragment.Origin.PASTE, this
+            pasteState.copy, pasteState.files, targetDirectory, this
         )
     }
 
-    override fun copyMoveFiles(
-        type: CopyMoveType,
-        sources: List<Path>,
-        targetDirectory: Path,
-        files: FileItemSet,
-        origin: ConfirmCopyMoveDialogFragment.Origin
-    ) {
+    override fun copyMoveFiles(type: CopyMoveType, sources: List<Path>, targetDirectory: Path) {
         if (type == CopyMoveType.MOVE) {
             FileJobService.move(sources, targetDirectory, requireContext())
         } else {
             FileJobService.copy(sources, targetDirectory, requireContext())
         }
-        when (origin) {
-            ConfirmCopyMoveDialogFragment.Origin.PASTE -> viewModel.clearPasteState()
-            ConfirmCopyMoveDialogFragment.Origin.OTHER_PANE -> viewModel.selectFiles(files, false)
-        }
+        viewModel.clearPasteState()
     }
 
     private fun makePathListForJob(files: FileItemSet): List<Path> =

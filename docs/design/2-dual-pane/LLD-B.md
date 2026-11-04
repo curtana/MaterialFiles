@@ -5,7 +5,7 @@
 | 항목 | 내용 |
 |---|---|
 | 상태 | 구현됨(v1.3 — #6 구현 결과에 맞춘 정정, 이슈 #23) |
-| 근거 | SRS v4.7, HLD v4.7 (`docs/design/2-dual-pane/`), LLD-A v1.4, `docs/STANDARDS_TRACEABILITY.md`(develop). v1.3 정정 절(0.3, 2.3 `isSwipeEnabled`, 2.5 `menuProvider`·`searchViewExpandedLiveData`·`onCreate`·`onMenuKeyEvent`, 3장 ④, 4장, T-B17, FB-3)은 HLD v4.9 기준 |
+| 근거 | SRS v4.7, HLD v4.7 (`docs/design/2-dual-pane/`), LLD-A v1.4, `docs/STANDARDS_TRACEABILITY.md`(develop). v1.3.1 정리는 SRS v4.9, HLD v4.11 기준. v1.3 정정 절(0.3, 2.3 `isSwipeEnabled`, 2.5 `menuProvider`·`searchViewExpandedLiveData`·`onCreate`·`onMenuKeyEvent`, 3장 ④, 4장, T-B17, FB-3)은 HLD v4.9 기준 |
 | 기준 코드 | `origin/develop` a76055e (#5 머지 PR #15). 인용 줄 번호는 이 커밋 기준. **v1.3 정정 절의 줄 번호는 #6 구현이 들어간 0cca1b4(PR #22 머지)** 기준이고 그 절에 "(0cca1b4)"로 표시한다 |
 | 이슈 | #6 (하위 이슈 B, 상위 #2). #5에서 미룬 결정 F1(툴바 `MenuHost`)·F3(격자 열 수)을 포함 |
 | HLD 구성요소 | K3(나머지), K4(신규), K2·K5·K1(이 단계 몫) |
@@ -20,7 +20,7 @@
   - K2 `FileListHostFragment`: 선택 모드가 아니면 창 2를 만든다. 뒤로 가기 전달·탐색 서랍 경로 관찰이 **활성 창을 따라간다**. 검색 펼침 뒤로 가기 콜백(F1 ④)과 메뉴 키 전달(F1 ③)을 더한다.
   - K5 `FileListFragment`: **F1** 지원 액션바(`setSupportActionBar`) + 옵션 메뉴 → 툴바 `MenuHost`(HLD D2, 동등성 ①~⑥은 3장). **F3** 두 창 모드의 격자 열 수를 창 너비로. 인자에 창 번호.
   - K1 `FileListActivity`: 메뉴 키를 호스트로(F1 ③).
-- **하지 않는다**: 창 표시 줄·활성 창 표시·창 표시 누르기 전환·전환 뒤 접근성 초점 이동(K7·K9, #7), 확인 창(K6, #8), 반대쪽 복사·이동(#9). K3 `panePaths`(반대쪽 경로 게시판)는 **#7이 소유**한다(PM 결정 2026-10-29, #9가 그것을 쓴다) — 이 단계에는 읽는 곳이 없다(FB-4).
+- **하지 않는다**: 창 표시 줄·활성 창 표시·창 표시 누르기 전환·전환 뒤 접근성 초점 이동(K7·K9, #7), 확인 창(K6, #8). K3 `panePaths`(반대쪽 경로 게시판)는 **#7이 소유**한다(PM 결정 2026-10-29) — 이 단계에는 읽는 곳이 없다(FB-4).
 - 이 단계가 끝나면 두 창 모드에서 **어느 창이 활성인지 보이는 표시가 아직 없다**(K7은 #7). develop 안의 중간 상태이며 릴리스는 #7까지 묶어서 한다(PROCESS_ROLES 12장 "묶음을 끝낸 뒤 릴리스").
 
 ### 0.2 추적 — 이 단계의 몫
@@ -206,7 +206,7 @@ interface Listener {
   - `ACTION_CANCEL`: `removeCallbacks(longPressRunnable)`, `isTap = false`.
   - `return super.dispatchTouchEvent(ev)`. UP·CANCEL 뒤에 `velocityTracker.clear()`.
 - `longPressRunnable`: `isTap`이 아직 참이면 `swipeState = IGNORED`(길게 누른 뒤 끌어도 쓸기로 보지 않음), `listener?.onPaneActivated(downPane)`.
-- **길게 누르기 결정**(HLD 3.4가 LLD에 맡긴 것): 비활성 창에서 슬롭 안에 머문 채 길게 누르기 시간이 지나면 **그 창을 활성으로 한다**. 이유: 길게 누르기는 선택을 시작하고(`FileListAdapter.kt:246-252`), 그 선택에 작용하는 뒤로 가기·키보드 단축키·#9 반대쪽 명령은 활성 창 기준이다 — 선택이 비활성 창에 생기면 뒤로 가기로 선택을 풀 수 없다. K4는 DOWN을 받은 `dispatchTouchEvent`에서 **`super.dispatchTouchEvent(ev)`를 부르기 전에** `postDelayed(longPressRunnable, longPressTimeout)`을 건다. 자식 뷰의 길게 누르기 판정(`View`의 길게 누르기 확인 콜백)은 그 뒤 `super` 안에서 같은 지연 이상으로 걸린다(스크롤 컨테이너 안이면 누름 확인 지연 뒤에 건다). 같은 메인 루퍼에서 만기 시각이 같거나 늦고 먼저 걸린 메시지가 먼저 실행되므로 K4의 활성화가 항상 먼저다 → 선택은 이미 활성인 창에서 시작된다. 구현은 이 호출 순서(`postDelayed` → `super`)를 지켜야 한다. 접근성 서비스는 터치 없이 클릭을 보내므로 이 경로와 무관(아래 `onRequestSendAccessibilityEvent`).
+- **길게 누르기 결정**(HLD 3.4가 LLD에 맡긴 것): 비활성 창에서 슬롭 안에 머문 채 길게 누르기 시간이 지나면 **그 창을 활성으로 한다**. 이유: 길게 누르기는 선택을 시작하고(`FileListAdapter.kt:246-252`), 그 선택에 작용하는 뒤로 가기·키보드 단축키는 활성 창 기준이다 — 선택이 비활성 창에 생기면 뒤로 가기로 선택을 풀 수 없다. K4는 DOWN을 받은 `dispatchTouchEvent`에서 **`super.dispatchTouchEvent(ev)`를 부르기 전에** `postDelayed(longPressRunnable, longPressTimeout)`을 건다. 자식 뷰의 길게 누르기 판정(`View`의 길게 누르기 확인 콜백)은 그 뒤 `super` 안에서 같은 지연 이상으로 걸린다(스크롤 컨테이너 안이면 누름 확인 지연 뒤에 건다). 같은 메인 루퍼에서 만기 시각이 같거나 늦고 먼저 걸린 메시지가 먼저 실행되므로 K4의 활성화가 항상 먼저다 → 선택은 이미 활성인 창에서 시작된다. 구현은 이 호출 순서(`postDelayed` → `super`)를 지켜야 한다. 접근성 서비스는 터치 없이 클릭을 보내므로 이 경로와 무관(아래 `onRequestSendAccessibilityEvent`).
 - **기존 코드와의 관계**: 자식 클릭 처리는 그대로(`super`). 탭에서 활성화한 뒤 UP이 넘어가므로 그 UP으로 실행되는 클릭(파일 열기, 툴바 메뉴)은 이미 활성인 창에서 실행된다(HLD 3.4).
 
 ##### `DualPaneLayout.onInterceptTouchEvent(ev: MotionEvent): Boolean` (override)
@@ -496,3 +496,4 @@ SRS·HLD는 고치지 않았다. 아래는 설계팀·PM에 넘길 것이다(동
 | 2026-10-29 | v1.1 | `isLongPressed` 삭제, 길게 누르기 선후 근거 정정(`super` 전 `postDelayed`), `Args.paneIndex` 기본값 제거, T-B02(K3 무시 갈래), T-B04(600dp 경계를 세로로), T-B15(3버튼 인셋 기록) 보강, 6장에 `[판단]` 대기 항목 | LLD 1회차 검수 `[기계]` 2·3·5·8·9 | 검수팀 |
 | 2026-10-29 | v1.2 | PM 결정 반영: FB-3·FB-5 결정 표기, FB-4 `panePaths` #7 소유, FB-6 JUnit 승인 → 1장 8·9행(`app/build.gradle`, `DualPaneLayoutTest.kt`, 합계 9개)·5.1 필수·T-B00, 순수 함수를 파일 수준으로, 제외 (d)를 `ViewGroup`으로 좁힘·T-B08 마키, 호스트 `paneMode` 초기화(2.4 4-1), 6장 결정 기록 | PR #17 코멘트 6473369587 "PM 결정" | PM |
 | 2026-11-01 | v1.3 | #6 구현(0cca1b4)에 맞춘 정정: 상태 "구현됨", 0.3 뒤로 가기의 두 차이(API 33 이상 서랍 + 검색의 뒤로 키 두 번, 검색 키보드 표시 중 두 번), 4.1·4.2를 `DrawerLayout`·`Toolbar`의 `PRIORITY_OVERLAY` 콜백 기준으로 고쳐 API별 순서로, 3장 ④, T-B17 기대값과 (4) 추가, FB-3 결정 정정, 2.5 `searchViewExpandedLiveData`를 창 안 미러로(lifecycle 2.9 `switchMap` 즉시 변환), 작은 차이 3건(2.5 `onToolbarMenuItemSelected` private 함수, `onMenuKeyEvent`의 `view == null` 가드, 2.3 `isSwipeEnabled` setter의 `requestLayout()`)과 `onCreate` 삭제, 2.3 `FAST_SCROLL_TOUCH_WIDTH_DP` 근거·7장 R2의 `afs_min_touch_target_size` 값(앱이 24dp로 덮어씀) | 이슈 #23, PR #22 코멘트 6551291116(뒤로 가기 두 건 오너, 미러 PM) | PM |
+| 2026-11-04 | v1.3.1 | 0.1에서 반대쪽 복사·이동(#9) 몫 삭제, 2.3 길게 누르기 결정 근거에서 #9 반대쪽 명령 삭제(근거는 뒤로 가기로 선택을 푸는 경로로 유지) | 오너 결정 2026-11-04, #9 not planned | PM |
