@@ -499,7 +499,7 @@ data class FileJobRow(val id: Int, val info: FileJobInfo, val status: FileJobRow
 - **오류**: 없음. 표시를 지워도 작업의 멈춤은 `isCanceled`가 맡는다(K16). 복사가 이미 실패한 경로만 지나므로 취소되지 않은 작업은 같다(SRS C-1).
 - **대가**: 취소된 작업 스레드가 닫기에서 서버 응답을 라이브러리 시간 제한까지 기다릴 수 있다(smbj는 `SmbConfig.DEFAULT_TIMEOUT` 60초이고 앱이 `SmbConfig`를 만드는 곳이 없다. sshj·okhttp는 미확인). 줄은 이미 "취소됨"이고 화면을 막지 않는다.
 - **넣지 않는 곳**: 로컬(`syscall`은 표시를 보지 않음), FTP(`commons-net` 소켓 입출력, 실기 미확인), SAF(`ContentResolver` 호출). 실기 확인은 T1·T13.
-- **남는 관찰**: SFTP 쓰기 쪽이 끼어들리면 `FileByteChannel`의 `closeSafe`가 표시가 켜진 채 돌아 핸들이 서버에 남을 수 있다. 열린 파일 삭제를 막는 서버에서만 토스트가 난다(T13). 압축은 안쪽 `use`(`FileJobs.kt:636-637`)의 채널 닫기가 표시가 켜진 채 돌아 같은 일이 원격 압축 파일에 생길 수 있다. 표시를 그 앞에서 지우려면 `use` 구조를 바꿔야 하므로 지금은 T13에서 관찰한다.
+- **남는 관찰**: SFTP 쓰기 쪽이 끼어들리면 `FileByteChannel`의 `closeSafe`가 표시가 켜진 채 돌아 핸들이 서버에 남을 수 있다. 열린 파일 삭제를 막는 서버에서만 토스트가 난다(T13). 압축은 안쪽 `use`(`FileJobs.kt:634-635`)의 채널 닫기가 표시가 켜진 채 돌아 같은 일이 원격 압축 파일에 생길 수 있다. 표시를 그 앞에서 지우려면 `use` 구조를 바꿔야 하므로 지금은 T13에서 관찰한다.
 
 ### 2.15 K15 추적표
 `docs/STANDARDS_TRACEABILITY.md` 4장에 #36 행을 넣는다: SRS 5장 조항, REQ-36-01~16, 새 권한·편차 없음. 구현 PR에서 한다.
