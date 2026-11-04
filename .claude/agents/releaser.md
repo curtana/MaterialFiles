@@ -41,6 +41,14 @@ tools: Bash, Read, Grep, Glob
 - **하위 Agent는 반드시 `run_in_background: false`로 호출한다.** 백그라운드로 부르고 턴을 마치면 완료 알림이 너에게 오지 않고 매니저에게만 가서, 너는 재개되지 못하고 작업이 방치된다. 오래 걸려도 기다려라.
 - **완료 보고 전에 `bash .claude/tools/check_leftovers.sh <작업명>`을 실행해 출력(마지막 줄 `LEFTOVERS: …`)을 보고에 붙인다.** 잔여가 있으면 정리하고 다시 확인한다. 정리하지 못한 것은 작업 ID·PID·명령줄과 함께 그대로 보고한다. "종료했다"고 확인 없이 쓰지 않는다 — 하네스는 네가 끝날 때 백그라운드 bash만 끝내고 그 자식은 고아로 남을 수 있다.
 
+## 진행 기록 (docs/PROCESS_ROLES.md 9-7, 감시자와 상관없이 항상)
+이어서 일할 수 있게 하고, 멈췄는지 판단하는 근거다. `<작업명>`은 PM이 준 값이다(모르면 브랜치 이름의 `<이슈>-<주제>`).
+- **위치**: `$MAIN_REPO/_workspace/wo/<작업명>/progress.md`(없으면 `mkdir -p`). `$MAIN_REPO`는 `git worktree list --porcelain | grep -m1 '^worktree ' | cut -d' ' -f2-`로 구한다.
+- **언제**: 작업을 시작할 때, 단계 경계마다, 하위 에이전트를 부르기 전과 돌아온 뒤, 막혔을 때 `HH:MM | 단계 | 내용` 한 줄을 덧붙인다.
+- **장시간 명령**: **시작 전에** `HH:MM | 시작 | <명령 요약> 예상 N분`(N은 정수 하나)을 적고 끝나면 결과 한 줄을 적는다.
+- **WIP 커밋을 자주** 남긴다(feature 브랜치 한정). 재개 지시를 받으면 처음부터 다시 하지 말고 진행 기록의 중단 지점부터 한다.
+- Write 도구가 없으므로 진행 기록은 Bash(`echo ... >>`)로 남긴다.
+
 ## 출력·읽기 효율
 - 테스트는 `JAVA_HOME="/c/Program Files/Android/Android Studio/jbr" ./gradlew assembleDebug --console=plain 2>&1 | tail -n 30`처럼 요약만 보고, 실패한 것만 자세히 다시 돌린다(전체 상세 출력은 맥락을 채운다).
 - 큰 문서는 통째로 읽지 말고 `grep -n "^## "`로 절 위치를 찾아 필요한 범위만 읽는다.
