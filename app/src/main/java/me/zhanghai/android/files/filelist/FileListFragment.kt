@@ -172,6 +172,9 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
 
     private lateinit var adapter: FileListAdapter
 
+    // The file list state that the current view received last, for not repeating failure toasts.
+    private var lastFileListStateful: Stateful<List<FileItem>>? = null
+
     private val debouncedSearchRunnable = DebouncedRunnable(Handler(Looper.getMainLooper()), 1000) {
         if (!isResumed || !viewModel.isSearchViewExpanded) {
             return@DebouncedRunnable
@@ -349,11 +352,13 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
         dualPaneViewModel.paneModeLiveData.observe(viewLifecycleOwner) {
             updateSpanCount()
             schedulePaneIndicatorUpdate()
+            updateFileListObserved()
         }
         // The pane indicator stays hidden without a second pane.
         if (dualPaneViewModel.isDualPaneEnabled) {
             dualPaneViewModel.activePaneLiveData.observe(viewLifecycleOwner) {
                 schedulePaneIndicatorUpdate()
+                updateFileListObserved()
             }
             dualPaneViewModel.getPanePathLiveData(otherPaneIndex(args.paneIndex))
                 .observe(viewLifecycleOwner) { schedulePaneIndicatorUpdate() }
@@ -366,6 +371,7 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
         viewModel.selectedFilesLiveData.observe(viewLifecycleOwner) { onSelectedFilesChanged(it) }
         viewModel.pasteStateLiveData.observe(viewLifecycleOwner) { onPasteStateChanged(it) }
         Settings.FILE_NAME_ELLIPSIZE.observe(viewLifecycleOwner) { onFileNameEllipsizeChanged(it) }
+        lastFileListStateful = null
         viewModel.fileListLiveData.observe(viewLifecycleOwner) { onFileListChanged(it) }
         Settings.FILE_LIST_SHOW_HIDDEN_FILES.observe(viewLifecycleOwner) {
             onShowHiddenFilesChanged(it)
@@ -627,6 +633,15 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
         binding.paneIndicatorLayout.post(paneIndicatorUpdateRunnable)
     }
 
+    // The pane hidden in single pane mode keeps its state but doesn't need to reload its file list
+    // upon every change, e.g. while a file is being copied into its directory. It reloads once
+    // when it's shown again if anything changed meanwhile.
+    private fun updateFileListObserved() {
+        viewModel.isFileListObserved = isPaneShown(
+            dualPaneViewModel.paneMode.isDualPane, args.paneIndex, dualPaneViewModel.activePane
+        )
+    }
+
     private fun updatePaneIndicator() {
         val mode = getPaneIndicatorMode(
             dualPaneViewModel.isDualPaneEnabled, dualPaneViewModel.paneMode.isDualPane,
@@ -732,6 +747,8 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
     }
 
     private fun onFileListChanged(stateful: Stateful<List<FileItem>>) {
+        val previousStateful = lastFileListStateful
+        lastFileListStateful = stateful
         val files = stateful.value
         val isSearching = viewModel.searchState.isSearching
         when {
@@ -748,7 +765,11 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
             throwable.printStackTrace()
             val error = throwable.toString()
             if (hasFiles) {
-                showToast(error)
+                if (shouldNotifyFailure(
+                        previousStateful, stateful, viewModel.isExplicitLoadFailure(stateful)
+                    )) {
+                    showToast(error)
+                }
             } else {
                 binding.errorText.text = error
             }

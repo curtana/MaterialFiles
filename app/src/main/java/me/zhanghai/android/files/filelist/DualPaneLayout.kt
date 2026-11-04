@@ -175,7 +175,11 @@ class DualPaneLayout @JvmOverloads constructor(
     private fun applyChildVisibility() {
         for (index in 0 until childCount) {
             val child = getChildAt(index)
-            val visibility = if (isDualPane || index == activePane) View.VISIBLE else View.GONE
+            val visibility = if (isPaneShown(isDualPane, index, activePane)) {
+                View.VISIBLE
+            } else {
+                View.GONE
+            }
             if (child.visibility != visibility) {
                 child.visibility = visibility
             }
@@ -509,6 +513,13 @@ class DualPaneLayout @JvmOverloads constructor(
         const val FAST_SCROLL_TOUCH_WIDTH_DP = 48
     }
 }
+
+/**
+ * Whether a pane is shown: both panes are shown in dual pane mode, and only the active pane is
+ * shown otherwise.
+ */
+internal fun isPaneShown(isDualPane: Boolean, paneIndex: Int, activePane: Int): Boolean =
+    isDualPane || paneIndex == activePane
 
 /**
  * Whether the available width is wide enough for two panes. This is a file level function so that

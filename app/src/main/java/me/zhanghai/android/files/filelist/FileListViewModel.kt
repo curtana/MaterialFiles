@@ -68,6 +68,15 @@ class FileListViewModel : ViewModel() {
     val fileListStateful: Stateful<List<FileItem>>
         get() = _fileListLiveData.valueCompat
 
+    fun isExplicitLoadFailure(stateful: Stateful<List<FileItem>>): Boolean =
+        _fileListLiveData.isExplicitLoadFailure(stateful)
+
+    var isFileListObserved: Boolean
+        get() = _fileListLiveData.isSourceObserved
+        set(value) {
+            _fileListLiveData.isSourceObserved = value
+        }
+
     fun reload() {
         val path = currentPath
         if (path.isArchivePath) {
@@ -233,6 +242,22 @@ class FileListViewModel : ViewModel() {
     ) : MediatorLiveData<Stateful<List<FileItem>>>(), Closeable {
         private var liveData: CloseableLiveData<Stateful<List<FileItem>>>? = null
 
+        // When not observed, the source becomes inactive and only remembers that it has changed,
+        // and our value stays the last one we got.
+        var isSourceObserved = true
+            set(value) {
+                if (field == value) {
+                    return
+                }
+                field = value
+                val liveData = liveData ?: return
+                if (value) {
+                    addSource(liveData) { this.value = it }
+                } else {
+                    removeSource(liveData)
+                }
+            }
+
         init {
             addSource(pathLiveData) { updateSource() }
             addSource(searchStateLiveData) { updateSource() }
@@ -251,8 +276,19 @@ class FileListViewModel : ViewModel() {
                 FileListLiveData(path)
             }
             this.liveData = liveData
-            addSource(liveData) { value = it }
+            if (isSourceObserved) {
+                addSource(liveData) { value = it }
+            } else {
+                value = liveData.value
+            }
         }
+
+        // Search results are only loaded explicitly.
+        fun isExplicitLoadFailure(stateful: Stateful<List<FileItem>>): Boolean =
+            when (val liveData = liveData) {
+                is FileListLiveData -> liveData.isExplicitLoadFailure(stateful)
+                else -> true
+            }
 
         fun reload() {
             when (val liveData = liveData) {

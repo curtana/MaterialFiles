@@ -1,6 +1,6 @@
 # 규격 추적표 — Android app quality guidelines
 
-- 상태: v0.7 (2026-11-04. v0.1~v0.2 PM 보조 작성, v0.3 오너 결정 기록, v0.4 4장 #2 행 REQ ID, v0.5 Q7~Q9 오너 결정, v0.6 `Keyboard_Shortcuts` 비고, v0.7 4장 #30 행 — 5장 이력). 조항 해석·필수 여부 판정은 오너 승인 사항이다(PROCESS_ROLES 부록 S).
+- 상태: v0.8 (2026-11-04. v0.1~v0.2 PM 보조 작성, v0.3 오너 결정 기록, v0.4 4장 #2 행 REQ ID, v0.5 Q7~Q9 오너 결정, v0.6 `Keyboard_Shortcuts` 비고, v0.7 4장 #29 행, v0.8 4장 #30 행 — 5장 이력). 조항 해석·필수 여부 판정은 오너 승인 사항이다(PROCESS_ROLES 부록 S).
 - 작성 규칙: 원문 문장은 옮기지 않고 한국어 요지만 적는다. 아래 근거 문서에서 직접 확인하지 못한 내용은 "원문 판독 필요"로 둔다.
 - 결과 로직을 바꾸는 PR은 이 표를 같은 PR에서 고친다(부록 S).
 
@@ -131,6 +131,7 @@
 | #2 — 접근성(터치 대상·쓸기 대체·TalkBack·색 외 구분) | `Touch_Target_Size`, `Touch_Targets`, `Visual_Contrast`, `Content_Description`, `Theme_Support`, `Mouse_Trackpad_Basic`, `Keyboard_Navigation`, A11Y-1, A11Y-2, A11Y-3, A11P-1, A11P-2, A11P-3, A11P-4 | REQ-2-07, REQ-2-08, REQ-2-15, REQ-2-17, REQ-2-20 (SRS 3.3) | A11P-1은 REQ-2-20(창 표시 누르기 전환·동작 설명, 요구사항 v2 결정 Q3)으로 충족하기로 결정됨. 두 창 모드 활성화는 REQ-2-07 |
 | #2 — 확인 대화상자 | `UI_Secondary_Elements`, `Keyboard_Exit` | REQ-2-14, REQ-2-15, REQ-2-21 | 복사·이동 전 확인 창 자체를 요구하는 조항은 확인한 문서에 없다 — 확인 창은 규격 요구가 아닌 요구사항 결정이다 |
 | #2 — RTL | RTL-1, RTL-2, RTL-3, RTL-4, RTL-5 | REQ-2-06, REQ-2-07, REQ-2-11의 방향(SRS A2), REQ-2-15·17의 경로 표시 (SRS 3.5) | RTL-5는 원문 판독 필요 |
+| #29 목록 자동 새로 고침의 조용한 갱신(B3) | `Stability_ANR`, `Consistent_UX`, A11P-4 | REQ-29-01~13 (`docs/design/29-list-refresh/SRS.md`) | 새 UI·문구·권한 없음. 조용한 성공을 화면 낭독에 알리지 않는 것(REQ-29-13)은 요구사항 결정이며, 상태 변화 낭독에 관한 조항은 확인한 문서에 없다 — 원문 판독 필요(A11P-4) |
 | #30 파일 작업 표시(툴바의 달리는 선 사람) | `Theme_Support`, `Visual_Contrast`, `Content_Description`, `Consistent_UX`, `Display_State_Parity`, `Stability_ANR`, `Minimize_Permissions`, `Touch_Target_Size`(해당 없음), A11Y-2, A11Y-3, A11P-2, A11P-4, RTL-1, RTL-2, RTL-4 | REQ-30-01~16 (`docs/design/30-job-runner/SRS.md` v1.3 5장) | 새 권한 없음. 모션 줄이기·상태 변화 낭독은 추적표에 조항이 없어 원문 판독 필요(요구사항 결정으로 둠). 새 편차 없음 |
 
 ## 5. 변경 이력
@@ -143,4 +144,5 @@
 | 2026-10-28 | v0.4 | 머리 상태 표기를 판과 맞춤. 2.2 `Mouse_Trackpad_Basic`·2.3 A11P-1·RTL-5 행의 상태 표현을 결정 사항으로 정리. 4장 #2 행의 REQ ID 열을 SRS v4.4(브랜치 `design/2-dual-pane`, PR #3) 기준으로 채움. 접근성 행 비고를 결정 사항(A11P-1 → REQ-2-20)으로 고침 | 설계팀 |
 | 2026-10-28 | v0.5 | 오너 결정 Q7~Q9 반영(편차 행 서술을 기존 동작 기준으로 정리 포함): 3장 편차 등록부에 "해소 이슈" 열 추가와 `State_Preservation` 편차 행(해소 #11), 2.1 `State_Preservation` 행의 "오너 확인" 표현 정리, 2.2 `Responsive_adaptive_layouts` 비고를 "편차 아님(오너 결정)"으로 | 설계팀 |
 | 2026-10-28 | v0.6 | 2.2 `Keyboard_Shortcuts` 비고를 코드 확인 결과로 갱신(받는 조건·툴바 단축키 병기 포함, 선택·잘라내기·복사·붙여넣기 있음, 실행 취소·다시 실행 없음 — 이슈 #12 PM 분류) | 설계팀 |
-| 2026-11-04 | v0.7 | 4장에 #30 행(파일 작업 표시, SRS REQ-30-01~16) 추가 | 개발팀 |
+| 2026-11-03 | v0.7 | 4장에 #29 행(조용한 갱신 B3, SRS REQ-29-01~13) 추가 | 설계팀 |
+| 2026-11-04 | v0.8 | 4장에 #30 행(파일 작업 표시, SRS REQ-30-01~16) 추가 | 개발팀 |
