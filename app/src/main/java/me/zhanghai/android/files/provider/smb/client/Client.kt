@@ -35,6 +35,7 @@ import com.rapid7.client.dcerpc.transport.SMBTransportFactories
 import java8.nio.channels.SeekableByteChannel
 import jcifs.context.SingletonContext
 import me.zhanghai.android.files.provider.common.CloseableIterator
+import me.zhanghai.android.files.provider.common.closeReportingFailure
 import me.zhanghai.android.files.provider.common.copyTo
 import me.zhanghai.android.files.provider.common.newInputStream
 import me.zhanghai.android.files.provider.common.newOutputStream
@@ -320,7 +321,8 @@ object Client {
         copyAttributes: Boolean,
         openReparsePoint: Boolean,
         intervalMillis: Long,
-        listener: ((Long) -> Unit)?
+        listener: ((Long) -> Unit)?,
+        cleanupFailureListener: (() -> Unit)?
     ) {
         val sourceSharePath = source.sharePath
             ?: throw ClientException("$source does not have a share path")
@@ -369,7 +371,11 @@ object Client {
                 } catch (e: SMBRuntimeException) {
                     throw ClientException(e)
                 }
-                targetFile.use {
+                // The server deletes the file on close, so the outcome is unknown if close fails.
+                var isDeleteRequested = false
+                Closeable {
+                    targetFile.closeReportingFailure({ isDeleteRequested }, cleanupFailureListener)
+                }.use {
                     var successful = false
                     try {
                         if (sourceSession == targetSession) {
@@ -400,10 +406,15 @@ object Client {
                         successful = true
                     } finally {
                         if (!successful) {
+                            // SMBJ restores the interrupted status, which would make the cleanup
+                            // fail immediately. The job is stopped by isCanceled.
+                            Thread.interrupted()
                             try {
                                 targetFile.deleteOnClose()
+                                isDeleteRequested = true
                             } catch (e: SMBRuntimeException) {
                                 e.printStackTrace()
+                                cleanupFailureListener?.invoke()
                             }
                         }
                     }

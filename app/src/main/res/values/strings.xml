@@ -70,6 +70,56 @@
     <string name="notification_channel_background_activity_start_description">Take actions while app is in the background</string>
     <string name="notification_channel_file_job_name">File operations</string>
     <string name="notification_channel_file_job_description">Display and control file operations</string>
+    <string name="file_job_indicator_running_description">File operation in progress</string>
+    <string name="file_job_indicator_succeeded_description">File operation finished</string>
+    <string name="file_job_indicator_failed_description">File operation failed or canceled</string>
+    <string name="file_job_list_title">File operations</string>
+    <string name="file_job_list_cancel_all">Cancel all</string>
+    <string name="file_job_list_empty">No file operations</string>
+    <string name="file_job_list_cancel_description_format">Cancel %1$s</string>
+    <string name="file_job_list_title_format">%1$s · %2$s</string>
+    <plurals name="file_job_list_subject_multiple_format">
+        <item quantity="one">%1$s and %2$,d more</item>
+        <item quantity="other">%1$s and %2$,d more</item>
+    </plurals>
+    <string name="file_job_list_destination_format" translatable="false">%1$s → %2$s</string>
+    <string name="file_job_list_destination_format_rtl" translatable="false">%1$s ← %2$s</string>
+    <string name="file_job_list_type_copy">Copy</string>
+    <string name="file_job_list_type_extract">Extract</string>
+    <string name="file_job_list_type_move">Move</string>
+    <string name="file_job_list_type_archive">Compress</string>
+    <string name="file_job_list_type_delete">Delete</string>
+    <string name="file_job_list_type_create">Create</string>
+    <string name="file_job_list_type_rename">Rename</string>
+    <string name="file_job_list_type_open">Open</string>
+    <string name="file_job_list_type_install_apk">Install APK</string>
+    <string name="file_job_list_type_save">Save</string>
+    <string name="file_job_list_type_write">Write</string>
+    <string name="file_job_list_type_set_owner">Change owner</string>
+    <string name="file_job_list_type_set_group">Change group</string>
+    <string name="file_job_list_type_set_mode">Change permissions</string>
+    <string name="file_job_list_type_set_selinux_context">Change SELinux context</string>
+    <string name="file_job_list_type_restore_selinux_context">Restore SELinux context</string>
+    <string name="file_job_list_status_pending">Waiting</string>
+    <string name="file_job_list_status_running">In progress</string>
+    <plurals name="file_job_list_status_scanning_format">
+        <item quantity="one">Preparing · %1$,d file · %2$s</item>
+        <item quantity="other">Preparing · %1$,d files · %2$s</item>
+    </plurals>
+    <string name="file_job_list_status_size_format">%1$d%% · %2$s / %3$s</string>
+    <string name="file_job_list_status_size_multiple_format">%1$d%% · %2$s / %3$s · File %4$,d / %5$,d</string>
+    <string name="file_job_list_status_count_format">%1$d%% · %2$,d / %3$,d</string>
+    <string name="file_job_list_outcome_succeeded">Done</string>
+    <string name="file_job_list_outcome_canceled">Canceled</string>
+    <string name="file_job_list_outcome_failed">Failed</string>
+    <string name="file_job_list_outcome_cleanup_failed_format">%1$s · Some files couldn’t be deleted</string>
+    <string name="file_job_end_toast_format">%1$s: %2$s</string>
+    <string name="file_job_interrupted_toast">File operation was interrupted before finishing, possibly due to a network timeout</string>
+    <string name="file_job_cleanup_failed_toast_format">Couldn’t delete “%1$s” in “%2$s”</string>
+    <plurals name="file_job_cleanup_failed_multiple_toast_format">
+        <item quantity="one">Couldn’t delete “%1$s” and %3$,d more in “%2$s”</item>
+        <item quantity="other">Couldn’t delete “%1$s” and %3$,d more in “%2$s”</item>
+    </plurals>
     <string name="notification_channel_ftp_server_name">FTP server</string>
     <string name="notification_channel_ftp_server_description">Display and control the FTP server</string>
 
@@ -317,6 +367,34 @@
     <string name="file_list_paste_copy_title_format">Copying %1$,d</string>
     <string name="file_list_paste_extract_title_format">Extracting %1$,d</string>
     <string name="file_list_paste_action_extract_here">Extract here</string>
+    <string name="file_list_confirm_copy_move_copy_title" translatable="false">@string/copy</string>
+    <string name="file_list_confirm_copy_move_extract_title" translatable="false">@string/file_item_action_extract</string>
+    <string name="file_list_confirm_copy_move_move_title">Move</string>
+    <string name="file_list_confirm_copy_move_item_name_format">“%1$s”</string>
+    <plurals name="file_list_confirm_copy_move_item_count_format">
+        <item quantity="one">%1$,d item</item>
+        <item quantity="other">%1$,d items</item>
+    </plurals>
+    <plurals name="file_list_confirm_copy_move_locations_format">
+        <item quantity="one">%1$s and %2$,d other location</item>
+        <item quantity="other">%1$s and %2$,d other locations</item>
+    </plurals>
+    <string name="file_list_confirm_copy_move_from_to_format">%1$s → %2$s</string>
+    <string name="file_list_confirm_copy_move_to_format">To %1$s</string>
+    <string name="file_list_confirm_copy_move_same_directory_all">The target is the same folder as the original location.</string>
+    <plurals name="file_list_confirm_copy_move_same_directory_some_format">
+        <item quantity="one">The original location of %1$,d item is the same folder as the target.</item>
+        <item quantity="other">The original location of %1$,d items is the same folder as the target.</item>
+    </plurals>
+    <string name="file_list_confirm_copy_move_positive">Start</string>
+    <string name="file_list_pane_switcher_format" translatable="false">%1$d / %2$d</string>
+    <string name="file_list_pane_switcher_description_format">Pane %1$d of %2$d</string>
+    <string name="file_list_pane_switcher_action_format">Switch to pane %1$d</string>
+    <string name="file_list_pane_name_format">Pane %1$d</string>
+    <string name="file_list_pane_name_active_format">Pane %1$d · Active</string>
+    <string name="file_list_pane_name_active_description_format">Pane %1$d, active</string>
+    <string name="file_list_pane_activate_action">Make this the active pane</string>
+    <string name="file_list_pane_other_path_format">Pane %1$d: %2$s</string>
     <string name="file_list_empty">No files</string>
     <string name="file_list_action_create_file">File</string>
     <string name="file_list_action_create_directory">Folder</string>
@@ -754,6 +832,8 @@
     </string-array>
     <string name="settings_black_night_mode">Black night mode</string>
     <string name="settings_file_list_animation_title">File list animation</string>
+    <string name="settings_file_job_indicator_title">File operation indicator</string>
+    <string name="settings_file_job_indicator_summary">Show a running figure in the toolbar during file operations</string>
     <string name="settings_file_name_ellipsize_title">Display long file name</string>
     <string-array name="settings_file_name_ellipsize_entries">
         <item>Ellipsize the beginning</item>
