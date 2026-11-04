@@ -53,7 +53,7 @@
 | `Visual_Contrast` | CQ, 시험 T-Visual_Contrast | 큰 글자·그래픽은 3:1 이상, 작은 글자(18pt 미만, 굵게는 14pt 미만)는 4.5:1 이상 대비. | 필수 | 예(이슈 #2) | 활성 창 구분 표시와 창 번호 글자의 대비를 맞춘다. 확인: Accessibility Scanner. |
 | `Content_Description` | CQ, 시험 T-Content_Description | TextView를 뺀 모든 UI 요소에 contentDescription을 둔다. | 필수 | 예(이슈 #2) | 새 아이콘·버튼·창 표시에 설명을 단다. 확인: Lint·Accessibility Scanner. |
 | `Stability_ANR` | CQ, 시험 T-Stability_ANR | 비정상 종료나 UI 스레드 막힘이 없고, 사전 출시 보고서·Android vitals로 확인한다. | 필수 | 예 | 두 창이 각자 목록을 불러올 때 UI 스레드에서 무거운 일을 하지 않는다. 확인: 수동 시험 중 ANR·크래시 없음, StrictMode. |
-| `Target_SDK_Version`, `Compile_SDK_Version` | CQ, 시험 T-Target_SDK_Version | Play 요구에 맞는 최신 targetSdk를 지정하고 최신 SDK로 컴파일한다. | 필수 | 예 | 현재 `targetSdk 34`(`app/build.gradle:37`). Play 요구 버전과의 차이는 원문 판독 필요(Play 정책 미판독). 확인: 릴리스 전 Play 요구와 대조. |
+| `Target_SDK_Version`, `Compile_SDK_Version` | CQ, 시험 T-Target_SDK_Version | Play 요구에 맞는 최신 targetSdk를 지정하고 최신 SDK로 컴파일한다. | 필수 | 예 | 현재 `targetSdk 36`(`app/build.gradle:37`). Play 요구 버전과의 차이는 원문 판독 필요(Play 정책 미판독). 확인: 릴리스 전 Play 요구와 대조. |
 | `Minimize_Permissions` | CQ, 시험 T-Minimize_Permissions | 현재 사용 경우에 필요한 권한만 요청한다. | 필수 | 예 | 이슈 #2는 새 권한을 추가하지 않는다(SRS 3.1). 확인: PR의 매니페스트 diff. |
 | `Graceful_Degradation` | CQ, 시험 T-Graceful_Degradation | 권한을 거부·회수해도 다른 경로로 계속 동작한다. | 필수 | 예 | 기존 동작 유지. 확인: 저장소 권한 거부 상태에서 앱이 막히지 않는지. |
 | `Component_Export` | CQ, 시험 T-Component_Export | 모든 컴포넌트에 `android:exported`를 명시하고 필요한 것만 내보낸다. | 필수 | 예 | 새 컴포넌트를 추가하면 명시. 확인: 매니페스트 검사. |
@@ -149,4 +149,4 @@
 | 2026-11-04 | v0.8 | 4장에 #30 행(파일 작업 표시, SRS REQ-30-01~16) 추가 | 개발팀 |
 | 2026-11-04 | v0.9 | 오너 결정 2026-11-04(#9 코멘트, not planned) 반영: `Display_State_Parity`는 붙여넣기·창 전환·반대쪽 경로 확인으로 충족, `Keyboard_Navigation` 검토 대상을 창 전환·붙여넣기로, 4장 #2 행에서 REQ-2-12(삭제됨)를 빼고 붙여넣기 근거 REQ-2-13을 넣음. RTL-3의 반대쪽 경로 표시는 REQ-2-17이라 유지 | 설계팀 |
 | 2026-11-04 | v0.10 | 4장에 #36 행(파일 작업 목록, SRS REQ-36-01~19) 추가 | 개발팀 |
-| 2026-11-04 | v0.11 | 4장 #29 행에 A1·A2 결함 수정 명시. 조항 해석 변경 없음 | 설계팀 |
+| 2026-11-04 | v0.11 | 4장 #29 행에 A1·A2 결함 수정 명시, `Target_SDK_Version` 비고의 현재 값을 36으로(#25). 조항 해석 변경 없음 | 설계팀 |
