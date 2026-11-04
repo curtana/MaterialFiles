@@ -4,25 +4,24 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 결정 반영(v1.3.2 — 7장 v1.3.2는 문구 정정만) — F1 오너 확정, F3 오너 승인, F5 PM 승인(PR #16 코멘트 6473368985·정정 6473374204). v1.2 검수 통과, v1.3 바뀐 절 재검수 |
-| 근거 | SRS v4.7, HLD v4.7 (`docs/design/2-dual-pane/`), LLD-A v1.4(구조·확장 지점 4장) |
+| 상태 | v1.4는 #9 not planned 정리(7장). 결정 반영(v1.3.2 — 7장 v1.3.2는 문구 정정만) — F1 오너 확정, F3 오너 승인, F5 PM 승인(PR #16 코멘트 6473368985·정정 6473374204). v1.2 검수 통과, v1.3 바뀐 절 재검수 |
+| 근거 | SRS v4.7, HLD v4.7 (`docs/design/2-dual-pane/`), LLD-A v1.4(구조·확장 지점 4장). v1.4 정리는 SRS v4.9, HLD v4.11 기준 |
 | 기준 코드 | `origin/develop` a76055e (#5 화면/창 분리 머지 뒤). HLD의 `FileListFragment.kt` 줄 번호는 #5 이전 기준이라 이 문서는 a76055e에서 다시 찾은 줄을 쓴다(6장 F2). |
 | 이슈 | #8 (하위 이슈 D, 상위 #2, 선행 #5) |
 | HLD 구성요소 | K6(전부), K9(확인 창 문자열), K5(붙여넣기 경로만) |
-| 추적 REQ | REQ-2-13(붙여넣기 쪽 몫), 14, 15, 16, 21. REQ-2-12는 진입 API만(0.1) |
+| 추적 REQ | REQ-2-13(붙여넣기 쪽 몫), 14, 15, 16, 21 |
 
 ## 0. 범위와 전제
 
 ### 0.1 이 단계가 하는 것 / 하지 않는 것
-- **한다**: 새 확인 창 `ConfirmCopyMoveDialogFragment`(K6)와 그 판단 로직(순수 함수), 확인 창 문자열(K9의 확인 창 몫). 기존 붙여넣기(`FileListFragment.pasteFiles`, a76055e `:1104-1116`)가 작업을 바로 시작하지 않고 확인 창을 거치게 한다. "실행"에서 작업을 시작하는 리스너는 붙여넣기·반대쪽 명령 두 출처를 모두 처리한다(HLD K6 책임).
-- **#9(E)를 위해 준비만 한다**: 진입 API `ConfirmCopyMoveDialogFragment.show(copy, files, targetDirectory, Origin.OTHER_PANE, fragment)`와 리스너의 `OTHER_PANE` 갈래(선택 해제). #9는 선택 메뉴 항목 두 개(`res/menu/file_list_select.xml`)와 그 클릭에서 이 API를 부르는 것만 더한다. 반대쪽 경로(`DualPaneViewModel.panePaths`)는 #7 몫이다(v1.2 이후 정정: `panePaths`는 #7 소유 — LLD-B FB-4, PM 결정 PR #17. API는 LLD-C 4장).
-- **하지 않는다**: 반대쪽 복사·이동 메뉴·읽기 전용 비활성 판단(#9), 창 2·활성 창(#6), 창 표시 줄(#7). `filejob/`·`provider/`는 바꾸지 않는다(SRS C-1) — `CopyMoveType`(`filejob/FileJobs.kt:575-579`)과 `FileJobService.copy/move`(`filejob/FileJobService.kt:126-140`)를 그대로 쓴다.
+- **한다**: 새 확인 창 `ConfirmCopyMoveDialogFragment`(K6)와 그 판단 로직(순수 함수), 확인 창 문자열(K9의 확인 창 몫). 기존 붙여넣기(`FileListFragment.pasteFiles`, a76055e `:1104-1116`)가 작업을 바로 시작하지 않고 확인 창을 거치게 한다. "실행"에서 리스너가 작업을 시작하고 복사 목록을 비운다(HLD K6 책임).
+- **하지 않는다**: 창 2·활성 창(#6), 창 표시 줄(#7). `filejob/`·`provider/`는 바꾸지 않는다(SRS C-1) — `CopyMoveType`(`filejob/FileJobs.kt:575-579`)과 `FileJobService.copy/move`(`filejob/FileJobService.kt:126-140`)를 그대로 쓴다.
 
 ### 0.2 추적 — 이 단계의 몫
 | REQ | 이 단계의 몫 | 확인 |
 |---|---|---|
 | REQ-2-13 | 공유 복사 목록에서의 붙여넣기가 확인 창을 거친다. 공유 자체는 이미 된다(HLD K8, 변경 없음). | T-02, T-20 |
-| REQ-2-14 | 모든 붙여넣기(복사·이동·압축 풀기)에서 확인 창. 확인 창이 떠 있는 동안 작업이 시작되지 않는다(작업 시작은 "실행" 콜백 안에만 있다). 반대쪽 명령은 #9가 같은 API로 연다. | T-02~T-05, T-17 |
+| REQ-2-14 | 모든 붙여넣기(복사·이동·압축 풀기)에서 확인 창. 확인 창이 떠 있는 동안 작업이 시작되지 않는다(작업 시작은 "실행" 콜백 안에만 있다). | T-02~T-05, T-17 |
 | REQ-2-15 | 종류·항목 수(1개면 이름)·원래 위치 → 대상, 버튼 취소/실행, 취소·뒤로·바깥·Esc는 아무것도 바꾸지 않음, 회전 유지, 전체 폭 아님, 버튼 48dp. | T-02, T-03, T-06, T-07, T-16 |
 | REQ-2-16 | 확인 창은 충돌을 미리 검사하지 않는다. "실행" 뒤 작업 스레드에서 기존 충돌 창(`FileJobs.kt:549-573`, 호출 `:1328`)이 뜬다. | T-10 |
 | REQ-2-21 | 같은 폴더 안내(전부·일부·없음), 실행은 막지 않음. 판정 값과 작업에 넘기는 값이 같다(2.1). | T-08, T-09, T-11, T-12 |
@@ -46,7 +45,7 @@
 
 - 7개(신규 3, 수정 4) — 5개 초과라 이 표로 범위를 알린다(PROCESS_ROLES 11-1 — 구현 착수 전 PM에게 이 표로 알린다). `provider/`·`filejob/`·JNI·레이아웃은 건드리지 않는다. `app/build.gradle`은 테스트 의존성 한 줄만(APK에 들어가지 않음). 새 권한·설정 키·런타임 의존성 없음.
 - 단위 테스트(3.2)는 **필수**다(F3 오너 승인 2026-10-29). 실행: `JAVA_HOME="/c/Program Files/Android/Android Studio/jbr" ./gradlew testDebugUnitTest --console=plain 2>&1 | tail -n 30`.
-- 바꾸지 않지만 관계있는 것: `ConfirmDeleteFilesDialogFragment.kt`(같은 모양의 본보기, `:21-65`), `util/DialogFragmentExtensions.kt:11-13`(`show(fragment)` = 자식 FragmentManager), `FileListViewModel.kt:195-220`(`pasteState`·`clearPasteState`), `:154-174`(`selectFiles`), `PasteState.kt`.
+- 바꾸지 않지만 관계있는 것: `ConfirmDeleteFilesDialogFragment.kt`(같은 모양의 본보기, `:21-65`), `util/DialogFragmentExtensions.kt:11-13`(`show(fragment)` = 자식 FragmentManager), `FileListViewModel.kt:195-220`(`pasteState`·`clearPasteState`), `PasteState.kt`.
 
 ## 2. 함수 명세
 
@@ -59,7 +58,7 @@
 #### `me.zhanghai.android.files.filelist.getCopyMoveType(copy: Boolean, files: Collection<FileItem>): CopyMoveType`
 - **추적**: HLD K6, 3.6 "종류 결정" / REQ-2-15, SRS A4
 - **책임**: 확인 창에 보일 작업 종류를 정한다.
-- **입력·전제**: `copy`는 `PasteState.copy`(붙여넣기) 또는 명령 종류(반대쪽, #9). `files`는 비어 있지 않다(호출자 보장, 비면 아래 규칙상 COPY/EXTRACT 중 `all`이 참이라 EXTRACT가 되므로 호출자가 막는다 — 2.3 `confirmPasteFiles` 1).
+- **입력·전제**: `copy`는 `PasteState.copy`. `files`는 비어 있지 않다(호출자 보장, 비면 아래 규칙상 COPY/EXTRACT 중 `all`이 참이라 EXTRACT가 되므로 호출자가 막는다 — 2.3 `confirmPasteFiles` 1).
 - **출력**: `!copy` → `MOVE`; `copy && files.all { it.path.isArchivePath }` → `EXTRACT`; 그 밖 → `COPY`.
 - **오류**: 없음.
 - **기존 코드와의 관계**: 붙여넣기 막대 제목의 판단(기존 `:1019-1030`)과 `CopyFileJob`의 `isExtract`(`FileJobs.kt:739`)와 같은 조건. 이동은 막대와 같이 압축 여부를 보지 않는다(압축 내부는 읽기 전용이라 잘라내기가 숨겨짐, 기존 `:811-812`).
@@ -117,41 +116,34 @@ class ConfirmCopyMoveDialogFragment : AppCompatDialogFragment() {
     class Args(
         val type: CopyMoveType,
         val files: FileItemSet,
-        val targetDirectory: @WriteWith<ParcelableParceler> Path,
-        val origin: Origin
+        val targetDirectory: @WriteWith<ParcelableParceler> Path
     ) : ParcelableArgs
-
-    enum class Origin { PASTE, OTHER_PANE }
 
     companion object {
         private val TAG = ConfirmCopyMoveDialogFragment::class.java.name
-        fun show(copy: Boolean, files: FileItemSet, targetDirectory: Path, origin: Origin, fragment: Fragment) { ... } // 2.2 아래
+        fun show(copy: Boolean, files: FileItemSet, targetDirectory: Path, fragment: Fragment) { ... } // 2.2 아래
     }
 
     interface Listener {
-        fun copyMoveFiles(
-            type: CopyMoveType, sources: List<Path>, targetDirectory: Path,
-            files: FileItemSet, origin: Origin
-        )
+        fun copyMoveFiles(type: CopyMoveType, sources: List<Path>, targetDirectory: Path)
     }
 }
 ```
 - **추적**: HLD K6, D7 / REQ-2-14, 15
-- **설명**: `ConfirmDeleteFilesDialogFragment`(`:21-65`)와 같은 모양(`ParcelableArgs` + 부모 프래그먼트 `Listener`). `Path` 필드는 `NavigateToPathDialogFragment.kt:43`과 같은 `@WriteWith<ParcelableParceler>`. `CopyMoveType`·`Origin`은 enum이라 `@Parcelize`가 이름으로 쓴다. 인자가 Parcelable이라 회전·재생성·프로세스 종료 뒤 복원에서도 같은 내용(HLD 3.1 "확인 창 내용").
-- `Origin`은 HLD K6의 "출처(붙여넣기 / 반대쪽 명령)". `OTHER_PANE`은 #9가 쓴다.
+- **설명**: `ConfirmDeleteFilesDialogFragment`(`:21-65`)와 같은 모양(`ParcelableArgs` + 부모 프래그먼트 `Listener`). `Path` 필드는 `NavigateToPathDialogFragment.kt:43`과 같은 `@WriteWith<ParcelableParceler>`. `CopyMoveType`은 enum이라 `@Parcelize`가 이름으로 쓴다. 인자가 Parcelable이라 회전·재생성·프로세스 종료 뒤 복원에서도 같은 내용(HLD 3.1 "확인 창 내용").
 
-#### `ConfirmCopyMoveDialogFragment.Companion.show(copy: Boolean, files: FileItemSet, targetDirectory: Path, origin: Origin, fragment: Fragment): Unit`
-- **추적**: HLD K6, 3.6 / REQ-2-14, 15. **#9가 쓰는 진입 API**.
+#### `ConfirmCopyMoveDialogFragment.Companion.show(copy: Boolean, files: FileItemSet, targetDirectory: Path, fragment: Fragment): Unit`
+- **추적**: HLD K6, 3.6 / REQ-2-14, 15.
 - **책임**: 보일 때 원본·대상을 굳혀 확인 창을 연다.
-- **입력·전제**: 메인 스레드. `fragment`는 `Listener`를 구현한다(창 `FileListFragment`). `files`는 비어 있을 수 있다(그때는 알고리즘 1에서 아무것도 하지 않음 — 호출자는 보통 비어 있지 않은 집합을 넘긴다). `files`는 살아 있는 집합이어도 된다(복사 목록 `PasteState.files`, 선택 `viewModel.selectedFiles` — 둘 다 나중에 그 자리에서 바뀌는 가변 집합: `FileListViewModel.kt:197-220`, `:154-174`).
+- **입력·전제**: 메인 스레드. `fragment`는 `Listener`를 구현한다(창 `FileListFragment`). `files`는 비어 있을 수 있다(그때는 알고리즘 1에서 아무것도 하지 않음 — 호출자는 보통 비어 있지 않은 집합을 넘긴다). `files`는 살아 있는 집합이어도 된다(복사 목록 `PasteState.files` — 나중에 그 자리에서 바뀌는 가변 집합: `FileListViewModel.kt:197-220`).
 - **출력·사후조건**: 이 함수는 어떤 상태도 바꾸지 않는다(복사 목록·선택·작업 없음 — REQ-2-14). 돌아온 뒤 `fragment`의 자식 FragmentManager에 이 확인 창이 **많아야 하나** 있다.
 - **알고리즘**:
-  1. `if (files.isEmpty()) return` — 빈 입력은 아무것도 하지 않는다(빈 집합이면 `getCopyMoveType`이 `EXTRACT`를 내므로 여기서 막는다. #9도 같은 계약).
+  1. `if (files.isEmpty()) return` — 빈 입력은 아무것도 하지 않는다(빈 집합이면 `getCopyMoveType`이 `EXTRACT`를 내므로 여기서 막는다).
   2. `val fragmentManager = fragment.childFragmentManager`; `if (fragmentManager.findFragmentByTag(TAG) != null) return` — 이미 떠 있으면 새로 열지 않는다(중복 방지, 아래).
   3. `val frozen = FileItemSet().apply { addAll(files) }`(복사본).
-  4. `ConfirmCopyMoveDialogFragment().putArgs(Args(getCopyMoveType(copy, frozen), frozen, targetDirectory, origin)).showNow(fragmentManager, TAG)` — `TAG`는 `ConfirmCopyMoveDialogFragment::class.java.name`(companion 상수). 기존 `show(fragment)` 확장(`util/DialogFragmentExtensions.kt:11-13`, 태그 없음·비동기 `commit`) 대신 `DialogFragment.showNow`(fragment 1.8.8, 동기 `commitNow`)를 쓴다 — 비동기면 같은 프레임의 두 번째 호출이 아직 붙지 않은 첫 창을 `findFragmentByTag`로 찾지 못한다.
-- **중복 방지가 필요한 이유(검수 1회차 M1)**: 지금은 첫 붙여넣기가 `clearPasteState()`로 막대를 바로 닫아 두 번째 누름이 없다(기존 `:1104-1116`). 이 설계에서는 확인 창이 떠 있는 동안 막대·복사 목록이 그대로라, 단추 연타나 Ctrl+V 키 반복(`onKeyShortcut` 기존 `:497-506`)으로 창이 쌓이고 각 창이 굳힌 인자로 "실행"되면 같은 작업이 두 번 시작될 수 있다. 2의 검사로 막는다. `showNow`는 상태 저장 뒤에 부르면 `IllegalStateException`이지만, 호출처는 사용자 입력(단추·단축키 — 창이 RESUMED일 때만 옴)뿐이라 해당하지 않는다. "실행"·취소로 닫힌 창은 `dismiss`의 제거 트랜잭션이 끝날 때까지(같은 프레임) 태그로 찾힐 수 있으나, 그 사이 새로 열 일이 없다(실행 뒤엔 막대·선택이 정리됨).
-- **왜 복사본인가**: `putArgs`는 `Bundle.putParcelable`로 객체 참조를 담고(`util/ParcelableArgs.kt:18-21`) 상태 저장 때까지 직렬화하지 않는다. 살아 있는 집합을 그대로 넣으면 "실행" 뒤 `clearPasteState()`(`FileListViewModel.kt:213-220`의 `files.clear()`)나 선택 해제가 인자 자체를 비우고, 확인 창이 떠 있는 동안 목록이 바뀌면 보인 것과 다른 항목으로 실행된다(HLD 3.6 "보일 때 인자로 굳힌다").
+  4. `ConfirmCopyMoveDialogFragment().putArgs(Args(getCopyMoveType(copy, frozen), frozen, targetDirectory)).showNow(fragmentManager, TAG)` — `TAG`는 `ConfirmCopyMoveDialogFragment::class.java.name`(companion 상수). 기존 `show(fragment)` 확장(`util/DialogFragmentExtensions.kt:11-13`, 태그 없음·비동기 `commit`) 대신 `DialogFragment.showNow`(fragment 1.8.8, 동기 `commitNow`)를 쓴다 — 비동기면 같은 프레임의 두 번째 호출이 아직 붙지 않은 첫 창을 `findFragmentByTag`로 찾지 못한다.
+- **중복 방지가 필요한 이유(검수 1회차 M1)**: 지금은 첫 붙여넣기가 `clearPasteState()`로 막대를 바로 닫아 두 번째 누름이 없다(기존 `:1104-1116`). 이 설계에서는 확인 창이 떠 있는 동안 막대·복사 목록이 그대로라, 단추 연타나 Ctrl+V 키 반복(`onKeyShortcut` 기존 `:497-506`)으로 창이 쌓이고 각 창이 굳힌 인자로 "실행"되면 같은 작업이 두 번 시작될 수 있다. 2의 검사로 막는다. `showNow`는 상태 저장 뒤에 부르면 `IllegalStateException`이지만, 호출처는 사용자 입력(단추·단축키 — 창이 RESUMED일 때만 옴)뿐이라 해당하지 않는다. "실행"·취소로 닫힌 창은 `dismiss`의 제거 트랜잭션이 끝날 때까지(같은 프레임) 태그로 찾힐 수 있으나, 그 사이 새로 열 일이 없다(실행 뒤엔 막대가 정리됨).
+- **왜 복사본인가**: `putArgs`는 `Bundle.putParcelable`로 객체 참조를 담고(`util/ParcelableArgs.kt:18-21`) 상태 저장 때까지 직렬화하지 않는다. 살아 있는 집합을 그대로 넣으면 "실행" 뒤 `clearPasteState()`(`FileListViewModel.kt:213-220`의 `files.clear()`)가 인자 자체를 비우고, 확인 창이 떠 있는 동안 목록이 바뀌면 보인 것과 다른 항목으로 실행된다(HLD 3.6 "보일 때 인자로 굳힌다").
 - **오류**: 없음. `fragment`가 `Listener`가 아니면 "실행" 때 `ClassCastException`(구조 위반, 기존 대화상자들과 같음).
 - **기존 코드와의 관계**: `ConfirmDeleteFilesDialogFragment.show`(`:55-57`) 모양. 종류 계산을 여기서 하므로 호출자는 `copy` 불리언만 안다.
 
@@ -168,7 +160,7 @@ class ConfirmCopyMoveDialogFragment : AppCompatDialogFragment() {
   5. 위치 문자열: `val from = firstLocation?.let { bidi.unicodeWrap(it.toLocationDisplayString()) }`. `otherLocationCount > 0`이면 `from = getQuantityString(R.plurals.file_list_confirm_copy_move_locations_format, otherLocationCount, from, otherLocationCount)`(SRS A3 "외 N곳"). `val to = bidi.unicodeWrap(confirmation.targetDirectory.toLocationDisplayString())`. 경로 줄 = `from != null` → `getString(R.string.file_list_confirm_copy_move_from_to_format, from, to)`, 아니면 `getString(R.string.file_list_confirm_copy_move_to_format, to)`(위치를 모르는 경우 — 실제 목록 항목에서는 생기지 않지만 크래시 대신 대상만 보인다).
   6. 안내: `when (sameDirectoryNotice)` `NONE` → 없음, `ALL` → `getString(R.string.file_list_confirm_copy_move_same_directory_all)`, `SOME` → `getQuantityString(R.plurals.file_list_confirm_copy_move_same_directory_some_format, sameDirectoryCount, sameDirectoryCount)`.
   7. 메시지 = 항목 줄 + `"\n"` + 경로 줄 + (안내가 있으면 `"\n\n"` + 안내). `setTitle(제목)`, `setMessage(메시지)`.
-  8. `setPositiveButton(R.string.file_list_confirm_copy_move_positive) { _, _ -> listener.copyMoveFiles(args.type, confirmation.sources, confirmation.targetDirectory, args.files, args.origin) }` — 작업용 값은 1에서 판정에 쓴 **같은 객체**.
+  8. `setPositiveButton(R.string.file_list_confirm_copy_move_positive) { _, _ -> listener.copyMoveFiles(args.type, confirmation.sources, confirmation.targetDirectory) }` — 작업용 값은 1에서 판정에 쓴 **같은 객체**.
   9. `setNegativeButton(android.R.string.cancel, null)`; `.create()`.
 - **취소 경로(REQ-2-15, SRS A5)**: 취소 단추·뒤로 가기·바깥 누르기·Esc는 모두 대화상자를 닫기만 한다 — 이 프래그먼트는 `onCancel`·`onDismiss`를 재정의하지 않고 리스너를 부르지 않으므로 복사 목록·선택·작업 어느 것도 바뀌지 않는다. `isCancelable`은 기본값(true, `ConfirmDeleteFilesDialogFragment`와 같음).
 - **Esc(`Keyboard_Exit`, HLD R11)**: API 28 이상은 `Dialog.onKeyDown`이 `KEYCODE_ESCAPE`를 받아 취소 가능한 대화상자를 `cancel()`한다(android-35 소스 `android/app/Dialog.java:678-688`). API 21~27은 `Dialog`에 Esc 처리가 없고, 처리되지 않은 Esc에 대해 시스템이 키 배치의 대체 키(BACK)를 보내 뒤로 가기로 닫힐 것으로 본다(미확인 — T-06(d)). 이 단계는 추가 코드를 넣지 않는다. T-06(d)가 API 27 이하에서 실패하면 `dialog.setOnKeyListener`로 `KEYCODE_ESCAPE` → `cancel()`을 더한다(검수에 알림).
@@ -195,17 +187,17 @@ class ConfirmCopyMoveDialogFragment : AppCompatDialogFragment() {
 - **출력·사후조건**: 확인 창이 열린다. **복사 목록·선택·작업은 바꾸지 않는다**(지금의 `clearPasteState()`는 "실행" 리스너로 옮김).
 - **알고리즘**:
   1. `val pasteState = viewModel.pasteState`; `if (pasteState.files.isEmpty()) return`(방어 — 2.1 `getCopyMoveType` 전제).
-  2. `ConfirmCopyMoveDialogFragment.show(pasteState.copy, pasteState.files, targetDirectory, ConfirmCopyMoveDialogFragment.Origin.PASTE, this)`.
+  2. `ConfirmCopyMoveDialogFragment.show(pasteState.copy, pasteState.files, targetDirectory, this)`.
 - **오류**: 없음.
 - **기존 코드와의 관계**: 기존 `pasteFiles`(`:1104-1116`) 삭제·대체. 종류(`copy`)와 대상은 지금과 같은 값을 쓴다.
 
-#### `FileListFragment.copyMoveFiles(type: CopyMoveType, sources: List<Path>, targetDirectory: Path, files: FileItemSet, origin: ConfirmCopyMoveDialogFragment.Origin): Unit` (override, 신규)
-- **추적**: HLD K6 "실행 시 리스너가…", 3.6 / REQ-2-12(정리 몫), 13, 14, 16, 21
-- **책임**: 확인 창의 "실행"에서 작업을 시작하고 출처별로 정리한다.
+#### `FileListFragment.copyMoveFiles(type: CopyMoveType, sources: List<Path>, targetDirectory: Path): Unit` (override, 신규)
+- **추적**: HLD K6 "실행 시 리스너가…", 3.6 / REQ-2-13, 14, 16, 21
+- **책임**: 확인 창의 "실행"에서 작업을 시작하고 복사 목록을 비운다.
 - **입력·전제**: 메인 스레드(대화상자 단추 콜백), 창 프래그먼트가 붙어 있음(대화상자는 이 창의 자식이라 창보다 먼저 사라진다). `sources`·`targetDirectory`는 확인 창이 판정에 쓴 값(2.1).
 - **출력·사후조건**:
   1. `type == MOVE` → `FileJobService.move(sources, targetDirectory, requireContext())`, 그 밖(`COPY`·`EXTRACT`) → `FileJobService.copy(...)`(압축 풀기는 `CopyFileJob`이 원본으로 스스로 판단, `FileJobs.kt:739`). 둘 다 작업을 넣고 바로 돌아온다(`FileJobService.kt:104-113`).
-  2. `origin == PASTE` → `viewModel.clearPasteState()`(기존 `:1115`와 같음 — 공유 목록 전체를 비우고 두 창의 막대가 함께 닫힌다, HLD K8). `origin == OTHER_PANE` → `viewModel.selectFiles(files, false)`(그 항목들의 선택 해제, SRS REQ-2-12, 기존 복사·잘라내기의 `:915`·`:920`과 같은 방식). 복사 목록은 건드리지 않는다.
+  2. `viewModel.clearPasteState()`(기존 `:1115`와 같음 — 공유 목록 전체를 비우고 두 창의 막대가 함께 닫힌다, HLD K8).
 - **오류**: 없음 — 작업 실패·충돌·자기 안으로는 작업 스레드에서 기존 알림·대화상자가 처리한다(`FileJobs.kt:1196-1235`, `:1237-`, `:1328`, HLD 3.8).
 - **기존 코드와의 관계**: 기존 `pasteFiles`의 본문(`:1106-1115`)을 옮기고, 경로 목록을 `makePathListForJob(pasteState.files)`에서 확인 창이 넘긴 `sources`로 바꾼 것(정규화 범위는 복사·이동 호출뿐, HLD 3.6-1).
 - **순서 근거**: 작업 시작(1) 뒤에 정리(2). 기존과 같은 순서라 막대가 닫히는 시점도 같다.
@@ -266,7 +258,6 @@ class ConfirmCopyMoveDialogFragment : AppCompatDialogFragment() {
 
 - 단위 시험 U-01~U-05는 필수이며 `testDebugUnitTest`가 모두 통과해야 한다(3.2).
 - 판정: 0.3의 차이(확인 창, T-11) 외에 기준 APK와 다른 결과가 있으면 실패.
-- `OTHER_PANE` 갈래(`copyMoveFiles`의 선택 해제)는 진입점이 #9에서 생기므로 #9의 시험에서 확인한다. 이 단계는 코드 검수의 줄 대조로 확인한다.
 - 기록: 구현 PR 코멘트에 시험별 결과(통과/실패/미확인)와 캡처 파일 이름, 캡처는 `$MAIN_REPO/_workspace/`.
 
 ### 3.2 단위 시험 (필수 — F3 오너 승인, SRS C-3)
@@ -283,11 +274,10 @@ class ConfirmCopyMoveDialogFragment : AppCompatDialogFragment() {
 | U-04 | 같은 함수 위치 요약 | 위치 1곳 / 2곳(삽입 순서 첫 항목) / 같은 위치 3개 | other 0 / first = 첫 항목 위치·other 1 / other 0 |
 | U-05 | 같은 함수 `sources` | 순서가 섞인 3개 | `toUri()` 정렬, 각 원소 = `toCopyMoveJobPath()` 값, `sameDirectoryCount`가 이 값으로 계산됨 |
 
-## 4. 확장 지점 (#9가 붙을 자리)
+## 4. 확장 지점
 
 | 하위 이슈 | 붙을 자리 | 이 단계에서 준비한 것 |
 |---|---|---|
-| #9 E | 선택 메뉴 `res/menu/file_list_select.xml`에 "반대쪽으로 복사"·"반대쪽으로 이동" 두 항목, `updateOverlayToolbar`(기존 `:787-851`, 선택 메뉴 부분 `:807-833`)에서 반대쪽 경로 읽기 전용·선택 읽기 전용 판단(HLD 3.6 읽기 전용 규칙), `onOverlayActionModeMenuItemClicked`(기존 `:853-892`)에서 `ConfirmCopyMoveDialogFragment.show(copy, viewModel.selectedFiles, <반대쪽 경로>, Origin.OTHER_PANE, this)`. 반대쪽 경로는 #7의 `DualPaneViewModel.panePaths`(v1.2 이후 정정: `panePaths`는 #7 소유 — LLD-B FB-4, PM 결정 PR #17. API는 LLD-C 4장). | `show` API(살아 있는 선택 집합을 넘겨도 됨 — 복사본을 만든다), `Origin.OTHER_PANE`, 리스너의 선택 해제 갈래, 판정·문구 전부 |
 | #6 B | 두 창이 되어도 확인 창은 연 창의 자식이라(`show`가 `fragment.childFragmentManager`에 `showNow`) 그 창의 뷰모델로 실행·정리한다. 바꿀 것 없음. | — |
 
 ## 5. 위험 처리 (HLD 6장 중 이 단계 몫)
@@ -316,3 +306,4 @@ class ConfirmCopyMoveDialogFragment : AppCompatDialogFragment() {
 | 2026-10-29 | v1.3 | 결정 반영: 상태, F1(LLD 안 확정)·F2·F3(JUnit 승인)·F5(승인) 결정 기록, 1장 변경 파일 7개(`app/build.gradle`, 단위 시험 파일), 3.2 단위 시험 필수화와 시험 대역·실패 시 처리, U-01 범위(압축 경우는 T-04), U-03 마지막 경우를 단위 시험이 맡음, 2.1 서두(JVM 단위 시험 대상), 3.1 끝의 U 필수 줄, 5장 R9(3) | PR #16 PM·오너 결정(코멘트 6473368985, 정정 6473374204) | PM |
 | 2026-11-01 | v1.3.2 | 0.1·4장의 `panePaths` 소유를 #6 → #7로(LLD-C 4장) | LLD-C 검수 1회차 경미 3 | 검수팀 |
 | 2026-10-29 | v1.3.1 | 1장 범위 공지 문구, 3.2 `TestPath` 구현 멤버와 `getRoot` 조건, T-04(c) 혼합 선택(U-01 일부 압축 경우의 수동 대응) | LLD 4회차 검수 m1~m3 | 검수팀 |
+| 2026-11-04 | v1.4 | #9 몫과 `Origin` 삭제: 머리표 추적 REQ, 0.1, 0.2, 1장 끝 줄(`selectFiles`), 2.1 `getCopyMoveType` 입력, 2.2 인자·`show`·`Listener`·"실행" 호출, 2.3 `confirmPasteFiles`·`copyMoveFiles` 시그니처와 사후조건, 3.1 `OTHER_PANE` 시험 문장, 4장 #9 행. 6장 F4는 당시 기록이라 고치지 않음 | 오너 결정 2026-11-04, #9 not planned | PM |
