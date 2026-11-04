@@ -68,6 +68,9 @@
     <string name="notification_channel_background_activity_start_description">앱이 백그라운드에 있는 동안 작업합니다</string>
     <string name="notification_channel_file_job_name">파일 작업</string>
     <string name="notification_channel_file_job_description">파일 작업을 표시하고 제어합니다</string>
+    <string name="file_job_indicator_running_description">파일 작업 진행 중</string>
+    <string name="file_job_indicator_succeeded_description">파일 작업 완료</string>
+    <string name="file_job_indicator_failed_description">파일 작업 실패 또는 취소됨</string>
     <string name="notification_channel_ftp_server_name">FTP 서버</string>
     <string name="notification_channel_ftp_server_description">FTP 서버를 표시하고 제어합니다</string>
 
@@ -621,6 +624,8 @@
     </string-array>
     <string name="settings_black_night_mode">다크 모드에 검정색 사용</string>
     <string name="settings_file_list_animation_title">파일 목록 애니메이션</string>
+    <string name="settings_file_job_indicator_title">파일 작업 표시</string>
+    <string name="settings_file_job_indicator_summary">파일 작업 중 툴바에 달리는 사람을 표시</string>
     <string name="settings_file_name_ellipsize_title">긴 파일 이름 표시</string>
     <string-array name="settings_file_name_ellipsize_entries">
         <item>앞부분 생략</item>

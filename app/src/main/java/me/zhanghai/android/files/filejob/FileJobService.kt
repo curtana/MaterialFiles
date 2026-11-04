@@ -11,6 +11,7 @@ import android.content.Intent
 import android.os.IBinder
 import androidx.annotation.MainThread
 import java8.nio.file.Path
+import me.zhanghai.android.files.compat.mainExecutorCompat
 import me.zhanghai.android.files.file.MimeType
 import me.zhanghai.android.files.provider.common.PosixFileModeBit
 import me.zhanghai.android.files.provider.common.PosixGroup
@@ -55,10 +56,16 @@ class FileJobService : Service() {
         // Synchronize on runningJobs to prevent a job from removing itself before being added.
         synchronized(runningJobs) {
             val future = executorService.submit {
-                job.runOn(this)
-                synchronized(runningJobs) {
-                    runningJobs.remove(job)
-                    updateWakeWifiLockLocked()
+                // The cleanup must also happen if the job throws something other than an
+                // exception, so that it doesn't stay running and keep the lock acquired.
+                runJobAndReport({ job.runOn(this) }) { isSuccessful ->
+                    synchronized(runningJobs) {
+                        runningJobs.remove(job)
+                        updateWakeWifiLockLocked()
+                    }
+                    mainExecutorCompat.execute {
+                        FileJobStateTracker.onJobFinished(job.id, isSuccessful)
+                    }
                 }
             }
             runningJobs[job] = future
@@ -67,9 +74,16 @@ class FileJobService : Service() {
     }
 
     private fun cancelJob(id: Int) {
-        synchronized(runningJobs) {
-            runningJobs.removeFirst { it.key.id == id }?.value?.cancel(true)
-            updateWakeWifiLockLocked()
+        val entry = synchronized(runningJobs) {
+            runningJobs.removeFirst { it.key.id == id }
+                .also {
+                    it?.value?.cancel(true)
+                    updateWakeWifiLockLocked()
+                }
+        }
+        // The job thread may report later, which is ignored.
+        if (entry != null) {
+            FileJobStateTracker.onJobFinished(id, false)
         }
     }
 
@@ -78,12 +92,16 @@ class FileJobService : Service() {
 
         instance = null
 
+        val canceledJobIds = mutableListOf<Int>()
         synchronized(runningJobs) {
             while (runningJobs.isNotEmpty()) {
-                runningJobs.removeFirst().value.cancel(true)
+                val entry = runningJobs.removeFirst()
+                entry.value.cancel(true)
+                canceledJobIds += entry.key.id
             }
             updateWakeWifiLockLocked()
         }
+        canceledJobIds.forEach { FileJobStateTracker.onJobFinished(it, false) }
     }
 
     // Synchronize on runningJobs to avoid the potential race condition that the lock is
@@ -103,6 +121,7 @@ class FileJobService : Service() {
 
         @MainThread
         private fun startJob(job: FileJob, context: Context) {
+            FileJobStateTracker.onJobStarted(job.id)
             val instance = instance
             if (instance != null) {
                 instance.startJob(job)
@@ -197,8 +216,23 @@ class FileJobService : Service() {
 
         @MainThread
         fun cancelJob(id: Int) {
-            pendingJobs.removeFirst { it.id == id }
+            if (pendingJobs.removeFirst { it.id == id } != null) {
+                FileJobStateTracker.onJobFinished(id, false)
+            }
             instance?.cancelJob(id)
         }
+    }
+}
+
+/**
+ * Runs a job and then always calls [onFinished] once, with false if the job threw. Whatever the job
+ * threw is rethrown.
+ */
+internal fun runJobAndReport(run: () -> Boolean, onFinished: (isSuccessful: Boolean) -> Unit) {
+    var isSuccessful = false
+    try {
+        isSuccessful = run()
+    } finally {
+        onFinished(isSuccessful)
     }
 }
