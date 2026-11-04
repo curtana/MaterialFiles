@@ -12,3 +12,4 @@ Material Design open-source file manager for Android (NIO2 backend, root/NAS/arc
 - 브랜치: `design/<이슈>-<주제>`·`feature/<이슈>-<주제>`(develop에서 분기) → develop → master(PR) → `release/v<X.Y.Z>`(master에서 분기, 태그·빌드). release에는 직접 커밋하지 않는다 — 수정은 develop을 거쳐 새 release로.
 - 설계 문서: `docs/design/<이슈>-<주제>/{SRS,HLD,LLD}.md`(한국어), 작업지시서·코드·커밋 메시지는 영어. 릴리스 노트는 `CHANGELOG.md`의 그 버전 절.
 - 임시 파일: `G:\tmp\MeterialFiles\<작업명>`(지워도 되는 것만), 남길 결과: `_workspace/`(git 제외)
+- 진행 기록: 모든 역할이 `_workspace/wo/<작업명>/progress.md`에 남긴다(감시자와 상관없이, PROCESS_ROLES 9-7). 멈췄는지는 이 기록으로 판단한다.

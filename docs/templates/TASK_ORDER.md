@@ -9,6 +9,7 @@ The dev team writes this **in English** from the review-approved LLD and posts i
 |---|---|
 | Issue | #<number> (milestone v<X.Y.Z>) |
 | Branch | feature/<number>-<topic> (base: develop) |
+| Task name | <name for `_workspace/wo/<task name>/progress.md`> |
 | Design docs | docs/design/<number>-<topic>/{SRS,HLD,LLD}.md @ <develop commit> |
 | Review | required / self-check (PROCESS_ROLES §4) |
 | Approved by PM | <YYYY-MM-DD> |

@@ -56,5 +56,12 @@ PM은 이슈 번호로 task를 준다. `gh issue view <번호> --comments`로 **
 - **하위 Agent는 반드시 `run_in_background: false`로 호출한다.**
 - **완료 보고 전에 `bash .claude/tools/check_leftovers.sh <작업명>`을 실행해 출력(마지막 줄 `LEFTOVERS: …`)을 보고에 붙인다.**
 
+## 진행 기록 (docs/PROCESS_ROLES.md 9-7, 감시자와 상관없이 항상)
+이어서 일할 수 있게 하고, 멈췄는지 판단하는 근거다. `<작업명>`은 PM이 준 값이다(모르면 브랜치 이름의 `<이슈>-<주제>`).
+- **위치**: `$MAIN_REPO/_workspace/wo/<작업명>/progress.md`(없으면 `mkdir -p`). `$MAIN_REPO`는 `git worktree list --porcelain | grep -m1 '^worktree ' | cut -d' ' -f2-`로 구한다.
+- **언제**: 작업을 시작할 때, 단계 경계마다, 하위 에이전트를 부르기 전과 돌아온 뒤, 막혔을 때 `HH:MM | 단계 | 내용` 한 줄을 덧붙인다.
+- **장시간 명령**: **시작 전에** `HH:MM | 시작 | <명령 요약> 예상 N분`(N은 정수 하나)을 적고 끝나면 결과 한 줄을 적는다.
+- **WIP 커밋을 자주** 남긴다(feature 브랜치 한정). 재개 지시를 받으면 처음부터 다시 하지 말고 진행 기록의 중단 지점부터 한다.
+
 ## 임시 폴더
 - 임시 파일은 **`G:\tmp\MeterialFiles\<작업명>`** 아래에만 만들고 끝나면 지운다. 남길 산출물은 `$MAIN_REPO/_workspace/`.
