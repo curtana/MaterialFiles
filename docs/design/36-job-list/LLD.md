@@ -4,7 +4,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 작성 중(v1.1) |
+| 상태 | 작성 중(v1.2) |
 | 근거 | SRS v2.3, HLD v1.4 (`docs/design/36-job-list/`, PR #37 2b2e213), 요구사항 정리 v2~v6(이슈 #36) |
 | 기준 코드 | `origin/develop` a1a8a3e — 인용 줄 번호는 이 커밋 기준. `app/` 트리는 `design/36-job-list`와 같다 |
 | 이슈 | #36, #39(흡수, 요구사항 v6) — feature 브랜치 `feature/36-job-list` 하나 |
@@ -78,6 +78,8 @@
 | L3 앱 프로세스 죽음 | 없다 | 알릴 프로세스가 없다 | 한계로 남는다 |
 
 **SMB 취소마다 알리지 않는 조건.** smbj `Futures.get`은 `InterruptedException`을 잡으면 끼어들기 표시를 다시 켠다. 그대로 두면 정리의 `deleteOnClose`와 닫기가 곧바로 던져 일반 취소마다 잘못 알린다. 그래서 정리 앞에서 표시를 지운다(2.14). L4는 진짜 예외가 났을 때만 알리므로 PM이 금지한 "확인할 수 없어서 매번 알림"이 아니다. 지운 뒤에도 일반 취소에 토스트가 뜨는지는 코드로 확정할 수 없어 T13으로 본다. 뜨면 고치지 않고 PM에 올린다.
+
+**예외, SRS L6(PM 판단 사항).** 세션이 다른 SMB 간 복사에서 쓰기 쪽이 끼어들리면 `smb/client/FileByteChannel.kt:105-108`의 `closeSafe()`가 대상 핸들을 먼저 닫아 `deleteOnClose`가 실패한다. 이때는 취소마다 토스트가 날 수 있으나 조각이 실제로 남으므로 진짜 알림이다(코드 읽기 근거, 실기 미확인). 고치려면 `closeSafe` 변경이나 다른 지우기가 필요해 이 LLD에서 하지 않고 PM에 보고한다.
 
 ### 0.7 #39 — 끝난 방식의 근거 (요구사항 v6)
 v6은 "`isCanceled`가 거짓이면 토스트 + 실패"다. 그런데 오류·충돌 창의 "취소"는 `throw InterruptedIOException()`이고 서비스를 거치지 않아 표시가 꺼져 있다(`FileJobs.kt:728` 등 14곳). 그대로 두면 창의 취소가 "실패"로 보여 v3과 어긋난다. 그래서 14곳이 표시를 켜고 던지게 한다(`canceledByUser`, 2.16). `isCanceled`가 곧 "취소됨"의 유일한 근거다.
@@ -495,9 +497,9 @@ data class FileJobRow(val id: Int, val info: FileJobInfo, val status: FileJobRow
 | 압축 | `FileJobs.kt:646` `if (!successful)` 안 첫 문장(채널은 안쪽 `use`가 이미 닫음) | `Thread.interrupted()` |
 
 - **오류**: 없음. 표시를 지워도 작업의 멈춤은 `isCanceled`가 맡는다(K16). 복사가 이미 실패한 경로만 지나므로 취소되지 않은 작업은 같다(SRS C-1).
-- **대가**: 취소된 작업 스레드가 닫기에서 서버 응답을 라이브러리 시간 제한까지 기다릴 수 있다(값 미확인). 줄은 이미 "취소됨"이고 화면을 막지 않는다.
+- **대가**: 취소된 작업 스레드가 닫기에서 서버 응답을 라이브러리 시간 제한까지 기다릴 수 있다(smbj는 `SmbConfig.DEFAULT_TIMEOUT` 60초이고 앱이 `SmbConfig`를 만드는 곳이 없다. sshj·okhttp는 미확인). 줄은 이미 "취소됨"이고 화면을 막지 않는다.
 - **넣지 않는 곳**: 로컬(`syscall`은 표시를 보지 않음), FTP(`commons-net` 소켓 입출력, 실기 미확인), SAF(`ContentResolver` 호출). 실기 확인은 T1·T13.
-- **남는 관찰**: SFTP 쓰기 쪽이 끼어들리면 `FileByteChannel`의 `closeSafe`가 표시가 켜진 채 돌아 핸들이 서버에 남을 수 있다. 열린 파일 삭제를 막는 서버에서만 토스트가 난다(T13).
+- **남는 관찰**: SFTP 쓰기 쪽이 끼어들리면 `FileByteChannel`의 `closeSafe`가 표시가 켜진 채 돌아 핸들이 서버에 남을 수 있다. 열린 파일 삭제를 막는 서버에서만 토스트가 난다(T13). 압축은 안쪽 `use`(`FileJobs.kt:636-637`)의 채널 닫기가 표시가 켜진 채 돌아 같은 일이 원격 압축 파일에 생길 수 있다. 표시를 그 앞에서 지우려면 `use` 구조를 바꿔야 하므로 지금은 T13에서 관찰한다.
 
 ### 2.15 K15 추적표
 `docs/STANDARDS_TRACEABILITY.md` 4장에 #36 행을 넣는다: SRS 5장 조항, REQ-36-01~16, 새 권한·편차 없음. 구현 PR에서 한다.
@@ -587,7 +589,7 @@ class CleanupFailureCopyOption(listener: () -> Unit) : CopyOption, Parcelable {
 
 #### `RemoteFileSystemProvider.copy`·`move` (`:124-149`, `:152-178`)
 - **추적**: K17 / REQ-36-16
-- **알고리즘**: 맨 앞에 `val stopWatch = startCopyWatch(options)`. 완료 `RemoteCallback`의 첫 줄에서 `stopWatch()`. `try`에 `catch (e: RemoteFileSystemException) { stopWatch(); throw e }`를 더한다(호출 자체가 실패해 원격이 돌지 않은 경우). `InterruptedException` 가지는 그대로이며 `stopWatch`를 부르지 않는다 — 앱이 취소로 빠져나간 뒤에도 원격 완료나 죽음을 기다린다.
+- **알고리즘**: 맨 앞에 `val stopWatch = startCopyWatch(options)`. 완료 `RemoteCallback`의 첫 줄에서 `stopWatch()`. `try`에 `InterruptedException` 가지 뒤로 `catch (e: Exception) { stopWatch(); throw e }`를 더한다. `call`은 원격이 돌려준 임의의 `IOException`도 던지고(`IInterfaceExtensions.kt:27`), 그 경우 원격이 돌지 않거나 이미 끝났다. `stopWatch`는 `onCompleted`로 걸러 두 번 불려도 안전하다. `InterruptedException` 가지는 그대로이며 `stopWatch`를 부르지 않는다 — 앱이 취소로 빠져나간 뒤에도 원격 완료나 죽음을 기다린다.
 - **오류**: 지금과 같다. 재개되지 않는 문제는 고치지 않는다(#43).
 - **해제 시점(R12)**: 완료 콜백 또는 죽음. 원격 작업 시작 전에 `future.cancel(true)`가 닿으면 콜백이 오지 않아 다음 죽음에서 늦게 잘못 알릴 수 있다. 캐시 풀이라 창이 좁고 잘못 알리는 쪽이라 받아들인다(요구사항 v5).
 - **비용**: 파일당 `linkToDeath`·`unlinkToDeath` 한 쌍. 파일당 이미 바인더 왕복이 있어 작다. 알림은 `onCleanupFailed`로 가므로 2.7의 규칙을 그대로 따른다: 취소된 뒤면 바로 알리고, 아니면 기록했다가 취소될 때 알린다.
@@ -755,4 +757,5 @@ HLD T12(루트 원격 죽음)·T13(SMB·SFTP 일반 취소에 토스트 없음)�
 | 일자 | 버전 | 변경 | 사유 | 요청자 |
 |---|---|---|---|---|
 | 2026-11-04 | v1.0 | 첫 판 | SRS v2.2, HLD v1.3 | PM |
+| 2026-11-04 | v1.2 | 검수 2회차 지적 1·3·4·5 반영: L6 PM 판단 사항(0.6), 압축 닫기 관찰(2.14), 해제 `catch`를 `Exception`으로(2.17), 시간 제한 값(2.14) | LLD 2회차 조건부 | 검수팀 |
 | 2026-11-04 | v1.1 | 요구사항 v5·v6 반영: L2·L4 알림(0.6, 2.17), #39 흡수(0.7, 2.1, 2.2, 2.16), 표시 지우기(2.14), R9 닫음. 검수 1회차 F2~F5 반영 | 오너 결정, LLD 1회차 조건부 | PM·검수팀 |
