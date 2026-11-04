@@ -4,7 +4,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 검수 통과(v1.3, PR #37 6회차 1d0ef5f) |
+| 상태 | 검수 통과(v1.3, PR #37 6회차 1d0ef5f) + PM 결정 반영(v1.4, 구현 PR의 코드 검수에서 함께 확인) |
 | 근거 | SRS v2.5, HLD v1.6 (`docs/design/36-job-list/`, PR #37), 요구사항 정리 v2~v7(이슈 #36), #44 PM 분류 |
 | 기준 코드 | `origin/develop` a1a8a3e — 인용 줄 번호는 이 커밋 기준. `app/` 트리는 `design/36-job-list`와 같다 |
 | 이슈 | #36, #39(흡수, 요구사항 v6), #44(흡수, PM 분류) — feature 브랜치 `feature/36-job-list` 하나 |
@@ -26,7 +26,8 @@
 | L2·L4 결과 모름 | 둘 다 앱이 알아챌 수 있어 알린다. L3만 한계로 남는다 | 0.6 |
 | R4·#39 | 흡수. 끝난 방식의 근거를 `isCanceled` 하나로 모으고 끝 토스트에 합친다 | 0.7, 0.8, 2.1, 2.2 |
 | R13 줄과 토스트 어긋남 | 닫음. 끝 토스트를 `runningJobs`에서 뺀 뒤로 옮긴다 | 0.8, 2.4 |
-| R15 쓰기 창 "취소" | PM 결정 대기. SRS대로 "실패"로 둔다 | 4장 |
+| R15 쓰기 창 "취소" | PM 결정: "취소됨". `:2317` `NEGATIVE`에서 표시만 켜고 반환값은 그대로 | 2.7 |
+| R16 시작 전 취소한 저장 | PM 결정: 고침. 토스트를 더하지 않고 듣는 함수에 `false` | 2.2, 2.20 |
 | R11 표시 켜진 채 정리 | 다섯 곳에서 표시를 지운다 | 2.14 |
 | R12 듣기 해제 시점 | 완료 콜백 또는 죽음. 원격 시작 전 취소의 좁은 창은 잘못 알리는 쪽으로 받아들인다 | 2.17 |
 | R10 듣는 함수 | 던지지 않고 기다리지 않는 것을 옵션 한 곳에서 보장한다. 한 번만 부르는 것도 같은 곳이다 | 0.3, 2.17 |
@@ -104,7 +105,7 @@ v6은 "`isCanceled`가 거짓이면 토스트 + 실패"다. 그런데 오류·�
 | `SAVE` | 냄 | 새로 안 냄 | 기존 성공 토스트 `FileJobs.kt:1735`, 겹치지 않게 |
 | `WRITE` | 냄 | 새로 안 냄 | 기존 성공 토스트 `viewer/text/TextEditorFragment.kt:269`, 겹치지 않게 |
 | `CREATE`, `RENAME`, `OPEN`, `INSTALL_APK` | 냄 | 생략 | v7 원문, 결과가 바로 보임 |
-| `SET_OWNER`, `SET_GROUP`, `SET_MODE`, `SET_SELINUX_CONTEXT`, `RESTORE_SELINUX_CONTEXT` | 냄 | 재귀일 때만 | 오래 걸릴 수 있음. 개발팀 분류, PM 확인 사항 |
+| `SET_OWNER`, `SET_GROUP`, `SET_MODE`, `SET_SELINUX_CONTEXT`, `RESTORE_SELINUX_CONTEXT` | 냄 | 재귀일 때만 | 오래 걸릴 수 있음. PM 확정 |
 
 **하나로 합치는 곳**
 
@@ -220,8 +221,12 @@ class FileJobEnd(val outcome: FileJobOutcome, val notice: FileJobEndNotice<Path>
 
 #### `internal fun FileJob.notifyCanceledWithoutRun(context: Context)`
 - **추적**: K4·K19 / REQ-36-18
-- **알고리즘**: `if (tryClaimEnd()) showFileJobEndToast(context, info, fileJobEndNoticeOf(false, CANCELED, null, emptyList())!!)`. 완료가 아니므로 `null`이 되지 않는다.
+- **알고리즘**: `if (tryClaimEnd()) { showFileJobEndToast(context, info, fileJobEndNoticeOf(false, CANCELED, null, emptyList())!!); onCanceledWithoutRun() }`. 완료가 아니므로 `null`이 되지 않는다.
 - **오류**: `Exception`을 삼킨다.
+
+#### `protected open fun onCanceledWithoutRun()`
+- **추적**: K20 / REQ-36-19, HLD R16
+- **책임**: 본문이 돌지 않은 작업의 뒷정리. 기본은 아무것도 안 한다. 토스트를 내지 않는다. `WriteFileJob`만 재정의한다(2.20).
 
 ### 2.3 K3 `runJobAndReport` — `filejob/FileJobService.kt:231-238`
 #### `runJobAndReport(run: () -> FileJobOutcome, onFinished: (FileJobOutcome) -> Unit)`
@@ -364,6 +369,10 @@ data class FileJobProgress(val kind: FileJobProgressKind, val fileCount: Int, va
 #### `ArchiveFileJob.run` 정리 (`:645-655`)
 - **추적**: K14·K18 / REQ-36-10, 16
 - **알고리즘**: `:646` `if (!successful)` 안 첫 문장에 `Thread.interrupted()`(2.14). `:649`·`:651`의 두 `catch`에서 `printStackTrace` 다음에 `onCleanupFailed(archiveFile)`. `deleteIfExists`이므로 이미 없으면 `catch`에 오지 않는다.
+
+#### `write`의 오류 창 "취소" (`:2317`, R15)
+- **추적**: K16 / REQ-36-08, 18
+- **알고리즘**: `FileJobErrorAction.NEGATIVE, FileJobErrorAction.CANCELED -> false`를 나눈다. `NEGATIVE -> { isCanceled = true; false }`, `CANCELED -> false`. 반환값은 그대로이고 `hasUnresolvedError`도 그대로 켜지지만, `of`가 `isCanceled`를 먼저 보므로 "취소됨"이다. 창 닫힘은 건너뛰기가 있는 다른 창처럼 "실패"로 둔다.
 
 #### 오류·충돌 창의 "취소" 14곳
 - **추적**: K16 / REQ-36-08, 17
@@ -711,8 +720,13 @@ data class FileJobEndNotice<T>(val outcome: FileJobOutcome, val detail: FileJobF
 - **알고리즘**: `val result = try { block() } catch (e: Throwable) { report(false); throw e }`, `report(result)`. `report` 자체는 `try` 밖에서 부르므로 두 번 불리지 않는다.
 - **오류**: 본문이 던진 것을 그대로 다시 던진다.
 
-#### `WriteFileJob.run()`
-- **알고리즘**: `runReportingResult({ write(file, content) }) { successful -> listener?.let { mainExecutor.execute { it(successful) } } }`.
+#### `internal class OnceResultReporter(report: (Boolean) -> Unit)`, `report(result: Boolean)` — `filejob/FileJob.kt`
+- **추적**: K20 / REQ-36-19, HLD R16
+- **책임**: 첫 호출만 넘긴다(`AtomicBoolean`). 서비스가 `tryClaimEnd`에 이겼는데 본문이 이미 시작된 경우에도 듣는 함수가 두 번 불리지 않게 한다.
+
+#### `WriteFileJob.run()`, `WriteFileJob.onCanceledWithoutRun()`
+- **필드**: `private val resultReporter = OnceResultReporter { successful -> listener?.let { mainExecutor.execute { it(successful) } } }`.
+- **알고리즘**: `run`은 `runReportingResult({ write(file, content) }, resultReporter::report)`. `onCanceledWithoutRun`은 `resultReporter.report(false)`.
 - **기존 코드와의 관계**: 값을 돌려주는 경로는 그대로다. 던지는 경로의 끝난 방식은 `runBody`가 지금처럼 정한다. `TextEditorViewModel.kt:140-154`와 `TextEditorFragment.kt:273-274`는 바꾸지 않는다: `Error`가 되어 `finishWritingFile()`로 메뉴가 돌아오고 토스트를 더 내지 않는다.
 
 ## 3. 테스트 설계
@@ -738,6 +752,7 @@ data class FileJobEndNotice<T>(val outcome: FileJobOutcome, val detail: FileJobF
 | U-J08 | | `IOException` 끝 | `FAILED`, 세부 `Error` 토스트 하나 |
 | U-J09 | | 표시 켠 뒤 `IOException` | `CANCELED`, 세부 없음(원시 예외 안 보임) |
 | U-J10 | | `tryClaimEnd`에 짐 + 기록 있음 | `notice` `null`, `separateFailures`에 기록 |
+| U-J14 | `OnceResultReporter` | 두 번 호출(거짓 뒤 참) | 첫 값 한 번 |
 | U-J13 | `FileJob.finishEnd` | `info`를 넣지 않아 `endOf`가 던짐, 표시 꺼짐 / 켜짐 | 던지지 않음, `bodyOutcome` / `CANCELED` |
 | U-J11 | `runReportingResult` (#44) | 값 참/거짓 | `report` 그 값으로 한 번 |
 | U-J12 | | `InterruptedIOException`, `Error` | `report(false)` 한 번, 같은 예외 |
@@ -872,11 +887,10 @@ HLD T12(루트 원격 죽음)·T13(SMB·SFTP 일반 취소는 "취소됨" 하나
 | FB-9 | 창 "취소"를 표시 없이 두면 v6 규칙에서 "실패"가 된다. 압축 정리도 표시 지우기가 필요하다. | 0.7, 2.14, 2.16, HLD K16·K14 |
 | FB-10 | 끝 토스트를 `runOn` 끝에 두면 R13이 남고 `Error`를 따로 잡아야 한다. | 서비스 콜백으로 옮김(0.8, 2.2, 2.4), HLD K2·D13·R13 |
 
-### PM 결정 대기
-- **R15**: 쓰기 창의 "취소" 버튼(`FileJobs.kt:2309`, `:2317`)은 던지지 않아 끝난 방식이 "실패"다. 요구사항 v3의 "창에서 취소하면 취소"와 어긋난다. 이 LLD는 SRS대로 "실패"로 둔다. "취소됨"으로 하려면 `:2317`의 `NEGATIVE`에서 표시만 켜면 된다(반환값 그대로).
-- **재귀 속성 작업의 완료 토스트**: 0.8 표의 개발팀 분류다.
-- **R16**: 대기 중 취소(`FileJobService.kt:219`)와 스레드 시작 전 `Future.cancel(true)`는 `WriteFileJob.run`을 부르지 않아 #44 수정이 닿지 않는다. 창은 좁다. PM 지시대로 `run`만 고친다. 막으려면 `notifyCanceledWithoutRun`에서 듣는 함수도 `false`로 불러야 한다.
-- **R13의 남은 창**: 마지막 점검 뒤 스레드가 `runningJobs`에서 빠지기 전에 취소가 닿으면 일이 다 끝났어도 줄과 토스트가 "취소됨"이다. 모든 종류에 해당한다. 저장·쓰기는 그때 기존 성공 토스트 뒤에 "취소됨"이 하나 더 나온다. 파일은 온전하다. 기록만 한다.
+### PM 결정 (2026-11-04)
+- **재귀 속성 작업의 완료 토스트**: 재귀일 때만으로 확정(PM).
+- **R15·R16**: 고침(2.7, 2.2, 2.20).
+- **R13의 남은 창**: PM이 알려진 한계로 수용. 마지막 점검 뒤 스레드가 `runningJobs`에서 빠지기 전에 취소가 닿으면 일이 다 끝났어도 줄과 토스트가 "취소됨"이다. 모든 종류에 해당한다. 저장·쓰기는 그때 기존 성공 토스트 뒤에 "취소됨"이 하나 더 나온다. 파일은 온전하다. 기록만 한다.
 
 ### 설계 범위 밖으로 남기는 관찰 (고치지 않음)
 - 원격이 죽은 작업이 취소 전까지 끝나지 않는 문제는 #43이다(#36 머지 뒤 별도 PR). 이 LLD는 듣기만 더한다.
@@ -889,3 +903,4 @@ HLD T12(루트 원격 죽음)·T13(SMB·SFTP 일반 취소는 "취소됨" 하나
 | 2026-11-04 | v1.1 | 요구사항 v5·v6 반영: L2·L4 알림(0.6, 2.17), #39 흡수(0.7, 2.1, 2.2, 2.16), 표시 지우기(2.14), R9 닫음. 검수 1회차 F2~F5 반영 | 오너 결정, LLD 1회차 조건부 | PM·검수팀 |
 | 2026-11-04 | v1.2 | 검수 2회차 지적 1·3·4·5 반영: L6 PM 판단 사항(0.6), 압축 닫기 관찰(2.14), 해제 `catch`를 `Exception`으로(2.17), 시간 제한 값(2.14) | LLD 2회차 조건부 | 검수팀 |
 | 2026-11-04 | v1.3 | 요구사항 v7 끝 토스트(0.8, 2.2, 2.18, 2.19), R13 닫음, #44 흡수(2.20), L6 수용, #43 재사용 대비 | 오너 결정 v7, PM 분류 #44·#43 | PM·오너 |
+| 2026-11-04 | v1.4 | R15 "취소됨"(2.7), R16 시작 전 취소한 저장의 듣는 함수(2.2, 2.20), R13 남은 창 수용, 재귀 속성 확정. 기준 develop 9c1b2f9: `filejob/`·`provider/`·`filelist/` 줄 번호 변화 없음(`git diff a1a8a3e 9c1b2f9 --stat`, `ui/`·`util/`만 바뀜) | PM 결정 | PM |
