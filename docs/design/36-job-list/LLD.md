@@ -210,8 +210,8 @@ class FileJobEnd(val outcome: FileJobOutcome, val notice: FileJobEndNotice<Path>
 
 #### `internal fun FileJob.finishEnd(bodyOutcome: FileJobOutcome): FileJobOutcome`
 - **추적**: K2·K4 / REQ-36-18
-- **알고리즘**: `val end = endOf(bodyOutcome)`, `end.notice?.let { notifyEnd(it) }`, `end.separateFailures.forEach { notifyCleanupFailure(it) }`, `end.outcome`을 돌려준다.
-- **오류**: 던지지 않는다. `notifyEnd`·`notifyCleanupFailure`가 삼킨다.
+- **알고리즘**: 본문 전체를 `try`로 감싼다. `val end = endOf(bodyOutcome)`, `end.notice?.let { notifyEnd(it) }`, `end.separateFailures.forEach { notifyCleanupFailure(it) }`, `end.outcome`을 돌려준다. `catch (e: Exception)`: 스택 출력 후 `if (isCanceled) CANCELED else bodyOutcome`을 돌려준다.
+- **오류**: 던지지 않는다. 콜백의 `finally`에서 원래 예외를 덮지 않아야 하고, 그 뒤 `onJobFinished` 보고가 반드시 나가야 줄과 #30 표시기가 남지 않기 때문이다.
 
 #### `internal lateinit var info: FileJobInfo`, `tryClaimEnd(): Boolean`
 - **추적**: K4·K19 / REQ-36-18
@@ -738,6 +738,7 @@ data class FileJobEndNotice<T>(val outcome: FileJobOutcome, val detail: FileJobF
 | U-J08 | | `IOException` 끝 | `FAILED`, 세부 `Error` 토스트 하나 |
 | U-J09 | | 표시 켠 뒤 `IOException` | `CANCELED`, 세부 없음(원시 예외 안 보임) |
 | U-J10 | | `tryClaimEnd`에 짐 + 기록 있음 | `notice` `null`, `separateFailures`에 기록 |
+| U-J13 | `FileJob.finishEnd` | `info`를 넣지 않아 `endOf`가 던짐, 표시 꺼짐 / 켜짐 | 던지지 않음, `bodyOutcome` / `CANCELED` |
 | U-J11 | `runReportingResult` (#44) | 값 참/거짓 | `report` 그 값으로 한 번 |
 | U-J12 | | `InterruptedIOException`, `Error` | `report(false)` 한 번, 같은 예외 |
 | U-N01 | `fileJobEndNoticeOf` | `SUCCEEDED`, 알림 참 | 내용, 짧음 |
@@ -856,7 +857,7 @@ HLD T12(루트 원격 죽음)·T13(SMB·SFTP 일반 취소는 "취소됨" 하나
 6. `isCanceled`를 `Future.cancel(true)` 앞에서 켠다.
 
 ## 4. 설계 피드백
-아래는 SRS v2.3·HLD v1.4에 반영되었다(설계팀 2b2e213).
+아래는 SRS v2.5·HLD v1.6까지 반영되었다(설계팀 c80b30f).
 
 | ID | 내용 | 처리 |
 |---|---|---|
@@ -869,14 +870,13 @@ HLD T12(루트 원격 죽음)·T13(SMB·SFTP 일반 취소는 "취소됨" 하나
 | FB-7 | HLD T3 "로컬은 단위 테스트"는 `LinuxCopyMove`가 JNI라 달성할 수 없다(검수 1회차 F1). | U-M + 코드 검수, SRS REQ-36-16·HLD T3 |
 | FB-8 | smbj·sshj가 끼어들기 표시를 다시 켜 정리가 곧바로 실패한다. okio도 표시를 지우지 않는다. | 2.14, HLD K14·D12·R11 |
 | FB-9 | 창 "취소"를 표시 없이 두면 v6 규칙에서 "실패"가 된다. 압축 정리도 표시 지우기가 필요하다. | 0.7, 2.14, 2.16, HLD K16·K14 |
-
 | FB-10 | 끝 토스트를 `runOn` 끝에 두면 R13이 남고 `Error`를 따로 잡아야 한다. | 서비스 콜백으로 옮김(0.8, 2.2, 2.4), HLD K2·D13·R13 |
 
 ### PM 결정 대기
 - **R15**: 쓰기 창의 "취소" 버튼(`FileJobs.kt:2309`, `:2317`)은 던지지 않아 끝난 방식이 "실패"다. 요구사항 v3의 "창에서 취소하면 취소"와 어긋난다. 이 LLD는 SRS대로 "실패"로 둔다. "취소됨"으로 하려면 `:2317`의 `NEGATIVE`에서 표시만 켜면 된다(반환값 그대로).
 - **재귀 속성 작업의 완료 토스트**: 0.8 표의 개발팀 분류다.
 - **R16**: 대기 중 취소(`FileJobService.kt:219`)와 스레드 시작 전 `Future.cancel(true)`는 `WriteFileJob.run`을 부르지 않아 #44 수정이 닿지 않는다. 창은 좁다. PM 지시대로 `run`만 고친다. 막으려면 `notifyCanceledWithoutRun`에서 듣는 함수도 `false`로 불러야 한다.
-- **R13의 남은 창**: 저장·쓰기가 끝까지 쓴 뒤 스레드가 빠지기 전에 취소가 닿으면 기존 성공 토스트 뒤에 "취소됨"이 나온다. 파일은 온전하다. 기록만 한다.
+- **R13의 남은 창**: 마지막 점검 뒤 스레드가 `runningJobs`에서 빠지기 전에 취소가 닿으면 일이 다 끝났어도 줄과 토스트가 "취소됨"이다. 모든 종류에 해당한다. 저장·쓰기는 그때 기존 성공 토스트 뒤에 "취소됨"이 하나 더 나온다. 파일은 온전하다. 기록만 한다.
 
 ### 설계 범위 밖으로 남기는 관찰 (고치지 않음)
 - 원격이 죽은 작업이 취소 전까지 끝나지 않는 문제는 #43이다(#36 머지 뒤 별도 PR). 이 LLD는 듣기만 더한다.
@@ -886,6 +886,6 @@ HLD T12(루트 원격 죽음)·T13(SMB·SFTP 일반 취소는 "취소됨" 하나
 | 일자 | 버전 | 변경 | 사유 | 요청자 |
 |---|---|---|---|---|
 | 2026-11-04 | v1.0 | 첫 판 | SRS v2.2, HLD v1.3 | PM |
-| 2026-11-04 | v1.3 | 요구사항 v7 끝 토스트(0.8, 2.2, 2.18, 2.19), R13 닫음, #44 흡수(2.20), L6 수용, #43 재사용 대비 | 오너 결정 v7, PM 분류 #44·#43 | PM·오너 |
-| 2026-11-04 | v1.2 | 검수 2회차 지적 1·3·4·5 반영: L6 PM 판단 사항(0.6), 압축 닫기 관찰(2.14), 해제 `catch`를 `Exception`으로(2.17), 시간 제한 값(2.14) | LLD 2회차 조건부 | 검수팀 |
 | 2026-11-04 | v1.1 | 요구사항 v5·v6 반영: L2·L4 알림(0.6, 2.17), #39 흡수(0.7, 2.1, 2.2, 2.16), 표시 지우기(2.14), R9 닫음. 검수 1회차 F2~F5 반영 | 오너 결정, LLD 1회차 조건부 | PM·검수팀 |
+| 2026-11-04 | v1.2 | 검수 2회차 지적 1·3·4·5 반영: L6 PM 판단 사항(0.6), 압축 닫기 관찰(2.14), 해제 `catch`를 `Exception`으로(2.17), 시간 제한 값(2.14) | LLD 2회차 조건부 | 검수팀 |
+| 2026-11-04 | v1.3 | 요구사항 v7 끝 토스트(0.8, 2.2, 2.18, 2.19), R13 닫음, #44 흡수(2.20), L6 수용, #43 재사용 대비 | 오너 결정 v7, PM 분류 #44·#43 | PM·오너 |
