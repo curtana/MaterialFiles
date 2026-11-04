@@ -4,7 +4,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 작성 중(v1.3) |
+| 상태 | 검수 통과(v1.3, PR #37 6회차 1d0ef5f) |
 | 근거 | SRS v2.5, HLD v1.6 (`docs/design/36-job-list/`, PR #37), 요구사항 정리 v2~v7(이슈 #36), #44 PM 분류 |
 | 기준 코드 | `origin/develop` a1a8a3e — 인용 줄 번호는 이 커밋 기준. `app/` 트리는 `design/36-job-list`와 같다 |
 | 이슈 | #36, #39(흡수, 요구사항 v6), #44(흡수, PM 분류) — feature 브랜치 `feature/36-job-list` 하나 |
