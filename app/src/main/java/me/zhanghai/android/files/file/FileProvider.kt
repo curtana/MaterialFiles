@@ -105,7 +105,10 @@ class FileProvider : ContentProvider() {
                 }
                 OpenableColumns.SIZE -> {
                     val size = try {
-                        path.size()
+                        // Strict mode thread policy is passed through binder, and some apps query
+                        // on their main thread. A NetworkOnMainThreadException thrown in the
+                        // middle of a request may break the connection of a remote file system.
+                        StrictMode::class.withoutPenaltyDeathOnNetwork { path.size() }
                     } catch (e: IOException) {
                         e.printStackTrace()
                         null
@@ -130,7 +133,9 @@ class FileProvider : ContentProvider() {
                 }
                 DocumentsContract.Document.COLUMN_LAST_MODIFIED -> {
                     val lastModified = try {
-                        path.getLastModifiedTime().toMillis()
+                        StrictMode::class.withoutPenaltyDeathOnNetwork {
+                            path.getLastModifiedTime().toMillis()
+                        }
                     } catch (e: IOException) {
                         e.printStackTrace()
                         null

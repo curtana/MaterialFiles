@@ -40,4 +40,23 @@ class DualPaneLayoutTest {
     fun computeAvailableWidthPx_drawerWiderThanParent_isZero() {
         assertEquals(0, computeAvailableWidthPx(0, 500, 640, true))
     }
+
+    // R-B6-01
+    @Test
+    fun isPaneShown_singlePane_onlyActivePane() {
+        assertTrue(isPaneShown(false, 0, 0))
+        assertFalse(isPaneShown(false, 1, 0))
+        assertFalse(isPaneShown(false, 0, 1))
+        assertTrue(isPaneShown(false, 1, 1))
+    }
+
+    // R-B6-02
+    @Test
+    fun isPaneShown_dualPane_bothPanes() {
+        for (paneIndex in 0..1) {
+            for (activePane in 0..1) {
+                assertTrue(isPaneShown(true, paneIndex, activePane))
+            }
+        }
+    }
 }

@@ -25,13 +25,16 @@ import java.util.concurrent.Future
 
 class FileByteChannel(
     private val file: RemoteFile,
-    isAppend: Boolean
+    isAppend: Boolean,
+    private val onClientBroken: () -> Unit
 ) : AbstractFileByteChannel(isAppend) {
     override fun onReadAsync(position: Long, size: Int, timeoutMillis: Long): Future<ByteBuffer> =
         try {
             RemoteFileAccessor.asyncRead(file, position, size)
         } catch (e: IOException) {
             throw e.maybeToSpecificException()
+        } catch (e: RuntimeException) {
+            throw e.toClientBrokenException()
         }
             .asFuture()
             .map(
@@ -68,6 +71,8 @@ class FileByteChannel(
             )
         } catch (e: IOException) {
             throw e.maybeToSpecificException()
+        } catch (e: RuntimeException) {
+            throw e.toClientBrokenException()
         }
         source.position(source.limit())
     }
@@ -78,6 +83,8 @@ class FileByteChannel(
             file.setLength(size)
         } catch (e: IOException) {
             throw e.maybeToSpecificException()
+        } catch (e: RuntimeException) {
+            throw e.toClientBrokenException()
         }
     }
 
@@ -87,6 +94,8 @@ class FileByteChannel(
             file.length()
         } catch (e: IOException) {
             throw e.maybeToSpecificException()
+        } catch (e: RuntimeException) {
+            throw e.toClientBrokenException()
         }
 
     private fun IOException.maybeToSpecificException(): IOException =
@@ -102,6 +111,12 @@ class FileByteChannel(
             else -> this
         }
 
+    // See callOrEvict() in Client.
+    private fun RuntimeException.toClientBrokenException(): IOException {
+        onClientBroken()
+        return IOException(this)
+    }
+
     @Throws(IOException::class)
     override fun onClose() {
         try {
@@ -111,6 +126,8 @@ class FileByteChannel(
             if (e.statusCode != Response.StatusCode.NO_SUCH_FILE) {
                 throw e
             }
+        } catch (e: RuntimeException) {
+            throw e.toClientBrokenException()
         }
     }
 }
