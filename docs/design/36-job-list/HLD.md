@@ -2,7 +2,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 재검수 대기(v1.6, R13 닫음·#44 흡수·#43 결정 반영. v1.5의 요구사항 v7 반영도 함께 검수). v1.4까지는 검수 통과(PR #37 해당 코멘트 기준) |
+| 상태 | 검수 통과(v1.6, PR #37 코멘트 https://github.com/curtana/MaterialFiles/pull/37#issuecomment-6622114756 기준). PM 결정 대기 4건(R15, 재귀 속성 완료 토스트, R16, R13 남은 창)은 검수를 막지 않음 |
 | 근거 | SRS v2.5 (요구사항 v7까지, #44·#43 PM 결정) |
 | 기준 코드 | `origin/develop` a1a8a3e(#30 PR #35 머지 커밋) — 줄 번호는 이 커밋 기준 |
 | 브랜치 | `design/36-job-list` — #35가 이미 develop에 머지되어 있어 develop에서 분기했다(PM 지시의 `feature/30-job-runner` 분기·대상은 머지 전 전제였음). 설계 PR #37은 develop 대상. |

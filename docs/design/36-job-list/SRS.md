@@ -2,7 +2,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 재검수 대기(v2.5, #44 흡수·#43 결정 반영. v2.4의 요구사항 v7 반영도 함께 검수). v2.3까지는 검수 통과(PR #37 해당 코멘트 기준) |
+| 상태 | 검수 통과(v2.5, PR #37 코멘트 https://github.com/curtana/MaterialFiles/pull/37#issuecomment-6622114756 기준). PM 결정 대기 4건(R15, 재귀 속성 완료 토스트, R16, R13 남은 창)은 검수를 막지 않음 |
 | 근거 | #44·#43의 PM 분류 코멘트(2026-11-04, #44 흡수는 REQ-36-19, #43은 1.3·L2) + 요구사항 정리 v7(이슈 #36 issuecomment-6621714162, 요구사항 9 추가, 요구사항 6 보강) + v6(issuecomment-6620321027, 요구사항 8 추가, #39 흡수) + v5(issuecomment-6620294838, 요구사항 6 보강) + v4(issuecomment-6619674200, 요구사항 3을 대체, 2·6 보강) + v3(요구사항 5) + v2(나머지). 모두 오너 2026-11-04 |
 | 마일스톤 | v1.7.5 |
 | 선행 작업 | #30(PR #35, develop에 머지됨 a1a8a3e)의 작업 상태 통로 `FileJobStateTracker`·`FileJobBatch`·`runJobAndReport`·`FileJob.runOn(): Boolean`을 이어 쓴다. |
