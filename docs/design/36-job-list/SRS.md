@@ -52,13 +52,13 @@
 | 경로 | 쓰던 대상 파일 정리 | 근거 |
 |---|---|---|
 | 로컬(같은 공급자 복사) | 있음 — `successful`이 아니면 `remove(target)` | `provider/linux/LinuxCopyMove.kt:83-123` |
-| 공급자가 다른 복사·이동(압축 풀기, 저장소 간 이동 포함) | 있음 — 출력 닫은 뒤 `deleteIfExists` | `provider/common/ForeignCopyMove.kt:55-76`, 분기 `provider/common/PathExtensions.kt:48-55`·`:115-122` |
-| SFTP | 있음. 끼어들기 표시가 켜진 채 정리에 닿으면 지우기가 실패할 수 있다(HLD R11, 미결) | `provider/sftp/SftpCopyMove.kt:101-118` |
+| 공급자가 다른 복사·이동(압축 풀기, 저장소 간 이동 포함) | 있음 — 출력 닫은 뒤 `deleteIfExists`. 대상이 원격이면 표시가 켜진 채 정리에 닿을 수 있어 이 기능이 지우기 앞에서 표시를 지운다(HLD K14, R11) | `provider/common/ForeignCopyMove.kt:55-76`, 분기 `provider/common/PathExtensions.kt:48-55`·`:115-122` |
+| SFTP | 있음. 끼어들기 표시가 켜진 채 정리에 닿으면 지우기가 실패할 수 있다. 이 기능이 지우기 앞에서 표시를 지운다(HLD K14, R11) | `provider/sftp/SftpCopyMove.kt:101-118` |
 | SMB | 있음 — `deleteOnClose`. 다만 smbj 대기에 끼어들면 표시가 켜진 채 정리에 닿아 지금은 지우기가 조용히 실패한다. 이 기능이 표시를 지워 고친다(HLD K14) | `provider/smb/client/Client.kt:373-408` (`SmbCopyMove.kt:85-86`이 호출) |
-| FTP·WebDAV | 있음. WebDAV는 SFTP와 같은 위험(HLD R11, 미결) | `provider/ftp/FtpCopyMove.kt:70-87`, `provider/webdav/WebDavCopyMove.kt:75-92` |
+| FTP·WebDAV | 있음. WebDAV는 SFTP와 같은 위험이 있어 이 기능이 표시를 지운다. FTP는 지우지 않는다(HLD K14, R11) | `provider/ftp/FtpCopyMove.kt:70-87`, `provider/webdav/WebDavCopyMove.kt:75-92` |
 | 문서 공급자(SAF) 직접 복사 | 있음(공급자 복사가 안 될 때) / 공급자 복사는 끼어들 수 없음(A7) | `provider/document/resolver/DocumentResolver.kt:154-169`, `:106-107` |
 | 루트 모드(원격 프로세스) | 원격 쪽에서 위 로컬 정리가 돈다 — 앱 쪽 끼어들기가 원격 작업을 취소 | `provider/remote/RemoteFileSystemProvider.kt:145-147`, `provider/remote/RemoteFileSystemProviderInterface.kt:91-98` |
-| 압축(압축 파일 만들기) | 있음 — 실패하면 압축 파일 전체 삭제 | `filejob/FileJobs.kt:645-655` |
+| 압축(압축 파일 만들기) | 있음 — 실패하면 압축 파일 전체 삭제. 압축 파일이 원격이면 표시가 켜진 채 정리에 닿을 수 있어 이 기능이 지우기 앞에서 표시를 지운다(HLD K14, R11) | `filejob/FileJobs.kt:645-655` |
 | 쓰기(`write`) | 없음 — 기존 파일을 잘라 쓰므로 지우면 원래 파일을 잃는다 | `filejob/FileJobs.kt:2283` (요구사항 v4 6, L5) |
 
 ## 2. 기능 요구사항
@@ -136,7 +136,7 @@
 | L6 | 세션이 다른 SMB 간 복사에서 쓰기 쪽이 끼어들리면 대상 핸들이 먼저 닫혀 지우기가 실패한다. 조각이 남고 REQ-36-16으로 알린다(코드 읽기 근거, 실기 미확인). | `provider/smb/client/Client.kt:394-397`, `provider/smb/client/FileByteChannel.kt:105-107`, HLD 3.3.1 |
 
 ### 4.2 제약
-- C-1: 취소되지 않은 작업의 분기·반환값·오류 창 선택지를 바꾸지 않는다. **유일한 예외**는 `InterruptedIOException`으로 끝날 때의 토스트다(REQ-36-17, 요구사항 v6). 작업 본문에 더하는 것은 진행 값을 화면 쪽에 알리는 줄, 끝난 방식을 돌려주는 최소 변경, 취소 표시 점검(REQ-36-05), 오류·충돌 창 "취소"에서 취소 표시 켜기(REQ-36-08), 정리 실패 기록(REQ-36-16)뿐이다. 백엔드(`provider/`)의 지우기 호출·조건·순서는 바꾸지 않고, 실패·결과 모름을 알리는 통로만 더한다. 예외로 `Client.copyFile`의 정리 앞에서 끼어들기 표시를 지우는 한 줄을 더한다(HLD K14): 복사가 이미 실패한 경로이고 작업의 멈춤은 취소 표시가 맡으므로 취소되지 않은 작업에는 영향이 없다.
+- C-1: 취소되지 않은 작업의 분기·반환값·오류 창 선택지를 바꾸지 않는다. **유일한 예외**는 `InterruptedIOException`으로 끝날 때의 토스트다(REQ-36-17, 요구사항 v6). 작업 본문에 더하는 것은 진행 값을 화면 쪽에 알리는 줄, 끝난 방식을 돌려주는 최소 변경, 취소 표시 점검(REQ-36-05), 오류·충돌 창 "취소"에서 취소 표시 켜기(REQ-36-08), 정리 실패 기록(REQ-36-16)뿐이다. 백엔드(`provider/`)의 지우기 호출·조건·순서는 바꾸지 않고, 실패·결과 모름을 알리는 통로만 더한다. 예외로 실패 정리의 지우기 호출 바로 앞에서 끼어들기 표시를 지우는 한 줄을 다섯 곳에 더한다(HLD K14, R11): `Client.copyFile`, `SftpCopyMove.copy`, `WebDavCopyMove.copy`, `ForeignCopyMove.copy`, 작업 본문의 `ArchiveFileJob.run`. 복사·압축이 이미 실패한 경로이고 작업의 멈춤은 취소 표시가 맡으므로 취소되지 않은 작업에는 영향이 없다.
 - C-2: 알림은 그대로다(1.3).
 - C-3: 새 의존성 없음(3.1).
 - C-4: 이 기능은 #30 상태 통로의 공개 함수 모양(`onJobFinished(id, isSuccessful)`, `runOn(): Boolean`)을 넓힐 수 있다. 넓히더라도 #30의 동작(REQ-36-09)과 테스트는 그대로 통과해야 한다.
@@ -192,3 +192,4 @@
 | 2026-11-04 | v2.1 | REQ-36-16 검증 절차를 HLD T3와 맞추고 조건 문구 정리 | HLD 2회차 m3·m4 | 검수팀 |
 | 2026-11-04 | v2.2 | REQ-36-16 단위 테스트 경우 추가 | HLD 3회차 N2 | 검수팀 |
 | 2026-11-04 | v2.3 | 요구사항 v5·v6 반영: REQ-36-17 추가(#39 흡수), REQ-36-08 취소 판정을 취소 표시 하나로, REQ-36-13·C-1에 취소되지 않은 작업의 첫 예외와 `Client.copyFile` 표시 지우기, REQ-36-16 "불확실하면 알린다", L2·L3·L4 정리와 L6 추가, 1.5 SFTP·SMB·WebDAV 주의, 1.2·1.3·4.3. REQ-36-16 로컬 검증을 `ForeignCopyMove` 대표 시험 + `LinuxCopyMove` 코드 검수로(검수 1회차 F1). 3.2 훑기 거르기 | 오너 요구사항 v5·v6, LLD 검수 1회차 F1, LLD FB-1 | 오너·개발팀 |
+| 2026-11-04 | v2.3 | HLD R11 닫음 반영: C-1의 표시 지우기 예외를 `Client.copyFile`에서 다섯 곳으로, 1.5의 공급자 간·SFTP·FTP·WebDAV·압축 주의 | 개발팀 결정 | 개발팀 |
