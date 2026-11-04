@@ -1,6 +1,6 @@
 # 규격 추적표 — Android app quality guidelines
 
-- 상태: v0.8 (2026-11-04. v0.1~v0.2 PM 보조 작성, v0.3 오너 결정 기록, v0.4 4장 #2 행 REQ ID, v0.5 Q7~Q9 오너 결정, v0.6 `Keyboard_Shortcuts` 비고, v0.7 4장 #29 행, v0.8 4장 #30 행 — 5장 이력). 조항 해석·필수 여부 판정은 오너 승인 사항이다(PROCESS_ROLES 부록 S).
+- 상태: v0.9 (2026-11-04. v0.1~v0.2 PM 보조 작성, v0.3 오너 결정 기록, v0.4 4장 #2 행 REQ ID, v0.5 Q7~Q9 오너 결정, v0.6 `Keyboard_Shortcuts` 비고, v0.7 4장 #29 행, v0.8 4장 #30 행 — 5장 이력). 조항 해석·필수 여부 판정은 오너 승인 사항이다(PROCESS_ROLES 부록 S).
 - 작성 규칙: 원문 문장은 옮기지 않고 한국어 요지만 적는다. 아래 근거 문서에서 직접 확인하지 못한 내용은 "원문 판독 필요"로 둔다.
 - 결과 로직을 바꾸는 PR은 이 표를 같은 PR에서 고친다(부록 S).
 
@@ -133,6 +133,7 @@
 | #2 — RTL | RTL-1, RTL-2, RTL-3, RTL-4, RTL-5 | REQ-2-06, REQ-2-07, REQ-2-11의 방향(SRS A2), REQ-2-15·17의 경로 표시 (SRS 3.5) | RTL-5는 원문 판독 필요 |
 | #29 목록 자동 새로 고침의 조용한 갱신(B3) | `Stability_ANR`, `Consistent_UX`, A11P-4 | REQ-29-01~13 (`docs/design/29-list-refresh/SRS.md`) | 새 UI·문구·권한 없음. 조용한 성공을 화면 낭독에 알리지 않는 것(REQ-29-13)은 요구사항 결정이며, 상태 변화 낭독에 관한 조항은 확인한 문서에 없다 — 원문 판독 필요(A11P-4) |
 | #30 파일 작업 표시(툴바의 달리는 선 사람) | `Theme_Support`, `Visual_Contrast`, `Content_Description`, `Consistent_UX`, `Display_State_Parity`, `Stability_ANR`, `Minimize_Permissions`, `Touch_Target_Size`(해당 없음), A11Y-2, A11Y-3, A11P-2, A11P-4, RTL-1, RTL-2, RTL-4 | REQ-30-01~16 (`docs/design/30-job-runner/SRS.md` v1.3 5장) | 새 권한 없음. 모션 줄이기·상태 변화 낭독은 추적표에 조항이 없어 원문 판독 필요(요구사항 결정으로 둠). 새 편차 없음 |
+| #36 앱 안 파일 작업 목록과 취소(#39·#44 흡수) | `Theme_Support`, `Visual_Contrast`, `Content_Description`, `Touch_Target_Size`, `State_Preservation`, `Orientation_Transitions`, `Display_State_Parity`, `Consistent_UX`, `Back_Button_Nav`, `Stability_ANR`, `Minimize_Permissions`, A11Y-2, A11Y-3, A11P-2, A11P-4, RTL-1, RTL-2, RTL-4 | REQ-36-01~19 (`docs/design/36-job-list/SRS.md` v2.6 5장) | 새 권한 없음. 상태 변화 낭독은 추적표에 조항이 없어 원문 판독 필요. 알림 꺼짐에서의 토스트는 오너 결정으로 사용자 몫(요구사항 v5), 알림 관련 CQ 조항은 원문 판독 필요. 새 편차 없음 |
 
 ## 5. 변경 이력
 
@@ -146,3 +147,4 @@
 | 2026-10-28 | v0.6 | 2.2 `Keyboard_Shortcuts` 비고를 코드 확인 결과로 갱신(받는 조건·툴바 단축키 병기 포함, 선택·잘라내기·복사·붙여넣기 있음, 실행 취소·다시 실행 없음 — 이슈 #12 PM 분류) | 설계팀 |
 | 2026-11-03 | v0.7 | 4장에 #29 행(조용한 갱신 B3, SRS REQ-29-01~13) 추가 | 설계팀 |
 | 2026-11-04 | v0.8 | 4장에 #30 행(파일 작업 표시, SRS REQ-30-01~16) 추가 | 개발팀 |
+| 2026-11-04 | v0.9 | 4장에 #36 행(파일 작업 목록, SRS REQ-36-01~19) 추가 | 개발팀 |

@@ -118,6 +118,9 @@ internal object LinuxCopyMove {
                                 Syscall.remove(target)
                             } catch (e: SyscallException) {
                                 e.printStackTrace()
+                                if (e.errno != OsConstants.ENOENT) {
+                                    copyOptions.cleanupFailureListener?.invoke()
+                                }
                             }
                         }
                     }
@@ -284,7 +287,7 @@ internal object LinuxCopyMove {
         if (!copyOptions.copyAttributes || !copyOptions.noFollowLinks) {
             copyOptions = CopyOptions(
                 copyOptions.replaceExisting, true, false, true, copyOptions.progressIntervalMillis,
-                copyOptions.progressListener
+                copyOptions.progressListener, copyOptions.cleanupFailureListener
             )
         }
         copy(source, target, copyOptions)

@@ -71,6 +71,44 @@
     <string name="file_job_indicator_running_description">파일 작업 진행 중</string>
     <string name="file_job_indicator_succeeded_description">파일 작업 완료</string>
     <string name="file_job_indicator_failed_description">파일 작업 실패 또는 취소됨</string>
+    <string name="file_job_list_title">파일 작업</string>
+    <string name="file_job_list_cancel_all">모두 취소</string>
+    <string name="file_job_list_empty">진행 중인 파일 작업 없음</string>
+    <string name="file_job_list_cancel_description_format">%1$s 취소</string>
+    <plurals name="file_job_list_subject_multiple_format">
+        <item quantity="other">%1$s 외 %2$,d개</item>
+    </plurals>
+    <string name="file_job_list_type_copy">복사</string>
+    <string name="file_job_list_type_extract">압축 풀기</string>
+    <string name="file_job_list_type_move">이동</string>
+    <string name="file_job_list_type_archive">압축</string>
+    <string name="file_job_list_type_delete">삭제</string>
+    <string name="file_job_list_type_create">새로 만들기</string>
+    <string name="file_job_list_type_rename">이름 바꾸기</string>
+    <string name="file_job_list_type_open">열기</string>
+    <string name="file_job_list_type_install_apk">APK 설치</string>
+    <string name="file_job_list_type_save">저장</string>
+    <string name="file_job_list_type_write">쓰기</string>
+    <string name="file_job_list_type_set_owner">소유자 바꾸기</string>
+    <string name="file_job_list_type_set_group">그룹 바꾸기</string>
+    <string name="file_job_list_type_set_mode">권한 바꾸기</string>
+    <string name="file_job_list_type_set_selinux_context">SELinux 컨텍스트 바꾸기</string>
+    <string name="file_job_list_type_restore_selinux_context">SELinux 컨텍스트 복원</string>
+    <string name="file_job_list_status_pending">대기 중</string>
+    <string name="file_job_list_status_running">진행 중</string>
+    <plurals name="file_job_list_status_scanning_format">
+        <item quantity="other">준비 중 · %1$,d개 · %2$s</item>
+    </plurals>
+    <string name="file_job_list_status_size_multiple_format">%1$d%% · %2$s / %3$s · 파일 %4$,d / %5$,d</string>
+    <string name="file_job_list_outcome_succeeded">완료</string>
+    <string name="file_job_list_outcome_canceled">취소됨</string>
+    <string name="file_job_list_outcome_failed">실패</string>
+    <string name="file_job_list_outcome_cleanup_failed_format">%1$s · 일부 파일을 지우지 못함</string>
+    <string name="file_job_interrupted_toast">파일 작업이 끝나기 전에 중단되었습니다. 네트워크 시간 초과 때문일 수 있습니다.</string>
+    <string name="file_job_cleanup_failed_toast_format">“%2$s”의 “%1$s”을(를) 지우지 못함</string>
+    <plurals name="file_job_cleanup_failed_multiple_toast_format">
+        <item quantity="other">“%2$s”의 “%1$s” 외 %3$,d개를 지우지 못함</item>
+    </plurals>
     <string name="notification_channel_ftp_server_name">FTP 서버</string>
     <string name="notification_channel_ftp_server_description">FTP 서버를 표시하고 제어합니다</string>
 

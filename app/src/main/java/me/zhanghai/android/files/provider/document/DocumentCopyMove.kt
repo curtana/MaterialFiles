@@ -42,7 +42,8 @@ internal object DocumentCopyMove {
         }
         return try {
             DocumentResolver.copy(
-                source, target, copyOptions.progressIntervalMillis, copyOptions.progressListener
+                source, target, copyOptions.progressIntervalMillis, copyOptions.progressListener,
+                copyOptions.cleanupFailureListener
             )
         } catch (e: ResolverException) {
             (e.cause as? InterruptedIOException)?.let { throw it }
@@ -75,7 +76,7 @@ internal object DocumentCopyMove {
         return try {
             DocumentResolver.move(
                 source, target, copyOptions.atomicMove, copyOptions.progressIntervalMillis,
-                copyOptions.progressListener
+                copyOptions.progressListener, copyOptions.cleanupFailureListener
             )
         } catch (e: ResolverException) {
             (e.cause as? InterruptedIOException)?.let { throw it }

@@ -84,7 +84,8 @@ internal object SmbCopyMove {
             try {
                 Client.copyFile(
                     source, target, copyOptions.copyAttributes, copyOptions.noFollowLinks,
-                    copyOptions.progressIntervalMillis, copyOptions.progressListener
+                    copyOptions.progressIntervalMillis, copyOptions.progressListener,
+                    copyOptions.cleanupFailureListener
                 )
             } catch (e: ClientException) {
                 (e.cause as? InterruptedIOException)?.let { throw it }
@@ -219,7 +220,7 @@ internal object SmbCopyMove {
         if (!copyOptions.copyAttributes || !copyOptions.noFollowLinks) {
             copyOptions = CopyOptions(
                 copyOptions.replaceExisting, true, false, true, copyOptions.progressIntervalMillis,
-                copyOptions.progressListener
+                copyOptions.progressListener, copyOptions.cleanupFailureListener
             )
         }
         copy(source, target, copyOptions)

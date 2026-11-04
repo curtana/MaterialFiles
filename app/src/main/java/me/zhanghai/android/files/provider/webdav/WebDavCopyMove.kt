@@ -80,6 +80,11 @@ internal object WebDavCopyMove {
                         )
                         successful = true
                     } finally {
+                        // The interrupted status may have been restored by a library, which would
+                        // make the cleanup fail immediately. The job is stopped by isCanceled.
+                        if (!successful) {
+                            Thread.interrupted()
+                        }
                         try {
                             targetOutputStream.close()
                         } catch (e: DavException) {
@@ -90,6 +95,10 @@ internal object WebDavCopyMove {
                                     Client.delete(target)
                                 } catch (e: DavException) {
                                     e.printStackTrace()
+                                    val exception = e.toFileSystemException(target.toString())
+                                    if (exception !is NoSuchFileException) {
+                                        copyOptions.cleanupFailureListener?.invoke()
+                                    }
                                 }
                             }
                         }
@@ -165,7 +174,7 @@ internal object WebDavCopyMove {
         if (!copyOptions.copyAttributes || !copyOptions.noFollowLinks) {
             copyOptions = CopyOptions(
                 copyOptions.replaceExisting, true, false, true, copyOptions.progressIntervalMillis,
-                copyOptions.progressListener
+                copyOptions.progressListener, copyOptions.cleanupFailureListener
             )
         }
         copy(source, target, copyOptions)
