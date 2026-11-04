@@ -2,9 +2,9 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 검수 통과(v1.1, PR #32 2회차 조건부 — n1은 v1.2에서 반영), v1.2 오너 결정 반영, v1.3 LLD 피드백 FB-1~FB-5 반영(재검수 대상: 1.2, K1·K1a·K6·K8, 3.3, 3.4 "멈춤", 3.5, 4.1, R8·R9) |
-| 근거 | SRS v1.3 (v1.1 검수 통과 + 4.3 Q1~Q3 오너 결정 2026-11-04 + 1.4 "모션 줄이기" 정의 확장, LLD FB-1) |
-| 기준 코드 | `origin/develop` 4437e43 — 줄 번호는 이 커밋 기준 |
+| 상태 | 검수 통과(v1.1, PR #32 2회차 조건부 — n1은 v1.2에서 반영), v1.2 오너 결정 반영, v1.3 LLD 피드백 FB-1~FB-5 반영, v1.4 #38 요구사항 변경 반영(재검수 대상: K9·K11, 3.4 "모션 줄이기"·"멈춤", 3.4.1, 3.6, 4장 시스템 방송 줄, D9, R9·R11) |
+| 근거 | SRS v1.4 (v1.1 검수 통과 + 4.3 Q1~Q3 오너 결정 2026-11-04 + 1.4 "모션 줄이기" 정의 확장, LLD FB-1 + 절전 모드, 이슈 #38 요구사항 정리 v1) |
+| 기준 코드 | `origin/develop` 4437e43 — 줄 번호는 이 커밋 기준. 단 K11, 3.4.1, R11의 v1.4 인용은 #30 구현이 들어간 `origin/develop` a1a8a3e 기준 |
 
 ## 1. 구조 개요
 
@@ -59,10 +59,10 @@ flowchart LR
 | K6 표시 제어 | `filelist/FileListHostFragment.kt` (기존, `onActivityCreated` `:103-` 의 관찰 등록 자리) | 뷰 수명 동안 K5 인스턴스 하나를 가진다(화면 단위 — 창 이동에도 시간이 이어짐, 화면 재생성 시 새로, SRS REQ-30-07). `FileJobStateTracker.stateLiveData`와 `Settings.FILE_JOB_INDICATOR`를 `viewLifecycleOwner`로 관찰하고(시작됨 상태일 때만 받음 = "화면이 보일 때"), K5 결과를 K7에 쓴다. 다음 시각은 뷰의 `postDelayed`로 예약하고 멈춤 때 지운다. K5가 결과 단계로 들어가면 `consumeResult(seq)`, 설정이 꺼진 채 결과를 받으면 바로 `consumeResult(seq)` — 설정이 켜진 채 끝났지만 아직 보이지 않은 결과를 화면이 시작된 상태에서 끈 경우(다중 창 등)다. 꺼진 동안 끝난 묶음은 K1이 결과를 만들지 않으므로(SRS A7) K6가 받지 않는다. | REQ-30-03, 07, 11, 15 |
 | K7 표시 단계 전달 | `filelist/DualPaneViewModel.kt` (기존) | `fileJobIndicatorPhaseLiveData: LiveData<FileJobIndicatorPhase>`(초기 `HIDDEN`)와 설정 함수. 두 창이 같은 값을 본다. 기존 활성 창·창 모드 LiveData와 같은 방식(`:10-51`). | REQ-30-03 |
 | K8 표시할 창 | `filelist/FileJobIndicator.kt` (새 파일, 순수 함수) + `filelist/FileListFragment.kt` (기존, `onActivityCreated` 끝 `:382` 뒤에서 부르는 새 관찰 등록 함수 — 4.1) | `getFileJobIndicatorPaneIndex(isDualPaneEnabled, isDualPane, activePane)` = 두 창 모드면 `1`(끝 쪽 창), 아니면 `activePane`(보이는 창). 선택 모드(창 2 없음)는 `0`. 각 창은 K7 단계·창 모드·활성 창을 관찰해 `자기 index == 판정값`이면 그 단계를, 아니면 `HIDDEN`을 자기 K9에 준다. 기존 창 표시 갱신(`schedulePaneIndicatorUpdate`, `:598-`)과 같은 LiveData를 관찰하되, 그 관찰 블록(`:348-358`)에 끼우지 않고 별도 함수로 등록한다 — #29 구현이 그 블록 안 줄을 바꾸기 때문이다(4.1, LLD FB-5). | REQ-30-02, 03, 14 |
-| K9 선 사람 뷰 | `ui/FileJobIndicatorView.kt` (새 파일) + 자세 계산 `ui/StickFigurePose.kt` (새 파일, 순수 함수) | `phase`를 받아 그린다. 3.4·3.5. `HIDDEN`이면 `GONE`(자리 없음). 누르기·초점 없음, 상태 설명과 알림 영역(live region). | REQ-30-02, 05, 06, 09, 10, 12, 13, 14 |
+| K9 선 사람 뷰 | `ui/FileJobIndicatorView.kt` (새 파일) + 자세 계산 `ui/StickFigurePose.kt` (새 파일, 순수 함수) | `phase`를 받아 그린다. 3.4·3.5. `HIDDEN`이면 `GONE`(자리 없음). 누르기·초점 없음, 상태 설명과 알림 영역(live region). 창에 붙어 있는 동안 절전 모드 전환을 받아 그림을 바꾼다(3.4.1). | REQ-30-02, 05, 06, 09, 10, 12, 13, 14 |
 | K9a 툴바 배치 | `res/layout/file_list_fragment_app_bar_include.xml` (기존, `toolbar` `:27-36`) | `toolbar`의 자식으로 K9를 `layout_gravity="end"`, 기본 `visibility="gone"`으로 둔다. `Toolbar`는 끝 쪽 정렬 자식을 메뉴 보기의 시작 쪽에 놓아 메뉴 항목을 가리지 않는다(R1에서 LLD가 확인). `overlayToolbar`(`:38-47`)에는 두지 않는다(SRS A1·Q3). | REQ-30-02, 14 |
 | K10 설정 | `settings/Settings.kt`(`FILE_LIST_ANIMATION` 뒤, `:124-127`), `res/values/donottranslate_prefs.xml`(`:52-53` 뒤), `res/xml/settings.xml`(인터페이스 분류, `:44-47` 뒤), `res/values/strings.xml`·`res/values-ko/strings.xml` | `FILE_JOB_INDICATOR: SettingLiveData<Boolean>` = `BooleanSettingLiveData(R.string.pref_key_file_job_indicator, R.bool.pref_default_value_file_job_indicator)`, 키 `key_file_job_indicator`, 기본 `true`. 설정 화면 `SwitchPreferenceCompat` 제목 "파일 작업 표시"·요약 "파일 작업 중 툴바에 달리는 사람을 표시"(문구 LLD 확정). | REQ-30-11 |
-| K11 모션 줄이기 판정 | `util/AnimatorScale.kt` (새 파일, 이름 LLD) | `isReducedMotion(context)`(SRS 1.4 ①②): API 26 이상 `ValueAnimator.areAnimatorsEnabled()`의 반대(배율 0과 절전 모드 등 — R9), 미만은 `Settings.Global.ANIMATOR_DURATION_SCALE`를 읽어(기본 1) 0이면 참. 순수 부분 `isReducedMotion(scale: Float) = scale == 0f`는 단위 테스트. K9가 단계가 바뀔 때·나타날 때 부른다(SRS REQ-30-10). | REQ-30-10 |
+| K11 모션 줄이기 판정 | `util/AnimatorScale.kt` (기존, `Context.isReducedMotion()` `:16-25`) | SRS 1.4 ①②③ 중 하나면 참: `powerManager.isPowerSaveMode`(`app/SystemServices.kt:54`, 모든 API, ③)가 참이거나, 기존 경로 — API 26 이상 `ValueAnimator.areAnimatorsEnabled()`의 반대(①②), 미만은 `Settings.Global.ANIMATOR_DURATION_SCALE`를 읽어(기본 1) 0이면 참(①). 순수 부분: 기존 `isReducedMotion(animatorDurationScale)`(`:27`)에 더해 "절전 모드 켬 또는 Animator 꺼짐"을 합치는 순수 함수를 둬(이름 LLD) 네 조합을 단위 테스트한다(`app/src/test/.../util/AnimatorScaleTest.kt`). K9가 3.4.1의 시점에 부른다(SRS REQ-30-10). | REQ-30-10 |
 | K12 문자열 | `res/values/strings.xml`, `res/values-ko/strings.xml` | 낭독 문구 셋("File operation in progress"/"파일 작업 진행 중", "File operation finished"/"파일 작업 완료", "File operation failed or canceled"/"파일 작업 실패 또는 취소됨"), 설정 제목·요약. | REQ-30-11, 12 |
 
 ### 2.1 하위 이슈 분배
@@ -118,11 +118,27 @@ flowchart LR
 
 ### 3.4 그리기 (K9)
 - **방식**: `View`를 상속한 직접 그리기. 머리(원)와 몸·팔 둘·다리 둘(선 다섯)을 `Canvas.drawCircle`·`drawLine`으로 그린다. 자세는 관절 좌표(단위 상자 0~1)를 돌려주는 순수 함수 `StickFigurePose`(`running(t)`, `cheering(t)`, `fallen(t)`, `t`는 0~1 위상)로 계산한다. 애니메이션은 `ValueAnimator`(달리기는 약 600ms 주기 무한 반복, 만세는 팔 올리기 약 300ms 뒤 정지, 넘어짐은 약 400ms 동안 몸을 눕힘 뒤 정지)로 위상을 바꾸고 `invalidate()`. 사라질 때 약 150ms 서서히 사라짐(모션 줄이기면 없음).
-- **모션 줄이기**(K11 참, SRS 1.4 ①②): 애니메이터를 돌리지 않고 정지 자세(`running(0.25)`·`cheering(1)`·`fallen(1)`)를 한 번 그린다. 사라짐 효과 없음. 시간 규칙(K5)은 같다.
+- **모션 줄이기**(K11 참, SRS 1.4 ①②③): 애니메이터를 돌리지 않고 정지 자세(`running(0.25)`·`cheering(1)`·`fallen(1)`)를 한 번 그린다. 사라짐 효과 없음. 시간 규칙(K5)은 같다. 절전 모드가 켜져 있으면 달리기 정지 → 만세(또는 넘어짐) 정지 → 바로 사라짐이다. 재판정과 전환은 3.4.1.
 - **크기**: 그림 24dp, 뷰는 너비 32dp × 툴바 높이(세로 가운데). 선 굵기 2dp, 끝 둥글게.
 - **색**: 뷰의 테마(앱바 `?actionBarTheme`)에서 `colorControlNormal`을 읽는다 = `?android:textColorPrimary`(`res/values/styles.xml:61-64`) — 툴바 아이콘과 같다(REQ-30-13). 색 상태 목록이면 기본 상태 색.
 - **RTL**: `layoutDirection`이 RTL이면 그리기 전에 가로 반전(`canvas.scale(-1, 1, 중심)`) — 끝 쪽을 향해 달림(SRS 3.5, `RTL-2`).
-- **멈춤**: 애니메이터는 `phase != HIDDEN` + 붙어 있음 + `isShown`일 때만 돈다. 붙음·떼어짐과 자기·조상·창의 보임 변화(`onAttachedToWindow`·`onDetachedFromWindow`·`onVisibilityChanged`·`onWindowVisibilityChanged`)마다 조건을 다시 보아 멈추거나 다시 돌린다(SRS 3.2). `onVisibilityAggregated`는 API 24부터라 minSdk 23(`app/build.gradle:34`)에서 쓰지 않는다(LLD FB-3). 툴바가 위로 밀려 가려진 경우(A2)는 뷰가 붙어 보이는 상태라 계속 돈다 — 작은 뷰라 비용은 작다(R3).
+- **멈춤**: 애니메이터는 `phase != HIDDEN` + 모션 줄이기 아님 + 붙어 있음 + `isShown`일 때만 돈다. 붙음·떼어짐과 자기·조상·창의 보임 변화(`onAttachedToWindow`·`onDetachedFromWindow`·`onVisibilityChanged`·`onWindowVisibilityChanged`)마다 조건을 다시 보아 멈추거나 다시 돌린다(SRS 3.2). `onVisibilityAggregated`는 API 24부터라 minSdk 23(`app/build.gradle:34`)에서 쓰지 않는다(LLD FB-3). 툴바가 위로 밀려 가려진 경우(A2)는 뷰가 붙어 보이는 상태라 계속 돈다 — 작은 뷰라 비용은 작다(R3). 분리 시 애니메이터를 조건과 무관하게 취소한다(#40).
+
+### 3.4.1 모션 줄이기 재판정과 절전 모드 전환 (SRS REQ-30-10, #38 요구사항 3)
+- **재판정 시점**: (가) 단계가 바뀔 때·나타날 때(기존, `ui/FileJobIndicatorView.kt:54-100`) (나) `PowerManager.ACTION_POWER_SAVE_MODE_CHANGED`를 받을 때 (다) `onAttachedToWindow`. 모두 K11을 불러 결과를 K9의 `isReducedMotion` 필드(`:49`)와 견주고, 값이 그대로면 아무것도 하지 않는다. (나)·(다)에서 값이 바뀌면 아래 표대로 한다((가)는 기존대로 새 단계를 처음부터 그린다).
+- **수신기**: 기존 `util/RuntimeBroadcastReceiver.kt:14-27`(기본 `RECEIVER_NOT_EXPORTED`)을 쓴다. 시스템 방송을 같은 도우미로 받는 선례는 `ftpserver/FtpServerUrl.kt:32-39`, 붙음·떼어짐에 맞춰 등록·해제하는 선례는 `ftpserver/FtpServerUrlPreference.kt:52-68`이다. 이 방송은 실행 중 등록한 수신기에만 온다(android-35 `android/os/PowerManager.java:3059-3064`). `onAttachedToWindow`(`FileJobIndicatorView.kt:165-169`)에서 등록하고 `onDetachedFromWindow`(`:171-175`)에서 해제한다. 뷰가 붙어 있으면 `GONE`이거나 화면이 멈춘 동안에도 등록된 채다 — 받아서 하는 일은 필드 갱신과 정지 그림 다시 그리기뿐이고, 두 창 모드면 뷰 둘이 각자 받는다(`HIDDEN`인 쪽은 필드만 갱신).
+- **분리 중 변화**: 수신기가 없는 동안(떼어짐) 바뀐 상태는 (다)가 잡는다. `onAttachedToWindow`에서는 **수신기를 먼저 등록한 뒤** K11을 읽어 그 사이의 전환을 놓치지 않고, 그 결과를 표대로 반영한 뒤 기존 `updatePoseAnimator(false)`를 부른다.
+- **전환 동작**(K11 값이 바뀌었을 때):
+
+| 지금 단계 | 거짓 → 참 (절전 모드 켜짐) | 참 → 거짓 (절전 모드 꺼짐) |
+|---|---|---|
+| `RUNNING` | 애니메이터 취소, 위상을 정지 값(`running(0.25)`)으로 두고 다시 그림. 기존 `updatePoseAnimator`의 정지 분기(`:127-133`)는 결과 단계만 위상을 고치므로 달리기 위상은 따로 정해야 한다 | 애니메이터를 다시 시작(`updatePoseAnimator`, 위상은 처음부터 — 붙음·보임 조건이 안 맞으면 맞을 때 돈다) |
+| `SUCCEEDED`·`FAILED` | 애니메이터 취소, 위상 1로 끝 자세(`cheering(1)`·`fallen(1)`)를 다시 그림 | 아무것도 하지 않음 — 정지 그림 유지. 위상이 1인 결과는 다시 움직이지 않는 기존 분기(`:138-141`) 그대로 |
+| `HIDDEN`, 서서히 사라지는 중(`:72-78`) | 사라짐을 취소하고 바로 `GONE`, `alpha = 1`(`:69-70`과 같음 — 취소하면 `withEndAction`이 돌지 않으므로 직접 처리) | 해당 없음 — 사라지는 중이면 값이 이미 거짓이다 |
+| `HIDDEN`, `GONE` | 필드만 갱신 | 필드만 갱신 |
+
+- 전환은 `phase`와 `contentDescription`을 바꾸지 않는다 — 낭독이 다시 나오지 않고(REQ-30-12, 3.5), K5·K6·K7은 전환을 모른다(시간 규칙 불변, 3.3).
+- 절전 모드가 꺼져도 ①②가 해당하면 K11이 참이라 정지 그대로다. 절전 모드가 Animator를 끄는 기기에서는 꺼짐 방송이 Animator 복구보다 먼저 올 수 있어(R11), 방송을 받았을 때 절전 모드는 꺼졌는데 K11이 아직 참이면 짧은 지연(약 500ms, 값은 LLD) 뒤 한 번 더 재판정한다. 그 예약은 떼어질 때와 다음 방송을 받을 때 지운다.
 
 ### 3.5 접근성 (K9, SRS REQ-30-09·12)
 - `isClickable = false`, `isFocusable = false`(누름 효과·키보드 초점 없음, REQ-30-09). 화면 낭독기는 설명이 있는 뷰에 탐색 초점을 줄 수 있으므로 `importantForAccessibility = yes`.
@@ -132,13 +148,15 @@ flowchart LR
 
 ### 3.6 수명주기·오류 전파
 - K1은 프로세스 메모리에만 있다(SRS A5). 서비스가 다시 만들어져도 K1은 그대로다.
+- K9의 절전 모드 수신기는 붙음·떼어짐과 짝을 이뤄 등록·해제한다(3.4.1). 화면이 다시 만들어지면 옛 뷰가 떼어질 때 해제되고 새 뷰가 붙을 때 등록·재판정한다.
 - K1·K5·K8·K11은 예외를 던지지 않는다. K2의 `finally` 보고가 실패하는 경우는 없다(메인 실행기에 넣기만 함). 작업 본문의 예외 전파는 지금과 같다 — K2는 잡지 않는다.
 
 ## 4. 외부 인터페이스
 - **설정 키**: `key_file_job_indicator`(불리언, 기본 `true`) — 새 SharedPreferences 항목. 백업·이전 버전 영향 없음(없으면 기본값).
 - **새 공개 API**(앱 내부): `FileJobStateTracker.stateLiveData`, `FileJobState`, `FileJobBatch`, `FileJobIndicatorPhase`, `getFileJobIndicatorPaneIndex`.
 - **바뀌는 시그니처**: `FileJob.runOn(service): Unit` → `Boolean`. 부르는 곳은 `FileJobService.kt:58` 하나다.
-- Intent·Provider·권한·파일 포맷: 없음.
+- **시스템 방송 수신**: `PowerManager.ACTION_POWER_SAVE_MODE_CHANGED`를 실행 중 등록으로 받는다(K9, 3.4.1). 새 권한·매니페스트 변경 없음.
+- 그 밖의 Intent·Provider·권한·파일 포맷: 없음.
 - **추적표**: `docs/STANDARDS_TRACEABILITY.md` 4장에 #30 행(SRS 5장 조항, REQ-30-01~16)을 **feature PR에서** 추가한다 — #29 설계 PR #31이 같은 표의 머리 상태 줄·4장 끝·5장 이력을 고치는 중이라 지금 넣으면 충돌한다(부록 S "결과 로직을 바꾸는 PR은 같은 PR에서"는 feature PR이 충족).
 
 ### 4.1 #29와의 조율점
@@ -161,6 +179,7 @@ flowchart LR
 | D6 툴바 자식(K9a) | (가) 메뉴 항목 `actionLayout` (나) 호스트 위 겹침 뷰 | (가)는 창마다 메뉴 갱신(`FileListFragment.kt:380-` `menuProvider`)과 묶이고 더 보기 메뉴로 밀려 들어갈 수 있다. (나)는 끝 쪽 메뉴 항목을 가린다(REQ-30-02 위반). 툴바 자식은 `GONE`이면 자리가 없다(REQ-30-14). |
 | D7 두 창 모드는 창 2, 한 창 모드는 보이는 창(K8) | 활성 창의 툴바 | 요구사항 "우측 상단" = 화면 끝 쪽. 활성 창을 따라가면 두 창 모드에서 왼쪽으로 옮겨 다닌다. 창 2는 LTR·RTL 모두 끝 쪽이다(#2 SRS A2). |
 | D8 결과 소비는 결과 단계 진입 때(K6) | 결과 단계가 끝날 때 | 진입 때 소비해야 회전·다른 화면에서 다시 보이지 않는다(REQ-30-15, A3). 진입 뒤 회전하면 결과가 잘리는데, 다시 보이는 것보다 낫다고 본다. |
+| D9 절전 모드 전환은 K9가 붙어 있는 동안 등록한 수신기로 받는다(3.4.1) | (가) 수신기 없이 기존 재판정 시점만 (나) 프로세스 공용 LiveData로 받아 K6·K7을 거쳐 전달 (다) 주기적으로 `isPowerSaveMode` 읽기 (라) 앱 수명 내내 등록한 수신기 (마) API 33의 `ValueAnimator.registerDurationScaleChangeListener` | (가)는 빠른 설정 내림창으로 켜면 창이 그대로라 단계 변경·나타남이 일어나지 않아 달리는 그림이 멈추지 않는다(#38 요구사항 3). (나)는 K5·K6가 쓰지 않는 값을 지나가게 하고, 그림 일은 K9 안에서 끝난다. (다)는 전기를 아끼려는 요구와 반대다. (라)는 선 사람이 없는 동안에도 받고, 해제할 자리가 없다. (마)는 API 33부터이고 Animator를 끄지 않는 기기(오너 태블릿)에서는 신호가 오지 않는다. |
 
 ## 6. 위험과 미결 사항
 | ID | 내용 | 대응 |
@@ -173,8 +192,9 @@ flowchart LR
 | R6 | (닫힘) SRS Q1~Q3. | 오너 결정(2026-11-04)으로 v1.1 설계 그대로 확정: Q1 모두 포함(K2 ①에 작업 종류 제외 없음), Q2 오류 건너뛰기는 실패·충돌 건너뛰기는 성공(K4 유지), Q3 선택 모드·검색 중 가려짐 허용(K9a `overlayToolbar`에 두지 않음). |
 | R7 | #29와 같은 파일(`FileListFragment.kt`) 수정. | 4.1 조율점. |
 | R8 | 낭독 중복 방지(3.5): 같은 단계 반복 설정을 건너뛰려면 `HIDDEN`이 될 때 마지막 설명을 지워야 다음 묶음의 "진행 중"이 다시 낭독된다. (v1.3 정정) 설명은 뷰를 보이게 한 **뒤** 설정한다 — 보이지 않는 뷰의 접근성 이벤트는 버려지므로(android-35 `View.java:9032-9034` `sendAccessibilityEventUncheckedInternal`의 `isShown()` 검사) 보이기 전에 넣으면 나타날 때의 낭독이 사라진다. 나타날 때 옛 설명을 읽지 않는 것은 `HIDDEN`이 될 때 바로 설명을 지우는 것(첫 문장)으로 지킨다. | (해소) LLD 0.2 R8·2.12 `phase` 설정자(LLD FB-3). |
-| R9 | K11의 `ValueAnimator.areAnimatorsEnabled()`는 시스템 설정 배율 0 말고도 절전 모드 등으로 애니메이터가 꺼진 경우 거짓일 수 있다고 알려져 있다(미확인). 그러면 SRS 용어(배율 0)보다 넓고, API 23~25 경로(설정값 읽기)와 판정이 다를 수 있다. | (해소) LLD가 확인: API 문서(android-35 `ValueAnimator.java:396-411`)가 배율 0 "또는 절전 모드"에서 거짓이라고 명시한다(창 관리자 쪽 구현은 미확인). API 23~25 경로는 절전 모드를 반영하지 않는다. 애니메이터가 꺼지면 어차피 그림이 끝 프레임으로 건너뛰므로 넓게 판정해 정지 자세를 쓴다(REQ-30-10의 목적과 같음). SRS 1.4 정의를 v1.3에서 넓혔다(LLD FB-1). |
+| R9 | K11의 `ValueAnimator.areAnimatorsEnabled()`는 시스템 설정 배율 0 말고도 절전 모드 등으로 애니메이터가 꺼진 경우 거짓일 수 있다고 알려져 있다(미확인). 그러면 SRS 용어(배율 0)보다 넓고, API 23~25 경로(설정값 읽기)와 판정이 다를 수 있다. | (해소, v1.4 정정) API 문서(android-35 `ValueAnimator.java:396-411`)는 배율 0 "또는 절전 모드"에서 거짓이라고 쓰지만 실제는 기기 정책을 따른다: 오너 태블릿(Android 11)은 `low_power=1`이어도 `dumpsys power`의 `animation_disabled=false`라 애니메이터가 켜져 있었다(이슈 #38). 그래서 `areAnimatorsEnabled()`만으로는 절전 모드를 판정할 수 없다. K11이 `isPowerSaveMode()`를 따로 읽어 모든 API에서 같게 판정한다(SRS 1.4 ③, v1.3의 "API 23~25는 절전 모드 미반영"은 없어짐). 애니메이터가 꺼진 경우(①②)를 넓게 판정해 정지 자세를 쓰는 것은 그대로다. |
 | R10 | K6가 상태 관찰 콜백 안에서 `consumeResult`를 부르면 같은 LiveData가 콜백 안에서 다시 통지된다(재진입). | K5·K6는 재진입해도 같은 결과가 되게 만든다(소비 뒤 `finished == null`은 3.3 표의 "자기 소비" 행으로 처리). LLD에서 명시. |
+| R11 | 절전 모드가 Animator를 끄는 기기에서 꺼짐 방송과 Animator 복구의 순서가 보장되는지 미확인. 앱의 Animator 배율은 방송이 아니라 창 세션 콜백으로 따로 바뀐다(android-35 `android/view/WindowManagerGlobal.java:238-239`, 시스템 서버 쪽 순서는 이 저장소·SDK 소스에 없음). 방송이 먼저 오면 K11이 아직 참이라 다시 달리지 않는다. | 3.4.1의 지연 재판정 1회. 그래도 복구가 더 늦으면 다음 재판정 시점(단계 변경·다시 붙음)까지 정지로 남는다 — 그림이 멈출 뿐이고 시간 규칙은 맞다. 오너 태블릿은 `animation_disabled=false`라 해당하지 않는다. Animator를 끄는 기기가 있으면 REQ-30-10 수동(③ 전환)으로 확인. |
 
 ## 7. 변경 이력
 | 일자 | 버전 | 변경 | 사유 | 요청자 |
@@ -183,3 +203,4 @@ flowchart LR
 | 2026-11-04 | v1.1 | K4 "다시 시도" 판정을 양성 버튼 글로(자기 안·위로 복사·이동 창의 양성 = 건너뛰기), K4 추적에 REQ-30-16, 3.1 먼저 온 보고가 이김, 3.3 멈춤에서 돌아올 때 규칙, D3 대안, R8~R10 | HLD 검수 1회차 M1·m1~m6 (PR #32) | 검수팀 |
 | 2026-11-04 | v1.2 | 3.1 표 가운데의 문단을 표 아래로 옮김(표 분리 해소). SRS Q1~Q3 결정 반영(K4 제목·설명, 3.2, R6 닫음). K2 ②의 `finally`에 `runningJobs` 정리·잠금 갱신을 옮겨 #34 해소, R5 갱신 | HLD 검수 2회차 경미 n1, 오너 결정(이슈 #30 issuecomment-6617754053, 2026-11-04), #34 흡수(PM 결정) | 검수팀·오너·PM |
 | 2026-11-04 | v1.3 | 1.2 그림·새 경계에 K1→설정 참조와 이유, K1·K1a 묶음 끝 때 설정 꺼짐이면 결과 없음, K6 소비 규칙 범위 한정(FB-2). 3.3 표에 결과 단계 중 새 결과(`shownSeq` 다름) 행과 `HIDDEN` 행의 `shownSeq` 조건, 멈춤 복귀 규칙(FB-4). 3.4 멈춤 콜백을 API 23 호환으로, 3.5 `View.accessibilityLiveRegion`·설명 순서, R8 정정·해소(FB-3). K11·R9 해소(FB-1). K8·4.1 관찰 등록 위치를 `onActivityCreated` 끝 별도 함수로(FB-5) | LLD v1 설계 피드백 FB-1~FB-5 (커밋 8aec196) | 개발팀 |
+| 2026-11-04 | v1.4 | K11에 `isPowerSaveMode()`(모든 API), 3.4 모션 줄이기·멈춤 갱신, 3.4.1 새 절(재판정 시점, 수신기, 분리 중 변화, 전환 동작), K9·3.6·4장에 수신기, D9, R9 정정, R11 | 이슈 #38 요구사항 정리 v1(오너 결정 2026-11-04), SRS v1.4 | 오너·PM |
