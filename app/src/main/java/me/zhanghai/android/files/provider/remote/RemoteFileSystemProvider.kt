@@ -6,8 +6,10 @@
 package me.zhanghai.android.files.provider.remote
 
 import android.os.Bundle
+import android.os.IBinder
 import android.os.Parcel
 import android.os.Parcelable
+import android.os.RemoteException
 import java8.nio.channels.FileChannel
 import java8.nio.channels.SeekableByteChannel
 import java8.nio.file.AccessMode
@@ -22,6 +24,7 @@ import java8.nio.file.attribute.FileAttribute
 import java8.nio.file.spi.FileSystemProvider
 import kotlinx.coroutines.runBlocking
 import kotlinx.parcelize.Parcelize
+import me.zhanghai.android.files.provider.common.CleanupFailureCopyOption
 import me.zhanghai.android.files.provider.common.PathObservable
 import me.zhanghai.android.files.provider.common.PathObservableProvider
 import me.zhanghai.android.files.provider.common.Searchable
@@ -120,13 +123,41 @@ abstract class RemoteFileSystemProvider(
             readSymbolicLink(link.toParcelable(), exception)
         }.value()
 
+    private fun Array<out CopyOption>.findCleanupFailureListener(): (() -> Unit)? =
+        firstNotNullOfOrNull { (it as? CleanupFailureCopyOption)?.listener }
+
+    /**
+     * Calls [onDied] if the remote dies before the returned function is called, which means the
+     * outcome of the remote operation is unknown.
+     */
+    @Throws(RemoteFileSystemException::class)
+    private fun startCopyWatch(onDied: (() -> Unit)?): () -> Unit {
+        onDied ?: return {}
+        val binder = remoteInterface.get().asBinder()
+        val watch = RemoteCopyOutcomeWatch(onDied)
+        val deathRecipient = IBinder.DeathRecipient { watch.onRemoteDied() }
+        try {
+            binder.linkToDeath(deathRecipient, 0)
+        } catch (e: RemoteException) {
+            // The remote has already died, so the remote operation won't be able to start.
+            return {}
+        }
+        return {
+            if (watch.onCompleted()) {
+                binder.unlinkToDeath(deathRecipient, 0)
+            }
+        }
+    }
+
     @Throws(IOException::class)
     override fun copy(source: Path, target: Path, vararg options: CopyOption) {
+        val stopWatch = startCopyWatch(options.findCleanupFailureListener())
         var interruptible: RemoteCallback? = null
         try {
             runBlocking<Unit> {
                 suspendCoroutine { continuation ->
                     val callback = RemoteCallback {
+                        stopWatch()
                         val exception = it.getArgs<CallbackArgs>().exception.value
                         if (exception != null) {
                             continuation.resumeWithException(exception)
@@ -143,18 +174,24 @@ abstract class RemoteFileSystemProvider(
                 }
             }
         } catch (e: InterruptedException) {
+            // Keep watching after the job is interrupted, for the remote cleanup still running.
             interruptible?.sendResult(Bundle())
             throw InterruptedIOException().apply { initCause(e) }
+        } catch (e: Exception) {
+            stopWatch()
+            throw e
         }
     }
 
     @Throws(IOException::class)
     override fun move(source: Path, target: Path, vararg options: CopyOption) {
+        val stopWatch = startCopyWatch(options.findCleanupFailureListener())
         var interruptible: RemoteCallback? = null
         try {
             runBlocking<Unit> {
                 suspendCoroutine { continuation ->
                     val callback = RemoteCallback {
+                        stopWatch()
                         val exception = it.getArgs<CallbackArgs>().exception.value
                         if (exception != null) {
                             continuation.resumeWithException(exception)
@@ -171,8 +208,12 @@ abstract class RemoteFileSystemProvider(
                 }
             }
         } catch (e: InterruptedException) {
+            // Keep watching after the job is interrupted, for the remote cleanup still running.
             interruptible?.sendResult(Bundle())
             throw InterruptedIOException().apply { initCause(e) }
+        } catch (e: Exception) {
+            stopWatch()
+            throw e
         }
     }
 

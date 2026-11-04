@@ -22,20 +22,65 @@ object FileJobStateTracker {
     val stateLiveData: LiveData<FileJobState>
         get() = _stateLiveData
 
+    private val entryTable = FileJobEntryTable()
+
+    private val listeners = mutableListOf<Listener>()
+
+    val runningEntries: List<FileJobEntry>
+        @MainThread
+        get() = entryTable.entries
+
     @MainThread
-    fun onJobStarted(id: Int) {
+    fun addListener(listener: Listener) {
+        listeners += listener
+    }
+
+    @MainThread
+    fun removeListener(listener: Listener) {
+        listeners -= listener
+    }
+
+    @MainThread
+    fun onJobStarted(id: Int, info: FileJobInfo, isPending: Boolean) {
         if (batch.start(id)) {
             _stateLiveData.value = batch.state
+        }
+        entryTable.start(id, info, isPending)?.let { entry ->
+            forEachListener { it.onStarted(entry) }
         }
     }
 
     @MainThread
-    fun onJobFinished(id: Int, isSuccessful: Boolean) {
+    fun onJobRunning(id: Int) {
+        if (entryTable.setRunning(id)) {
+            forEachListener { it.onRunning(id) }
+        }
+    }
+
+    @MainThread
+    fun onJobProgress(id: Int, progress: FileJobProgress) {
+        if (entryTable.setProgress(id, progress)) {
+            forEachListener { it.onProgress(id, progress) }
+        }
+    }
+
+    @MainThread
+    fun onJobFinished(id: Int, outcome: FileJobOutcome) {
         // The result of a batch that finished while the indicator is turned off is never shown,
         // even if no file list is started to consume it now.
+        val isSuccessful = outcome == FileJobOutcome.SUCCEEDED
         if (batch.finish(id, isSuccessful, Settings.FILE_JOB_INDICATOR.valueCompat)) {
             _stateLiveData.value = batch.state
         }
+        if (entryTable.finish(id)) {
+            forEachListener { it.onFinished(id, outcome) }
+        }
+    }
+
+    // A failure may be reported after the job has finished.
+    @MainThread
+    fun onJobCleanupFailed(id: Int) {
+        forEachListener { it.onCleanupFailed(id) }
     }
 
     @MainThread
@@ -43,5 +88,21 @@ object FileJobStateTracker {
         if (batch.consume(seq)) {
             _stateLiveData.value = batch.state
         }
+    }
+
+    private inline fun forEachListener(block: (Listener) -> Unit) {
+        listeners.toList().forEach(block)
+    }
+
+    interface Listener {
+        fun onStarted(entry: FileJobEntry)
+
+        fun onRunning(id: Int)
+
+        fun onProgress(id: Int, progress: FileJobProgress)
+
+        fun onFinished(id: Int, outcome: FileJobOutcome)
+
+        fun onCleanupFailed(id: Int)
     }
 }

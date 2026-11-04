@@ -75,6 +75,7 @@ import me.zhanghai.android.files.file.fileProviderUri
 import me.zhanghai.android.files.file.isApk
 import me.zhanghai.android.files.file.isImage
 import me.zhanghai.android.files.filejob.CopyMoveType
+import me.zhanghai.android.files.filejob.FileJobListDialogFragment
 import me.zhanghai.android.files.filejob.FileJobService
 import me.zhanghai.android.files.filelist.FileSortOptions.By
 import me.zhanghai.android.files.filelist.FileSortOptions.Order
@@ -423,6 +424,7 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
             // The toolbar doesn't call MenuProvider.onPrepareMenu().
             updateViewSortMenuItems()
             updateSelectAllMenuItem()
+            updateFileJobsMenuItem()
             updateShowHiddenFilesMenuItem()
         }
 
@@ -535,6 +537,10 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
             }
             R.id.action_refresh -> {
                 refresh()
+                true
+            }
+            R.id.action_file_jobs -> {
+                FileJobListDialogFragment.show(this)
                 true
             }
             R.id.action_select_all -> {
@@ -967,6 +973,7 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
         requireActivity().title = title
         binding.toolbar.title = title
         updateSelectAllMenuItem()
+        updateFileJobsMenuItem()
         updateOverlayToolbar()
         updateBottomToolbar()
         adapter.pickOptions = pickOptions
@@ -978,6 +985,13 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
         }
         val pickOptions = viewModel.pickOptions
         menuBinding.selectAllItem.isVisible = pickOptions == null || pickOptions.allowMultiple
+    }
+
+    private fun updateFileJobsMenuItem() {
+        if (!this::menuBinding.isInitialized) {
+            return
+        }
+        menuBinding.fileJobsItem.isVisible = viewModel.pickOptions == null
     }
 
     private fun pickFiles(files: FileItemSet) {
@@ -1718,6 +1732,7 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
         val sortDirectoriesFirstItem: MenuItem,
         val viewSortPathSpecificItem: MenuItem,
         val selectAllItem: MenuItem,
+        val fileJobsItem: MenuItem,
         val showHiddenFilesItem: MenuItem
     ) {
         companion object {
@@ -1734,6 +1749,7 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
                     menu.findItem(R.id.action_sort_directories_first),
                     menu.findItem(R.id.action_view_sort_path_specific),
                     menu.findItem(R.id.action_select_all),
+                    menu.findItem(R.id.action_file_jobs),
                     menu.findItem(R.id.action_show_hidden_files)
                 )
             }

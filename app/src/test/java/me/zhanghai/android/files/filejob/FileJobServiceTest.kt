@@ -14,29 +14,29 @@ class FileJobServiceTest {
     // U-S01
     @Test
     fun runJobAndReport_success() {
-        val results = mutableListOf<Boolean>()
-        runJobAndReport({ true }) { results += it }
-        assertEquals(listOf(true), results)
+        val results = mutableListOf<FileJobOutcome>()
+        runJobAndReport({ FileJobOutcome.SUCCEEDED }) { results += it }
+        assertEquals(listOf(FileJobOutcome.SUCCEEDED), results)
     }
 
     // U-S02
     @Test
     fun runJobAndReport_failure() {
-        val results = mutableListOf<Boolean>()
-        runJobAndReport({ false }) { results += it }
-        assertEquals(listOf(false), results)
+        val results = mutableListOf<FileJobOutcome>()
+        runJobAndReport({ FileJobOutcome.FAILED }) { results += it }
+        assertEquals(listOf(FileJobOutcome.FAILED), results)
     }
 
     // U-S03
     @Test
     fun runJobAndReport_throwable_reportsFailureAndRethrows() {
-        val results = mutableListOf<Boolean>()
+        val results = mutableListOf<FileJobOutcome>()
         val error = AssertionError("Not an exception")
         val thrown = assertThrows(AssertionError::class.java) {
             runJobAndReport({ throw error }) { results += it }
         }
         assertSame(error, thrown)
-        assertEquals(listOf(false), results)
+        assertEquals(listOf(FileJobOutcome.FAILED), results)
     }
 
     // U-S04
@@ -45,8 +45,16 @@ class FileJobServiceTest {
         val events = mutableListOf<String>()
         runJobAndReport({
             events += "run"
-            true
+            FileJobOutcome.SUCCEEDED
         }) { events += "finished" }
         assertEquals(listOf("run", "finished"), events)
+    }
+
+    // U-S05
+    @Test
+    fun runJobAndReport_canceled() {
+        val results = mutableListOf<FileJobOutcome>()
+        runJobAndReport({ FileJobOutcome.CANCELED }) { results += it }
+        assertEquals(listOf(FileJobOutcome.CANCELED), results)
     }
 }

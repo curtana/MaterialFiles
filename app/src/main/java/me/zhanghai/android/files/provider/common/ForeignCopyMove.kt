@@ -60,6 +60,11 @@ internal object ForeignCopyMove {
                         )
                         successful = true
                     } finally {
+                        // The interrupted status may have been restored by a library, which would
+                        // make the cleanup fail immediately. The job is stopped by isCanceled.
+                        if (!successful) {
+                            Thread.interrupted()
+                        }
                         try {
                             outputStream.close()
                         } finally {
@@ -68,8 +73,10 @@ internal object ForeignCopyMove {
                                     target.deleteIfExists()
                                 } catch (e: IOException) {
                                     e.printStackTrace()
+                                    copyOptions.cleanupFailureListener?.invoke()
                                 } catch (e: UnsupportedOperationException) {
                                     e.printStackTrace()
+                                    copyOptions.cleanupFailureListener?.invoke()
                                 }
                             }
                         }
@@ -137,7 +144,7 @@ internal object ForeignCopyMove {
         } else {
             CopyOptions(
                 copyOptions.replaceExisting, true, false, true, copyOptions.progressIntervalMillis,
-                copyOptions.progressListener
+                copyOptions.progressListener, copyOptions.cleanupFailureListener
             ).toArray()
         }
         copy(source, target, *optionsForCopy)

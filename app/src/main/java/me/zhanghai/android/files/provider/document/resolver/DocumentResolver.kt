@@ -79,13 +79,14 @@ object DocumentResolver {
         sourcePath: Path,
         targetPath: Path,
         intervalMillis: Long,
-        listener: ((Long) -> Unit)?
+        listener: ((Long) -> Unit)?,
+        cleanupFailureListener: (() -> Unit)?
     ): Uri {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N
             && sourcePath.hasSameAuthority(targetPath) && !sourcePath.isCopyUnsupported) {
-            copyApi24(sourcePath, targetPath, intervalMillis, listener)
+            copyApi24(sourcePath, targetPath, intervalMillis, listener, cleanupFailureListener)
         } else {
-            copyManually(sourcePath, targetPath, intervalMillis, listener)
+            copyManually(sourcePath, targetPath, intervalMillis, listener, cleanupFailureListener)
         }
     }
 
@@ -98,7 +99,8 @@ object DocumentResolver {
         sourcePath: Path,
         targetPath: Path,
         intervalMillis: Long,
-        listener: ((Long) -> Unit)?
+        listener: ((Long) -> Unit)?,
+        cleanupFailureListener: (() -> Unit)?
     ): Uri {
         val sourceUri = getDocumentUri(sourcePath)
         val targetParentUri = getDocumentUri(targetPath.requireParent())
@@ -107,7 +109,9 @@ object DocumentResolver {
             DocumentsContract.copyDocument(contentResolver, sourceUri, targetParentUri)
         } catch (e: UnsupportedOperationException) {
             // Ignored.
-            return copyManually(sourcePath, targetPath, intervalMillis, listener)
+            return copyManually(
+                sourcePath, targetPath, intervalMillis, listener, cleanupFailureListener
+            )
         } catch (e: Exception) {
             throw ResolverException(e)
         } ?: throw ResolverException(
@@ -138,7 +142,8 @@ object DocumentResolver {
         sourcePath: Path,
         targetPath: Path,
         intervalMillis: Long,
-        listener: ((Long) -> Unit)?
+        listener: ((Long) -> Unit)?,
+        cleanupFailureListener: (() -> Unit)?
     ): Uri {
         val sourceUri = getDocumentUri(sourcePath)
         val mimeType = try {
@@ -165,6 +170,9 @@ object DocumentResolver {
                     remove(targetUri, targetParentUri)
                 } catch (e2: ResolverException) {
                     e.addSuppressed(e2)
+                    if (e2.toFileSystemException(targetPath.toString()) !is NoSuchFileException) {
+                        cleanupFailureListener?.invoke()
+                    }
                 }
             }
             throw ResolverException(e)
@@ -269,7 +277,8 @@ object DocumentResolver {
         targetPath: Path,
         moveOnly: Boolean,
         intervalMillis: Long,
-        listener: ((Long) -> Unit)?
+        listener: ((Long) -> Unit)?,
+        cleanupFailureListener: (() -> Unit)?
     ): Uri {
         val sourceParentPath = sourcePath.requireParent()
         val targetParentPath = targetPath.requireParent()
@@ -278,13 +287,15 @@ object DocumentResolver {
         }
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N
             && sourcePath.hasSameAuthority(targetPath) && !sourcePath.isMoveUnsupported) {
-            moveApi24(sourcePath, targetPath, moveOnly, intervalMillis, listener)
+            moveApi24(
+                sourcePath, targetPath, moveOnly, intervalMillis, listener, cleanupFailureListener
+            )
         } else {
             if (moveOnly) {
                 // @see DocumentsProvider.moveDocument(String, String, String)
                 throw ResolverException(UnsupportedOperationException("Move not supported"))
             }
-            moveByCopy(sourcePath, targetPath, intervalMillis, listener)
+            moveByCopy(sourcePath, targetPath, intervalMillis, listener, cleanupFailureListener)
         }
     }
 
@@ -301,7 +312,8 @@ object DocumentResolver {
         targetPath: Path,
         moveOnly: Boolean,
         intervalMillis: Long,
-        listener: ((Long) -> Unit)?
+        listener: ((Long) -> Unit)?,
+        cleanupFailureListener: (() -> Unit)?
     ): Uri {
         val sourceParentUri = getDocumentUri(sourcePath.requireParent())
         val sourceUri = getDocumentUri(sourcePath)
@@ -315,7 +327,9 @@ object DocumentResolver {
             if (moveOnly) {
                 throw ResolverException(e)
             }
-            return moveByCopy(sourcePath, targetPath, intervalMillis, listener)
+            return moveByCopy(
+                sourcePath, targetPath, intervalMillis, listener, cleanupFailureListener
+            )
         } catch (e: Exception) {
             throw ResolverException(e)
         } ?: throw ResolverException(
@@ -347,9 +361,12 @@ object DocumentResolver {
         sourcePath: Path,
         targetPath: Path,
         intervalMillis: Long,
-        listener: ((Long) -> Unit)?
+        listener: ((Long) -> Unit)?,
+        cleanupFailureListener: (() -> Unit)?
     ): Uri {
-        val targetUri = copy(sourcePath, targetPath, intervalMillis, listener)
+        val targetUri = copy(
+            sourcePath, targetPath, intervalMillis, listener, cleanupFailureListener
+        )
         try {
             val sourceUri = getDocumentUri(sourcePath)
             val sourceParentUri = getDocumentUri(sourcePath.requireParent())

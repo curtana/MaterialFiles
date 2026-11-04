@@ -15,7 +15,8 @@ class CopyOptions(
     val atomicMove: Boolean,
     val noFollowLinks: Boolean,
     val progressIntervalMillis: Long,
-    val progressListener: ((Long) -> Unit)?
+    val progressListener: ((Long) -> Unit)?,
+    val cleanupFailureListener: (() -> Unit)?
 ) {
     fun toArray(): Array<CopyOption> {
         val options = mutableListOf<CopyOption>()
@@ -34,6 +35,9 @@ class CopyOptions(
         if (progressListener != null) {
             options += ProgressCopyOption(progressIntervalMillis, progressListener)
         }
+        if (cleanupFailureListener != null) {
+            options += CleanupFailureCopyOption(cleanupFailureListener)
+        }
         return options.toTypedArray()
     }
 }
@@ -45,6 +49,7 @@ fun Array<out CopyOption>.toCopyOptions(): CopyOptions {
     var noFollowLinks = false
     var progressIntervalMillis = 0L
     var progressListener: ((Long) -> Unit)? = null
+    var cleanupFailureListener: (() -> Unit)? = null
     for (option in this) {
         when {
             option is StandardCopyOption ->
@@ -59,6 +64,7 @@ fun Array<out CopyOption>.toCopyOptions(): CopyOptions {
                 progressIntervalMillis = option.intervalMillis
                 progressListener = option.listener
             }
+            option is CleanupFailureCopyOption -> cleanupFailureListener = option.listener
             else -> {
                 throw UnsupportedOperationException(option.toString())
             }
@@ -66,6 +72,6 @@ fun Array<out CopyOption>.toCopyOptions(): CopyOptions {
     }
     return CopyOptions(
         replaceExisting, copyAttributes, atomicMove, noFollowLinks, progressIntervalMillis,
-        progressListener
+        progressListener, cleanupFailureListener
     )
 }

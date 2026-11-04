@@ -85,6 +85,9 @@ internal object FtpCopyMove {
                                     Client.delete(target, sourceFile.isDirectory)
                                 } catch (e: IOException) {
                                     e.printStackTrace()
+                                    // FTP reply 550 can't tell a missing file from a denied one, so
+                                    // always report instead of possibly hiding a leftover.
+                                    copyOptions.cleanupFailureListener?.invoke()
                                 }
                             }
                         }
@@ -160,7 +163,7 @@ internal object FtpCopyMove {
         if (!copyOptions.copyAttributes || !copyOptions.noFollowLinks) {
             copyOptions = CopyOptions(
                 copyOptions.replaceExisting, true, false, true, copyOptions.progressIntervalMillis,
-                copyOptions.progressListener
+                copyOptions.progressListener, copyOptions.cleanupFailureListener
             )
         }
         copy(source, target, copyOptions)
