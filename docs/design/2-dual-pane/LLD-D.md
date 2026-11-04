@@ -4,7 +4,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | v1.4는 #9 not planned 정리(7장). 결정 반영(v1.3.2 — 7장 v1.3.2는 문구 정정만) — F1 오너 확정, F3 오너 승인, F5 PM 승인(PR #16 코멘트 6473368985·정정 6473374204). v1.2 검수 통과, v1.3 바뀐 절 재검수 |
+| 상태 | v1.4.1 Esc 서술의 API 범위 동기화(#25). v1.4는 #9 not planned 정리(7장). 결정 반영(v1.3.2 — 7장 v1.3.2는 문구 정정만) — F1 오너 확정, F3 오너 승인, F5 PM 승인(PR #16 코멘트 6473368985·정정 6473374204). v1.2 검수 통과, v1.3 바뀐 절 재검수 |
 | 근거 | SRS v4.7, HLD v4.7 (`docs/design/2-dual-pane/`), LLD-A v1.4(구조·확장 지점 4장). v1.4 정리는 SRS v4.9, HLD v4.11 기준 |
 | 기준 코드 | `origin/develop` a76055e (#5 화면/창 분리 머지 뒤). HLD의 `FileListFragment.kt` 줄 번호는 #5 이전 기준이라 이 문서는 a76055e에서 다시 찾은 줄을 쓴다(6장 F2). |
 | 이슈 | #8 (하위 이슈 D, 상위 #2, 선행 #5) |
@@ -163,7 +163,7 @@ class ConfirmCopyMoveDialogFragment : AppCompatDialogFragment() {
   8. `setPositiveButton(R.string.file_list_confirm_copy_move_positive) { _, _ -> listener.copyMoveFiles(args.type, confirmation.sources, confirmation.targetDirectory) }` — 작업용 값은 1에서 판정에 쓴 **같은 객체**.
   9. `setNegativeButton(android.R.string.cancel, null)`; `.create()`.
 - **취소 경로(REQ-2-15, SRS A5)**: 취소 단추·뒤로 가기·바깥 누르기·Esc는 모두 대화상자를 닫기만 한다 — 이 프래그먼트는 `onCancel`·`onDismiss`를 재정의하지 않고 리스너를 부르지 않으므로 복사 목록·선택·작업 어느 것도 바뀌지 않는다. `isCancelable`은 기본값(true, `ConfirmDeleteFilesDialogFragment`와 같음).
-- **Esc(`Keyboard_Exit`, HLD R11)**: API 28 이상은 `Dialog.onKeyDown`이 `KEYCODE_ESCAPE`를 받아 취소 가능한 대화상자를 `cancel()`한다(android-35 소스 `android/app/Dialog.java:678-688`). API 21~27은 `Dialog`에 Esc 처리가 없고, 처리되지 않은 Esc에 대해 시스템이 키 배치의 대체 키(BACK)를 보내 뒤로 가기로 닫힐 것으로 본다(미확인 — T-06(d)). 이 단계는 추가 코드를 넣지 않는다. T-06(d)가 API 27 이하에서 실패하면 `dialog.setOnKeyListener`로 `KEYCODE_ESCAPE` → `cancel()`을 더한다(검수에 알림).
+- **Esc(`Keyboard_Exit`, HLD R11)**: API 28 이상은 `Dialog.onKeyDown`이 `KEYCODE_ESCAPE`를 받아 취소 가능한 대화상자를 `cancel()`한다(android-35 소스 `android/app/Dialog.java:678-688`). API 23~27은 `Dialog`에 Esc 처리가 없고, 처리되지 않은 Esc에 대해 시스템이 키 배치의 대체 키(BACK)를 보내 뒤로 가기로 닫힐 것으로 본다(미확인 — T-06(d)). 이 단계는 추가 코드를 넣지 않는다. T-06(d)가 API 27 이하에서 실패하면 `dialog.setOnKeyListener`로 `KEYCODE_ESCAPE` → `cancel()`을 더한다(검수에 알림).
 - **버튼 터치 대상(`Touch_Target_Size`, HLD R11 닫기)**: 테마 값으로 48dp 이상이다. 대화상자 단추 스타일 `buttonBarPositive/NegativeButtonStyle`은 `Widget.MaterialComponents.Button.TextButton.Dialog`(MDC 테마) / `Widget.Material3.Button.TextButton.Dialog`(M3 테마, 이 앱은 두 테마를 다 가짐: `res/values/themes.xml:10`, `themes_material3.xml:10`)이고, (테마 연결: material 1.12.0 `res/values/values.xml:3340-3341`(MDC), `:4632-4633`(M3)) 둘 다 `Widget.AppCompat.Button`의 `android:minHeight` 48dip(appcompat 1.7.1 `res/values/values.xml:1094`)을 덮어쓰지 않는다(material 1.12.0 `res/values/values.xml:6348-6400`, `:5238-5335` — `minHeight` 항목 없음, `minWidth` 64dp). 단추의 위·아래 inset(6dp/4dp)은 뷰 안쪽 그리기 여백이라 터치 영역(뷰 경계)은 줄지 않는다. 실측은 T-16(a).
 - **전체 폭 금지(`UI_Secondary_Elements`)**: `ConfirmDeleteFilesDialogFragment`와 같은 `MaterialAlertDialogBuilder(requireContext(), theme)` — 큰 화면에서 대화상자 창 폭은 테마의 최소 폭 규칙을 따르는 내용 폭이다. 실측은 T-16(b).
 - **대비·설명(`Visual_Contrast`, `Content_Description`)**: 새 글자는 대화상자 제목·본문의 기본 글자 스타일이고 새 비텍스트 조작 요소는 없다(두 단추는 글자 단추). 실측은 T-16(c).
@@ -307,3 +307,4 @@ class ConfirmCopyMoveDialogFragment : AppCompatDialogFragment() {
 | 2026-11-01 | v1.3.2 | 0.1·4장의 `panePaths` 소유를 #6 → #7로(LLD-C 4장) | LLD-C 검수 1회차 경미 3 | 검수팀 |
 | 2026-10-29 | v1.3.1 | 1장 범위 공지 문구, 3.2 `TestPath` 구현 멤버와 `getRoot` 조건, T-04(c) 혼합 선택(U-01 일부 압축 경우의 수동 대응) | LLD 4회차 검수 m1~m3 | 검수팀 |
 | 2026-11-04 | v1.4 | #9 몫과 `Origin` 삭제: 머리표 추적 REQ, 0.1, 0.2, 1장 끝 줄(`selectFiles`), 2.1 `getCopyMoveType` 입력, 2.2 인자·`show`·`Listener`·"실행" 호출, 2.3 `confirmPasteFiles`·`copyMoveFiles` 시그니처와 사후조건, 3.1 `OTHER_PANE` 시험 문장, 4장 #9 행. 6장 F4는 당시 기록이라 고치지 않음 | 오너 결정 2026-11-04, #9 not planned | PM |
+| 2026-11-04 | v1.4.1 | Esc 서술의 API 범위를 21~27에서 23~27로(minSdk 23). 동작 변경 없음 | #25, 릴리스 v1.7.5-beta.1 문서 동기화 | PM |
