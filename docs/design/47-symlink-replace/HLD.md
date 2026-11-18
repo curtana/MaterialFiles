@@ -39,7 +39,7 @@ flowchart LR
 |---|---|---|---|
 | 로컬(Linux) | `symlink(2)`가 `EEXIST` → `FileAlreadyExistsException`(`provider/linux/syscall/SyscallException.kt:61`) | **도달**(코드·POSIX 기준. 실행 재현은 REQ-47-05에서) | `LinuxCopyMove.kt:159-161`, 앞선 `lstat`은 지우지 않음(`LinuxCopyMove.kt:54` 주석) |
 | SMB | `createSymbolicLink`가 `SMB2CreateDisposition.FILE_CREATE`로 열기(`provider/smb/client/Client.kt:197`) → 이름이 있으면 `STATUS_OBJECT_NAME_COLLISION`(MS-SMB2/MS-FSA 규격) → `FileAlreadyExistsException`(`provider/smb/client/ClientException.kt:58-59`) | **도달 추정**(규격 기준). 실제 서버 동작은 **미확인** | `SmbCopyMove.kt:120-123` |
-| SFTP | sshj는 SFTP v3까지만 협상한다(`SFTPEngine.MAX_SUPPORTED_VERSION = 3`, sshj 0.40.0 `javap`로 이번에 확인). v3 상태 코드에는 `FILE_ALREADY_EXISTS`가 없다. OpenSSH `sftp-server`는 `EEXIST`를 `SSH2_FX_FAILURE`로 돌려준다고 알려져 있다(외부 소스, 이번에 확인 안 함) → 일반 `FileSystemException`(`provider/sftp/client/ClientException.kt:45`) | **현재 코드로는 도달 안 함으로 추정**: 바꾸기 분기를 건너뛰고 `SftpCopyMove.kt:185`에서 일반 오류로 끝난다(충돌 반복 대신 오류 창). 실제 서버 동작은 **미확인** | `SftpCopyMove.kt:165-168`, `ClientException.kt:31-46` |
+| SFTP | sshj는 SFTP v3까지만 협상한다(`SFTPEngine.MAX_SUPPORTED_VERSION = 3`, sshj 0.40.0 `javap`로 이번에 확인). v3 상태 코드에는 `FILE_ALREADY_EXISTS`가 없다. OpenSSH `sftp-server`는 `EEXIST`를 `SSH2_FX_FAILURE`로 돌려준다고 알려져 있다(외부 소스, 이번에 확인 안 함) → 일반 `FileSystemException`(`provider/sftp/client/ClientException.kt:46`) | **현재 코드로는 도달 안 함으로 추정**: 바꾸기 분기를 건너뛰고 `SftpCopyMove.kt:185`에서 일반 오류로 끝난다(충돌 반복 대신 오류 창). 실제 서버 동작은 **미확인** | `SftpCopyMove.kt:165-168`, `ClientException.kt:31-46` |
 
 SFTP는 오류 코드만으로는 REQ-47-03을 만족할 수 없으므로 '이미 있음' 판정에 앞선 `lstat` 결과를 쓴다(D2).
 
@@ -48,12 +48,12 @@ SFTP는 오류 코드만으로는 REQ-47-03을 만족할 수 없으므로 '이�
 
 | 검증 | 실행 환경 | 내용 | REQ |
 |---|---|---|---|
-| 공용 흐름 단위 테스트 | JVM (`./gradlew testDebugUnitTest`) | 가짜 만들기·지우기로 ① '이미 있음' → 지우기 → 다시 만들기 성공이면 정상 반환, 호출 순서·횟수(만들기 2·지우기 1) ② 다시 만들기 실패면 그 실패가 던져지고 첫 실패가 suppressed, 추가 호출 없음 ③ 지우기가 '없음'이면 무시하고 다시 만들기 ④ '바꾸기' 아님이면 첫 실패를 그대로 던짐 ⑤ SFTP 판정(일반 실패 + 대상 있었음)으로 바꾸기 진입 | 01–05 |
+| 공용 흐름 단위 테스트 | JVM (`./gradlew testDebugUnitTest`) | 가짜 만들기·지우기로 ① '이미 있음' → 지우기 → 다시 만들기 성공이면 정상 반환, 호출 순서·횟수(만들기 2·지우기 1) ② 다시 만들기 실패면 그 실패가 던져지고 첫 실패가 suppressed, 추가 호출 없음 ③ 지우기가 '없음'이면 무시하고 다시 만들기 ④ '바꾸기' 아님이면 첫 실패를 그대로 던짐 ⑤ 지우기가 '없음'이 아닌 오류로 실패하면 그 오류가 던져지고(첫 실패 suppressed) 다시 만들기를 하지 않음 ⑥ SFTP 판정 함수(D2) 자체: `FileAlreadyExistsException`이면 참, 일반 실패 + 대상 있었음이면 참, 일반 실패 + 대상 없었음이면 거짓 | 01–05 |
 | 수정 전 실패 증명 | JVM | 1단계 커밋: 현재 동작(성공 뒤 첫 예외를 던짐)을 그대로 공용 함수로 옮긴 상태에서 ①이 실패함을 출력으로 남긴다. 2단계 커밋: 수정 후 통과. | 05 |
 | 로컬 재현·확인 | 에뮬레이터(오너 기기 설치는 사전 승인 필요) | 수정 전 빌드로 링크 2개를 같은 이름이 있는 폴더로 복사 → '바꾸기' + '모두 적용' → 반복 확인. 수정 후 빌드로 작업이 끝나고 링크가 원본 대상을 가리키는지(`adb shell ls -l`) 확인 | 01, 05 |
 | SFTP·SMB 실서버 | 서버 필요 | 서버가 있으면 같은 절차. 없으면 PR에 "미확인"으로 적는다 | 03, 04 |
 
-`LinuxCopyMove`·`SftpCopyMove`·`SmbCopyMove` 자체는 JNI(`Syscall`)·네트워크 클라이언트 싱글턴에 묶여 JVM에서 직접 시험할 수 없어서 흐름을 공용 함수로 뽑는다(D1).
+`LinuxCopyMove`·`SftpCopyMove`·`SmbCopyMove` 자체는 JNI(`Syscall`)·네트워크 클라이언트 싱글턴에 묶여 JVM에서 직접 시험할 수 없어서 흐름을 공용 함수로 뽑는다(D1). SFTP 판정(D2)도 `SftpCopyMove` 안에 인라인으로 두지 않고 `(예외, 대상 있었음) -> Boolean` 순수 함수로 뽑아 ⑥에서 시험한다(위치·이름은 LLD). `SftpCopyMove`가 그 함수에 `targetAttributes != null`을 넘기는 연결 한 줄은 JVM에서 시험되지 않는다(코드 검수로 확인).
 
 ## 5. 설계 결정
 | 결정 | 대안 | 고른 이유 |
@@ -63,7 +63,8 @@ SFTP는 오류 코드만으로는 REQ-47-03을 만족할 수 없으므로 '이�
 | D3. 다시 만들기 실패 시 되돌리기·재시도 없음, 첫 실패는 suppressed | 지운 대상 복원 | 오너 결정(2026-11-04), REQ-47-02. suppressed는 현행 코드(`LinuxCopyMove.kt:173`)와 같다 |
 
 ## 6. 위험과 미결 사항
-- **D2의 부작용**: 링크를 지원하지 않는 SFTP 서버(만들기가 `OP_UNSUPPORTED` 등 일반 오류)에서도 대상이 있었으면 지운 뒤 다시 만들기가 실패해 대상이 사라지고 오류가 뜬다. 지금은 대상이 남고 오류만 뜬다. 오너 결정("지우고 … 실패한 경우 그냥 실패")과 맞지만 사용자에게 보이는 차이가 있으므로 PM 확인 사항으로 올린다.
+- **D2의 부작용 (PM 확인 필요, LLD 착수 전)**: SFTP에서 대상이 있고 '바꾸기'이면, 첫 만들기가 어떤 이유로든 실패하면(링크 미지원 `OP_UNSUPPORTED`, 권한 거부, 그 밖의 일반 `FAILURE` 포함) 지우기를 시도한다. 지우기가 성공하고 다시 만들기가 실패하면 대상이 사라지고 오류가 뜬다. 지금은 대상이 남고 오류만 뜬다. 오너 결정("지우고 … 실패한 경우 그냥 실패")과 맞지만 사용자에게 보이는 차이가 있다.
+- **SFTP에서는 결함 수정이 아니라 동작 추가에 가깝다**: 3절대로 현재 OpenSSH 등 v3 서버에서는 바꾸기 분기에 도달하지 않고 일반 오류로 끝난다(충돌 반복 없음). D2를 넣으면 '바꾸기'가 처음으로 동작하게 된다. D2를 빼면(대안 a) SFTP는 오류 코드 기준으로만 고쳐지고, v3 서버에서는 지금처럼 '바꾸기'가 오류로 끝난다. PM이 이 점을 알고 D2 채택 여부를 정한다.
 - SFTP·SMB가 실제로 어떤 오류를 돌려주는지는 서버 없이 **미확인**(3절 표).
 - 다시 만들기가 경쟁 조건으로 또 '이미 있음'이면 `FileJobs`가 다시 충돌로 처리한다. 드문 경우이고 REQ-47-02("그 실패를 알린다")와 어긋나지 않아 따로 막지 않는다.
 - 수정 파일 수: `LinuxCopyMove.kt`, `SftpCopyMove.kt`, `SmbCopyMove.kt`, 공용 함수 1, 테스트 1 = 5개(11-1의 5개 한도 안).
@@ -72,3 +73,4 @@ SFTP는 오류 코드만으로는 REQ-47-03을 만족할 수 없으므로 '이�
 | 일자 | 버전 | 변경 | 사유 | 요청자 |
 |---|---|---|---|---|
 | 2026-11-18 | v1 | 최초 작성 | SRS v1.1 | PM |
+| 2026-11-18 | v1.1 | 3절 인용 줄 수정(46), 4절 테스트 ⑤⑥ 추가·SFTP 판정 함수 추출, 6절 D2 부작용 범위 확대·PM 확인 항목화 | HLD 검수 1차 지적(경미 3건) | reviewer |
