@@ -33,6 +33,7 @@ import java8.nio.file.StandardOpenOption
 import java8.nio.file.attribute.BasicFileAttributes
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
+import kotlin.math.max
 import kotlinx.coroutines.runBlocking
 import me.zhanghai.android.files.R
 import me.zhanghai.android.files.app.BackgroundActivityStarter
@@ -493,6 +494,7 @@ internal class TransferInfo(scanInfo: ScanInfo, val target: Path?) {
 
     fun incrementTransferredFileCount() {
         ++transferredFileCount
+        growTotalsToTransferred()
     }
 
     fun addTransferredFile(path: Path) {
@@ -504,6 +506,7 @@ internal class TransferInfo(scanInfo: ScanInfo, val target: Path?) {
         } catch (e: IOException) {
             e.printStackTrace()
         }
+        growTotalsToTransferred()
     }
 
     fun skipFile(path: Path) {
@@ -515,14 +518,24 @@ internal class TransferInfo(scanInfo: ScanInfo, val target: Path?) {
         } catch (e: IOException) {
             e.printStackTrace()
         }
+        growTotalsToTransferred()
     }
 
     fun skipFileIgnoringSize() {
         --fileCount
+        growTotalsToTransferred()
     }
 
     fun addToTransferredSize(size: Long) {
         transferredSize += size
+        growTotalsToTransferred()
+    }
+
+    // The scan may count fewer items than a copy transfers, e.g. a failed walk retried (#55 B2),
+    // so the totals grow instead of the progress going past them.
+    private fun growTotalsToTransferred() {
+        fileCount = max(fileCount, transferredFileCount)
+        size = max(size, transferredSize)
     }
 
     fun shouldPostNotification(): Boolean {
