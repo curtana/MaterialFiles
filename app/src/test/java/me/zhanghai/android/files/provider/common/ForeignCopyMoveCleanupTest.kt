@@ -190,6 +190,30 @@ class ForeignCopyMoveCleanupTest {
         ForeignCopyMove.copy(source, target)
         assertEquals(listOf("mkdir:$target"), provider.events)
     }
+
+    // U-A07
+    @Test
+    fun copy_skipAttributes_file_noSetTimes() {
+        ForeignCopyMove.copy(source, target, SkipAttributesCopyOption)
+        assertEquals(listOf(false), provider.interruptedOnClose)
+        assertTrue(provider.setTimesPaths.toString(), provider.setTimesPaths.isEmpty())
+    }
+
+    // U-A08
+    @Test
+    fun copy_skipAttributes_directory_noSetTimes() {
+        provider.sourceIsDirectory = true
+        ForeignCopyMove.copy(source, target, SkipAttributesCopyOption)
+        assertEquals(listOf("mkdir:$target"), provider.events)
+        assertTrue(provider.setTimesPaths.toString(), provider.setTimesPaths.isEmpty())
+    }
+
+    // U-A09
+    @Test
+    fun copy_default_setsTimes() {
+        ForeignCopyMove.copy(source, target)
+        assertEquals(listOf<Path>(target), provider.setTimesPaths)
+    }
 }
 
 private class FakeProvider(private val fileSystem: FileSystem) : FileSystemProvider() {
@@ -203,6 +227,8 @@ private class FakeProvider(private val fileSystem: FileSystem) : FileSystemProvi
     val events = mutableListOf<String>()
     val interruptedOnClose = mutableListOf<Boolean>()
     val interruptedOnDelete = mutableListOf<Boolean>()
+    // Kept out of events, which U-C13 and U-C14 compare in full.
+    val setTimesPaths = mutableListOf<Path>()
 
     override fun getScheme(): String = "fake"
 
@@ -299,7 +325,16 @@ private class FakeProvider(private val fileSystem: FileSystem) : FileSystemProvi
         path: Path,
         type: Class<V>,
         vararg options: LinkOption
-    ): V = FakeAttributeView as V
+    ): V =
+        object : BasicFileAttributeView by FakeAttributeView {
+            override fun setTimes(
+                lastModifiedTime: FileTime?,
+                lastAccessTime: FileTime?,
+                createTime: FileTime?
+            ) {
+                setTimesPaths.add(path)
+            }
+        } as V
 
     @Suppress("UNCHECKED_CAST")
     override fun <A : BasicFileAttributes> readAttributes(
