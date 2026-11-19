@@ -11,7 +11,7 @@
 ### 1.1 지금 구조
 - 창(`FileListFragment`)마다 `FileListViewModel`이 있고, 목록 상태는 `FileListSwitchMapLiveData`(`FileListViewModel.kt:230-271`)가 현재 경로·검색 상태에 따라 `FileListLiveData` 또는 `SearchFileListLiveData`를 원천으로 바꿔 끼운다(`updateSource`, `:241-255`). 경로가 바뀌면 새 `FileListLiveData`가 생기고, 생성자가 첫 읽기를 시작한다(`FileListLiveData.kt:32-35`).
 - 다시 읽기는 모두 `FileListLiveData.loadValue()`(`:37-62`) 하나로 간다. 진입점은 넷이다: 생성자(`:33`), 변경 감시 알림(`onChangeObserved`, `:64-70` — `PathObserver`가 UI 스레드로 넘김, `PathObserver.kt:42`), 비활성 중 변경 뒤 활성화(`onActive`, `:72-77`), 명시 새로 고침(`FileListViewModel.reload()` `:71-77` → `FileListSwitchMapLiveData.reload()` `:257-262`; 호출은 당겨서 새로 고침 `FileListFragment.kt:227`, 메뉴 `:503-505`, 권한 허용 뒤 `FileListHostFragment.kt:250-252`).
-- `loadValue()`는 어느 진입점이든 진행 중인 읽기를 끊고(`:38`) `Loading(이전 목록)`을 내보낸 뒤(`:39`) 작업 스레드에서 읽어 `Success` 또는 `Failure(이전 목록, e)`를 보낸다(`:40-61`).
+- `loadValue()`는 어느 진입점이든 진행 중인 읽기를 끊고(`:38`) `Loading(이전 목록)`을 내보낸 뒤(`:39`) 작업 스레드에서 읽어 `Success` 또는 `Failure(이전 목록, e)`를 보낸다(`:40-61`). (#69 수정: `NoSuchFileException`이면 `Failure(null, e)`)
 - 화면은 `onFileListChanged`(`FileListFragment.kt:707-739`) 한 곳에서 상태를 그린다: 부제목(`:710-714`), 원형 표시(`:716`), 가운데 진행 표시(`:717`), 가운데 오류 글(`:718`, `:726`), 토스트(`:723-724`).
 - 그래서 "자동인지 명시인지"는 `loadValue()` 안에서 구분되지 않고, `Loading`을 받으면 화면은 항상 로딩 표시를 낸다. 바꿀 곳은 이 구분 하나와, 실패 토스트의 반복이다.
 
@@ -50,8 +50,8 @@ graph TD
 | 진입 | 종류 | 시작 순간 게시 | 진행 중 화면 | 끝나면 게시 |
 |---|---|---|---|---|
 | 생성자(T7, 첫 읽기) | 명시 | `Loading(null)` | 부제목 "Loading…", 가운데 진행 | `Success` / `Failure(null, e)` |
-| `loadValue()` 공개(T4~T6) | 명시 | `Loading(이전 목록)` | 부제목 "Loading…", 항목 있으면 원형·없으면 가운데 진행 | `Success` / `Failure(이전 목록, e)` |
-| T1·T2·T3, 표시 중인 목록 있음 | 자동·조용 | **없음** | 직전 그대로(목록, 부제목 항목 수 또는 "Error") | `Success` / `Failure(이전 목록, e)` |
+| `loadValue()` 공개(T4~T6) | 명시 | `Loading(이전 목록)` | 부제목 "Loading…", 항목 있으면 원형·없으면 가운데 진행 | `Success` / `Failure(이전 목록, e)` (#69: `NoSuchFileException`이면 `Failure(null, e)`) |
+| T1·T2·T3, 표시 중인 목록 있음 | 자동·조용 | **없음** | 직전 그대로(목록, 부제목 항목 수 또는 "Error") | `Success` / `Failure(이전 목록, e)` (#69: `NoSuchFileException`이면 `Failure(null, e)`) |
 | T1·T2·T3, 표시 중인 목록 없음 | 자동·표시 | `Loading(null)` | 첫 읽기와 같음 | `Success` / `Failure(null, e)` |
 
 - "이전 목록"은 지금처럼 끝나는 순간의 `valueCompat.value`(`FileListLiveData.kt:58`)다. 조용한 읽기 중에는 값이 `Success`/`Failure` 그대로라 이것이 표시 중인 목록이다.
@@ -91,6 +91,7 @@ sequenceDiagram
   Note over L: 진행 중 T3 끊음(B2가 결과 버림), Loading(이전 목록) 게시
   L->>F: Loading → 원형 표시
   L->>F: Failure(이전 목록) → 직전 Loading이므로 토스트
+  Note over F: #69: NoSuchFileException이면 Failure(null) → 오류 화면, 토스트 없음
 ```
 
 ### 3.4 스레드·수명주기·오류 전파
@@ -130,4 +131,4 @@ sequenceDiagram
 | 2026-11-03 | v1 | 최초 작성 | SRS v1.1(검수 1회차 조건부 통과) | PM |
 | 2026-11-03 | v1.1 | 1.2 그림·K4의 `FileListSwitchMapLiveData` 변경 범위를 B6과 구분, K1에 B1 `FileListLoader.kt` 호출 위치는 LLD에서 확정, 6장 R6(비활성 뷰의 명시 실패 토스트 억제 위험) | HLD 1회차 검수 h1~h3 (PR #31) | 검수팀 |
 | 2026-11-04 | v1.2 | 상태 줄을 구현 결과에 맞춤 | 릴리스 v1.7.5-beta.1 문서 동기화 | PM |
-| 2026-11-19 | v1.3 | K1·K5에 #69 수정 주석(`NoSuchFileException` 실패는 목록 없음, 압축 감시 위임) | 이슈 #69 오너 결정(2026-11-19), `docs/design/69-stale-archive/HLD.md` (PR #81) | PM |
+| 2026-11-19 | v1.3 | K1·K5, 1.1 흐름·3장 표·시퀀스 그림에 #69 수정 주석(`NoSuchFileException` 실패는 목록 없음, 압축 감시 위임) | 이슈 #69 오너 결정(2026-11-19), `docs/design/69-stale-archive/HLD.md` (PR #81) | PM |
