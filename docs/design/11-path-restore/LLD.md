@@ -5,7 +5,7 @@
 | 항목 | 내용 |
 |---|---|
 | 상태 | 작성 중 |
-| 근거 | SRS v1.2, HLD v1.2 (설계 브랜치 `design/11-path-restore` 96a949d, PR #60). 오너 결정 Q1=A·Q2=가·Q3=활성 창 복원(이슈 #11 issuecomment-6999035882) |
+| 근거 | SRS v1.2, HLD v1.3 (설계 브랜치 `design/11-path-restore` 74408d9, PR #60 — v1.3은 F1 반영, 설계 불변). 오너 결정 Q1=A·Q2=가·Q3=활성 창 복원(이슈 #11 issuecomment-6999035882) |
 | 기준 코드 | `origin/develop` 0941fa7 — 이 문서가 인용하는 `filelist/`·`util/`·`provider/` 파일은 HLD 기준 7cf16b7과 같다(`git diff --stat 7cf16b7 origin/develop`에 테스트 파일 하나만 바뀜). 줄 번호는 이 커밋 기준이다. |
 
 ## 1. 변경 파일
@@ -269,10 +269,10 @@ K1(2-4~2-6)·K4(2-7·2-8)는 프래그먼트·`LiveData`(메인 루퍼 필요, `
 | 09 | 2-7·2-8 | M-13~M-16 |
 
 ## 4. 설계 피드백
-- **F1 (정보, HLD 수정 불요)**: HLD K3·3.3은 설치되지 않은 스킴에서 `ProviderNotFoundException`을 들고(3.3 "그 스킴은 `ProviderNotFoundException` → `decode` `null`"), K3는 "둘 중 무엇을 던지는지는 LLD 시험에서 확인"이라 했다. 백포트 바이트코드 확인 결과 `Paths.get(URI)`는 **`FileSystemNotFoundException`**을 던진다(2-2). LLD는 HLD대로 둘 다 잡으므로 동작·설계는 그대로이고, T-D07로 고정한다. HLD 3.3의 예외 이름은 다음 문서 동기화 때 정정을 권고한다 — 설계팀에 전달(결과는 아래).
+- **F1 (정보, HLD 수정 불요)**: HLD K3·3.3은 설치되지 않은 스킴에서 `ProviderNotFoundException`을 들고(3.3 "그 스킴은 `ProviderNotFoundException` → `decode` `null`"), K3는 "둘 중 무엇을 던지는지는 LLD 시험에서 확인"이라 했다. 백포트 바이트코드 확인 결과 `Paths.get(URI)`는 **`FileSystemNotFoundException`**을 던진다(2-2). LLD는 HLD대로 둘 다 잡으므로 동작·설계는 그대로이고, T-D07로 고정한다. 설계팀에 전달해 HLD v1.3에서 정정됐다(아래).
 - **F2 (환경, SRS 수정 불요)**: SRS 4.2는 에뮬레이터 "API 23 하나, API 34 이상 하나 권장"이지만 로컬 AVD는 `Medium_Phone_API_36`·`_b`뿐이다. 시스템 이미지 내려받기·새 AVD 만들기는 하지 않으므로 API 23 확인은 미실행으로 기록한다. 이 작업에 API별 분기 코드가 없어(SRS 3장) 위험은 낮다. 필요하면 PM 판단.
 - **F3 (정보)**: M-04의 "고른 결과가 호출 앱에 돌아가는지"는 adb만으로는 호출 앱이 없어 확인할 수 없다. 선택 조건이 복원 때에도 Intent에서 정해진다는 것(REQ-11-02 핵심)은 선택 모드 UI 유지와 코드 검사(2-5: `when` 블록 불변)로 확인한다.
-- 설계팀 답변: (기록 예정)
+- 설계팀 답변 (2026-11-19): F1 — HLD를 바로 고쳤다(v1.3, 74408d9: K3·3.3의 예외 이름을 `FileSystemNotFoundException`으로, `ProviderNotFoundException`은 방어적으로 함께 잡음. 설계·동작 불변, 바뀐 절 재검수는 이 LLD 검수와 함께). F2 — 이견 없음, 검수 기록·구현 PR 본문에도 "API 23 미실행"을 남긴다.
 
 ## 5. 변경 이력
 | 일자 | 버전 | 변경 | 사유 | 요청자 |
