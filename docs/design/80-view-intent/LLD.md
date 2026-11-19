@@ -2,7 +2,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | v1.2 수정(변경 절 재검수 대기) |
+| 상태 | 검수 통과(v1.2) |
 | 근거 | SRS v1.3, HLD v1.2 (`docs/design/80-view-intent/`), V0 기록(`_workspace/wo/80-view-intent/`) |
 
 줄 번호는 develop `ac012e0` 기준이다.
