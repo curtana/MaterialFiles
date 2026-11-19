@@ -2,7 +2,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 작성 중 |
+| 상태 | 검수 통과(v1 PR #81 1회차 조건부, 경미 3건 v1.1 반영) |
 | 근거 | SRS v1.1, HLD v1.2 |
 | 기준 코드 | `origin/develop` f7f5e15(#67 머지 뒤). 이 LLD가 다루는 `filelist/`·`provider/` 파일은 HLD 기준 8cafb75와 같아(`git diff --stat 8cafb75 f7f5e15 -- …/filelist …/provider` 빈 출력) 줄 번호도 같다. 경로는 `app/src/main/java/me/zhanghai/android/files/` 기준, 테스트는 `app/src/test/java/me/zhanghai/android/files/` 기준 |
 
@@ -119,7 +119,7 @@ internal fun <T> failureValue(previous: T?, e: Exception): T? =
 
 ### R2 확인 — 루트·원격 프로세스 경로의 `NoSuchFileException` 전달 (HLD R2 해소)
 루트 경로의 목록 읽기는 다음 길로 같은 형의 예외를 받는다. **형은 유지된다**(코드로 확인, 기기 확인은 하지 않음).
-1. `FileListLiveData.kt:64` `path.newDirectoryStream()` → `RootableFileSystemProvider.newDirectoryStream`(`provider/root/RootableFileSystemProvider.kt:70-73`) → `callRootable`(`provider/root/RootablePath.kt:41-63`)은 전략에 따라 로컬 또는 루트 provider를 **한 번** 부르고 예외를 바꾸지 않는다(다시 시도·감싸기 없음).
+1. `FileListLiveData.kt:64` `path.newDirectoryStream()` → `RootableFileSystemProvider.newDirectoryStream`(`provider/root/RootableFileSystemProvider.kt:70-73`) → `callRootable`(단일 경로 오버로드 `provider/root/RootablePath.kt:20-38`)은 전략에 따라 로컬 또는 루트 provider를 **한 번** 부르고 예외를 바꾸지 않는다(다시 시도·감싸기 없음).
 2. 루트 provider는 `RemoteFileSystemProvider.newDirectoryStream`(`provider/remote/RemoteFileSystemProvider.kt:78-90`) → `call { … }`(`provider/remote/IInterfaceExtensions.kt:18-28`).
 3. 루트 프로세스 쪽: `RemoteFileSystemProviderInterface.newDirectoryStream`(`provider/remote/RemoteFileSystemProviderInterface.kt:38-46`)이 `tryRun`(`IInterfaceExtensions.kt:31-45`)으로 감싸고, 로컬 provider의 `opendir` 실패는 `SyscallException.toFileSystemException`(`provider/linux/syscall/SyscallException.kt:58-69`, `ENOENT` → `NoSuchFileException`, `:66`)으로 `NoSuchFileException`이 된다(`provider/linux/LocalLinuxFileSystemProvider.kt:123-127`). `tryRun`은 그 `IOException`을 `ParcelableException.value`에 넣는다(`:38-40`).
 4. `ParcelableException.writeToParcel`은 `dest.writeSerializable(value)`(`provider/remote/ParcelableException.kt:33-35`), 앱 쪽은 `readSerializableCompat()`(`:24`, `:30`; `compat/ParcelCompat.kt:65` = `readSerializable()`)로 푼다. 자바 직렬화는 클래스 이름으로 객체를 되살리고, 두 프로세스가 같은 APK라 `java8.nio.file.NoSuchFileException` 그대로 돌아온다. 원인 사슬(`SyscallException` ← `ErrnoException`)도 직렬화 가능한 예외다.
@@ -144,6 +144,7 @@ internal fun <T> failureValue(previous: T?, e: Exception): T? =
 JVM 단위 시험(`./gradlew testDebugUnitTest`). 모두 안드로이드 없이 돈다. **fail-before 확인 방법**(새 함수라 "수정 전"은 컴파일이 안 되므로): 구현 첫 WIP 커밋에서 지금 동작을 흉내 낸 임시 구현으로 시험을 돌려 실패를 기록하고, 다음 커밋에서 실제 구현으로 통과를 기록한다.
 - `failureValue` 임시 구현 = `previous`를 그대로 돌려줌(지금 `FileListLiveData.kt:80`의 동작).
 - `ArchivePathObservable` 임시 구현 = 래퍼가 `executor` 없이 호출 스레드에서 바로 `invalidate()` → `observer()`(시험한 수정안의 동작).
+- 임시 구현에서 실제로 실패하는 것은 T-H3-01·T-R4-01·T-H2-06이다(fail-before 담당). T-H2-01~05·T-H3-02·03은 새 클래스·함수의 계약 시험이라 임시 구현에서도 통과한다.
 
 | 테스트 | 대상 함수 | 경우(정상·경계·오류) | 기대 결과 | fail-before(임시 구현) |
 |---|---|---|---|---|
@@ -156,7 +157,7 @@ JVM 단위 시험(`./gradlew testDebugUnitTest`). 모두 안드로이드 없이 
 | T-H2-03 `removeObserver_removesWrapperFromSource` | 〃 | `addObserver(o)` 뒤 `removeObserver(o)`; 모르는 관찰자 `removeObserver(p)` | 원본의 래퍼 목록이 빔; 모르는 관찰자는 원본 호출 없음 | 통과 |
 | T-H2-04 `close_closesSource` | 〃 | `close()` | 가짜 원본 `closed` 참 | 통과 |
 | T-H2-05 `addObserverTwice_replacesWrapper` | 〃 | 같은 `o`로 두 번 `addObserver` | 원본에 래퍼 1개, 알림 시 관찰자 1회 | 통과(임시 구현도 같은 맵 처리) |
-| T-H2-06 `blockedInvalidate_wrapperReturnsImmediately` (R6) | 〃 | 무효화가 `CountDownLatch` `release`를 최대 5초 기다림(잠금을 쥔 읽기를 흉내), 실제 스레드 실행기 `Executors.newSingleThreadExecutor()`(시험 끝 `shutdownNow`). 시험 스레드에서 래퍼를 부르고 걸린 시간을 잰다 | 래퍼가 1초 안에 돌아오고 그 시점에 관찰자 0회; `release.countDown()` 뒤 관찰자가 2초 안에 1회(`CountDownLatch` 대기) | 실패(래퍼가 무효화를 기다림 — 5초 뒤 돌아옴) |
+| T-H2-06 `blockedInvalidate_wrapperReturnsImmediately` (R6) | 〃 | 무효화가 시작 래치 `started`를 내린 뒤 `CountDownLatch` `release`를 최대 5초 기다림(잠금을 쥔 읽기를 흉내), 실제 스레드 실행기 `Executors.newSingleThreadExecutor()`(시험 끝 `shutdownNow`). 시험 스레드에서 래퍼를 부르고 걸린 시간을 잰다 | 래퍼가 1초 안에 돌아오고, `started`가 2초 안에 내려간 시점에 관찰자 0회(실행기 시작 시간이 래퍼 측정에 섞이지 않음); `release.countDown()` 뒤 관찰자가 2초 안에 1회(`CountDownLatch` 대기) | 실패(래퍼가 무효화를 기다림 — 5초 뒤 돌아옴) |
 
 기존 `FileListRefreshPolicyTest`·`FileListLoaderTest`와 나머지 단위 시험은 그대로 통과해야 한다. `ArchiveFileSystemProvider.observe`·`FileListLiveData.loadFileList`는 안드로이드·libarchive 의존이라 JVM 시험하지 않고 코드 검사(2장 잠금 확인)와 AVD로 확인한다.
 
@@ -182,3 +183,4 @@ V5에서 잘린 zip이 오류 없이 읽히면(libarchive가 받아들이면 —
 | 일자 | 버전 | 변경 | 사유 | 요청자 |
 |---|---|---|---|---|
 | 2026-11-19 | v1 | 최초 작성 | SRS v1.1, HLD v1.2 | PM |
+| 2026-11-19 | v1.1 | R2 확인 `callRootable` 줄 번호 정정, fail-before 담당 시험 명시, T-H2-06 시작 래치 | LLD 1회차 검수 m1~m3 (PR #81) | 검수팀 |
