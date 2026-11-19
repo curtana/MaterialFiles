@@ -2,7 +2,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 작성 중 |
+| 상태 | 검수 통과(v1.1, PR #81 2회차). v1.2 3.3·6.1 보강은 재검수 대상 |
 | 근거 | SRS v1.1 (`docs/design/69-stale-archive/SRS.md`) |
 | 기준 코드 | `origin/develop` 8cafb75. 줄 번호는 모두 이 커밋 기준이다 |
 | 시험한 수정안 | `_workspace/wo/69-stale-archive/prototype.diff`(커밋 없음, AVD HOT 2/2·COLD 1/1 확인). 이 HLD는 그 구조를 따르되 판단을 순수 함수·클래스로 빼 JVM 시험이 가능하게 한다 |
@@ -47,6 +47,7 @@ flowchart LR
 
 ### 3.3 수명주기·스레드
 - 원본 감시의 관찰자(H2 래퍼)는 모든 `PathObservable`이 함께 쓰는 단일 `Notifier` HandlerThread에서 불린다(`AbstractPathObservable.kt:64-77`). `ArchiveFileSystem.refresh()`는 플래그 설정뿐이지만 `lock`을 잡는데(`ArchiveFileSystem.kt:122-129`), 이 `lock`은 항목 읽기(`ensureEntriesLocked`, `:131-146`)가 압축 전체를 읽는 동안 계속 잡혀 있다(`:63-67` 등 모든 조회가 `synchronized(lock)` 안에서 읽는다). 그래서 무효화를 `Notifier`에서 직접 하면 큰 압축을 읽는 중에 그 스레드가 막혀 다른 창·폴더의 변경 알림까지 늦어진다(R6). H2는 무효화와 관찰자 호출을 실행기의 작업 스레드로 넘겨 `Notifier`를 막지 않는다(D6).
+- **주 스레드는 `ArchiveFileSystem.lock`을 기다리지 않는다**(#83과 같은 문제를 새로 만들지 않는다). 스레드별로 보면: H1 `observe()`는 `PathObserver`의 풀 작업에서 불린다(`PathObserver.kt:26-32`). H2 래퍼는 `Notifier` 스레드에서 불린다(`ThrottledRunnable(handler, …)`, `AbstractPathObservable.kt:23`, `handler` = `Notifier`의 것, `:67-68`, `:75-76`). `refresh()`와 관찰자 호출은 풀 작업 스레드에서 돈다(D6). 주 스레드는 그 뒤 `mainHandler.post(onChange)`(`PathObserver.kt:41-42`)로 `onChangeObserved()`만 받는다(`FileListLiveData.kt:83-89`). 이어지는 다시 읽기도 풀 작업 스레드에서 돈다(`FileListLiveData.kt:25-28`, `AsyncTask.THREAD_POOL_EXECUTOR`). #69는 주 스레드에서 `refresh()`나 `ArchiveFileSystem`의 다른 잠금 함수를 부르는 곳을 더하지 않는다. 기존 명시 새로 고침의 주 스레드 `archiveRefresh()`(`FileListViewModel.kt:81-87`)는 #83 범위라 그대로 둔다.
 - 작업 스레드의 `refresh()`는 진행 중인 읽기가 끝날 때까지 기다렸다가 플래그를 세운다. 그 읽기는 예전 내용이었을 수 있지만, 관찰자가 그 뒤에 불려 다음 다시 읽기가 원본을 새로 읽는다 — 무효화가 읽기 결과로 덮여 사라지지 않는다(플래그를 `lock` 밖으로 빼면 읽기 끝의 `isRefreshNeeded = false`, `:144`가 무효화를 지울 수 있어 택하지 않는다, D6).
 - 알림이 겹치면 작업이 둘 이상 동시에 돌 수 있다. 각 작업이 "무효화 → 관찰자"를 지키므로 어느 순서든 마지막 알림 뒤에 무효화된 상태에서 다시 읽기가 요청된다. 관찰자(`PathObserver`의 `mainHandler.post`, `PathObserver.kt:41-42`)는 어느 스레드에서 불러도 된다. 닫힌 파일 시스템이면 `ClosedFileSystemException` — H2가 잡는다(REQ-69-02).
 - `PathObserver.close()`(`:48-58`) → H2 `close()` → 원본 닫기. `observe()` 호출마다 원본 감시를 새로 만들므로 두 창이 같은 압축을 봐도 각자 닫는다. `ArchiveFileSystem`은 원본 경로별로 공유되므로(`ArchiveFileSystemProvider.getOrNewFileSystem`, `ArchiveFileSystemProvider.kt:58`) 한 창의 무효화가 다른 창의 다음 읽기에도 적용된다 — 같은 원본을 보는 이상 맞는 동작이다.
@@ -78,6 +79,7 @@ flowchart LR
 
 ### 6.1 검증 (SRS 2장·6장과 대응)
 - JVM 단위 시험(`app/src/test/.../filelist/`, `.../provider/archive/`): H3 — (목록, `NoSuchFileException`) → `null`, (목록, `AccessDeniedException`·`IOException`) → 목록, (`null`, 아무 예외) → `null`. H2 — 가짜 원본이 알리면 "무효화 → 관찰자" 순서, 무효화가 예외를 던져도 관찰자 호출, `removeObserver`·`close`가 원본에 전달, 무효화가 막혀 있어도(잠금을 쥔 채 기다리는 가짜 무효화 + 실제 스레드 실행기) 원본이 부른 래퍼는 곧바로 돌아옴(R6). REQ-69-04 — 목록 없는 `Failure(null, …)` 상태에서 `shouldLoadSilently(true, …)`와 `shouldNotifyFailure(…)`가 거짓(`FileListRefreshPolicy.kt:17-18`, `:30-42`; H3 결과가 이 상태를 만든다). 수정 전 코드에는 H2·H3이 없거나 다른 결과라 실패하고(fail-before), 수정 뒤 통과(pass-after). 기존 `FileListRefreshPolicyTest`·`FileListLoaderTest` 통과.
+- 코드 검사(LLD·코드 검수): H1·H2·H4가 주 스레드에서 `ArchiveFileSystem`의 `synchronized(lock)` 함수(`refresh`·`getEntry` 등)를 부르지 않는지 확인한다. 특히 H2 래퍼 본문은 실행기에 넘기는 일만 해야 한다(3.3).
 - AVD 확인 SRS V1(HOT)·V2(COLD)·V3·V4·V5. 실기기에는 설치하지 않는다.
 
 ## 7. 변경 이력
@@ -85,3 +87,4 @@ flowchart LR
 |---|---|---|---|---|
 | 2026-11-19 | v1 | 최초 작성 | SRS v1.1 | PM |
 | 2026-11-19 | v1.1 | 3.1·3.3 스레드 서술을 코드에 맞춤(`Notifier` 스레드, `ArchiveFileSystem.lock`), H2가 무효화를 실행기로 넘김(D6), R6 추가, 6.1에 R6·REQ-69-04 시험. #29 HLD 3장·그림의 `Failure(이전 목록)` 주석 | HLD 1회차 검수 M1·m1·m2 (PR #81) | 검수팀 |
+| 2026-11-19 | v1.2 | 3.3에 스레드별 호출 위치와 "주 스레드는 `ArchiveFileSystem.lock`을 기다리지 않는다" 명시, 6.1에 코드 검사 항목. 설계 변경 없음 | #83 분류 뒤 PM 지시(#69가 #83 문제를 새로 만들지 않음을 명시) | PM |
