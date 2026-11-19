@@ -5,7 +5,7 @@
 | 항목 | 내용 |
 |---|---|
 | 상태 | 작성 중(v1) |
-| 근거 | SRS v1.3, HLD v1.2 (설계 브랜치 `design/54-replace-warning` bfe98a7) |
+| 근거 | SRS v1.3, HLD v1.3 (설계 브랜치 `design/54-replace-warning` 2f09bb5) |
 | 기준 코드 | `origin/develop` 0941fa7. 충돌 창·레이아웃·문자열 파일은 SRS·HLD 기준 커밋 7cf16b7과 같아 줄 번호가 그대로다. 백엔드 줄 번호는 #47 머지 뒤인 0941fa7 기준이다. 경로는 `app/src/main/` 기준이다 |
 
 ## 1. 변경 파일
@@ -38,8 +38,8 @@
       android:text="@string/file_job_replace_warning"
       android:visibility="gone" />
   ```
-- **글자 모양(HLD 6장 미확인 항목의 결론 — 4장 F1)**: `?textAppearanceListItem`이 아니라 창 메시지와 **같은 스타일 속성** `?materialAlertDialogBodyTextStyle`을 쓴다. 근거(Material 1.14.0, `app/build.gradle:149`):
-  - 창 메시지 `TextView`는 두 테마 계열 모두 `style="?attr/materialAlertDialogBodyTextStyle"`이다(라이브러리 `res/layout/mtrl_alert_dialog.xml`·`m3_alert_dialog.xml`의 `@android:id/message`).
+- **글자 모양(HLD v1.3 C1·E2, 설계 피드백 F1로 반영됨)**: `?textAppearanceListItem`이 아니라 창 메시지와 **같은 스타일 속성** `?materialAlertDialogBodyTextStyle`을 쓴다. 근거(Material 1.14.0, `app/build.gradle:149`):
+  - 창 메시지 `TextView`는 두 테마 계열 모두 `style="?attr/materialAlertDialogBodyTextStyle"`이다(라이브러리 `res/layout/mtrl_alert_dialog.xml`·`m3_alert_dialog.xml`의 `@android:id/message`). 근거 원본: Gradle 캐시의 `com.google.android.material/material/1.14.0/.../material-1.14.0.aar`(풀린 사본 `~/.gradle/caches/<버전>/transforms/<해시>/transformed/material-1.14.0/res/`)의 `layout/mtrl_alert_dialog.xml`·`layout/m3_alert_dialog.xml`과 `values/values.xml`의 스타일 `MaterialAlertDialog.MaterialComponents.Body.Text`·`MaterialAlertDialog.Material3.Body.Text`, 매크로 `m3_comp_dialog_supporting_text_type/color`, 색 `color/material_on_surface_emphasis_medium.xml`.
   - 기본 테마(Material Design 3 설정 꺼짐, `res/values/donottranslate_prefs.xml:40`, 테마 부모 `Theme.MaterialComponents.DayNight`, `res/values/themes.xml:10`)에서 이 속성은 `MaterialAlertDialog.MaterialComponents.Body.Text` = `?textAppearanceBody2`(14sp) + `material_on_surface_emphasis_medium`(colorOnSurface 60%)이다. Material 3 테마에서는 `MaterialAlertDialog.Material3.Body.Text` = `?textAppearanceBodyMedium`(14sp) + `?colorOnSurfaceVariant`이다.
   - 반면 `?textAppearanceListItem`은 기본 테마에서 AppCompat Subhead(16sp, 주 글자색), Material 3에서 TitleMedium(16sp, `res/values/styles_material3.xml:35-38`)이라 메시지보다 크고 진하다. 경고가 메시지보다 두드러져 O3("강조 없이 일반 본문 글자")·D5와 어긋난다.
   - 같은 스타일이므로 색은 메시지와 같은 테마 속성에서 오고, 새 색·`textColor` 지정이 없다(HLD E2의 "새 색 없음", SRS 5장 `Visual_Contrast` "기존 창 메시지와 같은 색 속성"). `?android:textColorSecondary`를 쓰지 않으므로 #27의 대비 결함과 무관하다.
@@ -149,14 +149,15 @@
 - 필수 캡처: M1~M4 × en·ko = 8장(M3·M4는 2장씩이라 실제 12장) + M5·M6 2장.
 - M1~M4 중 하나에서 "교체"를 실제로 눌러 한 번에 진행되고 별도 확인 창이 없음을 본다(REQ-54-03).
 - 압축 풀기 충돌은 같은 창·같은 조건(`!isMerge`)이라 캡처하지 않는다(REQ-54-01은 코드 검사로 충족).
-- 대비: 경고는 메시지와 같은 스타일이므로 메시지와 같은 대비다(SRS 3장 "기존 창 메시지와 같은 수준"). M1·M5 캡처에서 경고 글자 픽셀 색이 메시지 글자와 같은지만 본다.
+- 대비(HLD v1.3 6장 미확인 항목): 경고는 메시지와 같은 스타일이므로 메시지와 같은 대비다. M1(밝은)·M5(어두운)·M6(MD3) 캡처에서 ① 경고 글자 픽셀 색이 메시지 글자와 같은지 ② 글자 획 중심 픽셀 색과 창 배경 색으로 WCAG 대비비를 계산해 4.5:1 이상인지 본다(venv 파이썬 스크립트로 계산, 값을 PR 코멘트에 적는다). 미달이면 메시지 자체의 문제이므로 이 작업에서 색을 바꾸지 않고 별도 이슈(`분류대기`)로 올린다(새 색 금지 유지).
 
 ## 4. 설계 피드백
-- **F1 — 경고 글자 모양(HLD C1·E2 "`?textAppearanceListItem`, 색 지정 없음" → LLD `style="?materialAlertDialogBodyTextStyle"`)**: HLD 6장이 "메시지와 어울리지 않으면 기존 테마 속성 안에서 글자 모양만 바꾼다"고 열어 둔 항목이다. 라이브러리 리소스로 확인한 결과 `?textAppearanceListItem`은 두 테마 모두 메시지(14sp, 중간 강조색)보다 크고(16sp) 진해(주 글자색) O3 "강조 없음"과 어긋난다(2-1 근거). 메시지와 같은 스타일 속성을 쓰면 글자 모양과 색이 모두 메시지와 같아지고, 새 색 정의나 `textColor` 지정은 여전히 없다. 다만 스타일이 색을 포함하므로 HLD E2의 "글자색을 따로 지정하지 않는다(기본 본문 색)" 표현과 글자 그대로는 다르다 — 설계팀에 문의함(결과는 아래에 기록).
+- **F1 — 경고 글자 모양(HLD C1·E2 "`?textAppearanceListItem`, 색 지정 없음" → LLD `style="?materialAlertDialogBodyTextStyle"`)**: HLD 6장이 "메시지와 어울리지 않으면 기존 테마 속성 안에서 글자 모양만 바꾼다"고 열어 둔 항목이다. 라이브러리 리소스로 확인한 결과 `?textAppearanceListItem`은 두 테마 모두 메시지(14sp, 중간 강조색)보다 크고(16sp) 진해(주 글자색) O3 "강조 없음"과 어긋난다(2-1 근거). 메시지와 같은 스타일 속성을 쓰면 글자 모양과 색이 모두 메시지와 같아지고, 새 색 정의나 `textColor` 지정은 여전히 없다. 다만 스타일이 색을 포함하므로 HLD E2의 "글자색을 따로 지정하지 않는다(기본 본문 색)" 표현과 글자 그대로는 다르다 — 설계팀에 문의함. **결과(2026-11-19)**: 설계팀이 받아들여 HLD를 v1.3으로 고침(C1·E2를 `?materialAlertDialogBodyTextStyle`·별도 색 지정 없음으로, `?textAppearanceListItem`은 기각안으로; e899599, 검수 통과 2f09bb5). 대비 4.5:1 확인은 LLD 3-3으로 넘겨받음. LLD 변경 없음.
 - **F2 — 기준 커밋**: SRS·HLD는 7cf16b7 기준이고 그 뒤 #47(0941fa7)이 `LinuxCopyMove.kt`·`SftpCopyMove.kt`·`SmbCopyMove.kt`를 바꿨다. 충돌 창·레이아웃·문자열 줄 번호는 변하지 않았고, SRS 1.1의 백엔드 줄 번호(예: `LinuxCopyMove.kt:56-65`, 136-144)는 한두 줄 어긋난다. 요구사항에는 영향 없음 — 정보로만 남긴다.
 - **F3 — HLD 4.2 미확인(링크 대상 교체)**: 2-3 표로 로컬·루트·SFTP·SMB는 링크만 지움(코드 읽기), FTP·WebDAV는 서버 의존 미확인으로 정리했다. 문구 변경 불필요.
 
 ## 5. 변경 이력
 | 일자 | 버전 | 변경 | 사유 | 요청자 |
 |---|---|---|---|---|
+| 2026-11-19 | v1.1 | 근거를 HLD v1.3으로, F1 결과 기록, 라이브러리 근거 경로 추가, 3-3에 대비비 계산(4.5:1, 미달 시 별도 이슈) 추가 | 설계 문의 F1 결과(HLD v1.3) | 개발팀 |
 | 2026-11-19 | v1 | 최초 작성 | SRS v1.3·HLD v1.2 검수 통과 | PM |
