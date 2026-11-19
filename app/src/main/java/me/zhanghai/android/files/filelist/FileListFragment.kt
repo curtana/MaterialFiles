@@ -11,7 +11,6 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.os.Environment
 import android.os.Handler
 import android.os.Looper
 import android.text.TextUtils
@@ -55,7 +54,6 @@ import androidx.recyclerview.widget.RecyclerView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.leinardi.android.speeddial.SpeedDialView
 import java8.nio.file.Path
-import java8.nio.file.Paths
 import kotlin.math.roundToInt
 import kotlinx.parcelize.Parcelize
 import me.zhanghai.android.files.BuildConfig
@@ -84,7 +82,6 @@ import me.zhanghai.android.files.fileproperties.FilePropertiesDialogFragment
 import me.zhanghai.android.files.navigation.BookmarkDirectories
 import me.zhanghai.android.files.navigation.BookmarkDirectory
 import me.zhanghai.android.files.navigation.NavigationRootMapLiveData
-import me.zhanghai.android.files.provider.archive.createArchiveRootPath
 import me.zhanghai.android.files.provider.archive.isArchivePath
 import me.zhanghai.android.files.provider.linux.isLinuxPath
 import me.zhanghai.android.files.settings.Settings
@@ -139,7 +136,6 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
     CreateDirectoryDialogFragment.Listener, NavigateToPathDialogFragment.Listener,
     ConfirmCopyMoveDialogFragment.Listener {
     private val args by args<Args>()
-    private val argsPath by lazy { args.intent.extraPath }
 
     private val viewModel by viewModels { { FileListViewModel() } }
 
@@ -293,10 +289,10 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
         )
 
         if (!viewModel.hasTrail) {
-            var path = argsPath
+            var path: Path? = args.intent.extraPath
             val intent = args.intent
             var pickOptions: PickOptions? = null
-            // The pick actions must be kept in sync with FileListHostFragment.isPickIntent().
+            // The pick actions must be kept in sync with isPickAction().
             when (val action = intent.action) {
                 Intent.ACTION_GET_CONTENT, Intent.ACTION_OPEN_DOCUMENT,
                 Intent.ACTION_CREATE_DOCUMENT -> {
@@ -332,19 +328,7 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
                         PickOptions.Mode.OPEN_DIRECTORY, null, false, emptyList(), localOnly, false
                     )
                 }
-                ACTION_VIEW_DOWNLOADS ->
-                    path = Paths.get(
-                        Environment.getExternalStoragePublicDirectory(
-                            Environment.DIRECTORY_DOWNLOADS
-                        ).path
-                    )
-                else ->
-                    if (path != null) {
-                        val mimeType = intent.type?.asMimeTypeOrNull()
-                        if (mimeType != null && path.isArchiveFile(mimeType)) {
-                            path = path.createArchiveRootPath()
-                        }
-                    }
+                else -> path = intent.resolvePanePath()
             }
             // The saved path takes precedence over the intent after the system recreated this pane,
             // but the pick options above still come from the intent (#11).
@@ -975,9 +959,7 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
     }
 
     override fun openInNewTask(path: Path) {
-        val intent = FileListActivity.createViewIntent(path)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_DOCUMENT or Intent.FLAG_ACTIVITY_MULTIPLE_TASK)
-        startActivitySafe(intent)
+        startActivitySafe(FileListActivity.createNewTaskViewIntent(path))
     }
 
     private fun onPickOptionsChanged(pickOptions: PickOptions?) {
@@ -1672,9 +1654,6 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
         get() = viewModel.currentPathLiveData
 
     companion object {
-        private const val ACTION_VIEW_DOWNLOADS =
-            "me.zhanghai.android.files.intent.action.VIEW_DOWNLOADS"
-
         private const val IMAGE_VIEWER_ACTIVITY_PATH_LIST_SIZE_MAX = 1000
 
         private const val STATE_PATH_URI = "${BuildConfig.APPLICATION_ID}.state.PATH_URI"

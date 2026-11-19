@@ -5,6 +5,7 @@
 
 package me.zhanghai.android.files.filelist
 
+import android.content.Intent
 import java8.nio.file.FileSystemNotFoundException
 import java8.nio.file.InvalidPathException
 import java8.nio.file.Path
@@ -12,6 +13,7 @@ import java8.nio.file.Paths
 import java8.nio.file.ProviderNotFoundException
 import me.zhanghai.android.files.filejob.TestPaths
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertThrows
@@ -160,5 +162,203 @@ class PaneStartPathTest {
         assertEquals(path.toUri().toString(), uriString)
         assertTrue(uriString, uriString.startsWith("test:"))
         assertEquals(path, decodePanePath(uriString) { TestPaths.path(it.path) })
+    }
+
+    // #80: intent handling of a screen that is already on top.
+
+    private val pickActions = listOf(
+        Intent.ACTION_GET_CONTENT, Intent.ACTION_OPEN_DOCUMENT, Intent.ACTION_CREATE_DOCUMENT,
+        Intent.ACTION_OPEN_DOCUMENT_TREE
+    )
+    private val folder = TestPaths.path("/storage/emulated/0/V0/B")
+    private val archive = TestPaths.path("/x/t.zip")
+    private val archiveRoot = TestPaths.path("/archive-root-marker")
+    private val downloads = TestPaths.path("/storage/emulated/0/Download")
+
+    private var downloadsPathCalls = 0
+
+    private fun downloadsPath(): Path {
+        ++downloadsPathCalls
+        return downloads
+    }
+
+    private val archiveRootPathArgs = mutableListOf<Path>()
+
+    private fun archiveRootPath(path: Path): Path {
+        archiveRootPathArgs.add(path)
+        return archiveRoot
+    }
+
+    // T-01 (REQ-80-05, 08)
+    @Test
+    fun isPickAction_pickActions_true() {
+        for (action in pickActions) {
+            assertTrue(action, isPickAction(action))
+        }
+    }
+
+    // T-02 (REQ-80-05, 08)
+    @Test
+    fun isPickAction_others_false() {
+        for (action in listOf(Intent.ACTION_VIEW, Intent.ACTION_MAIN, ACTION_VIEW_DOWNLOADS, null)) {
+            assertFalse(action.toString(), isPickAction(action))
+        }
+    }
+
+    // T-03 (REQ-80-01, 08)
+    @Test
+    fun resolveIntentPath_folderView_returnsPath() {
+        assertSame(
+            folder,
+            resolveIntentPath(
+                Intent.ACTION_VIEW, folder, "resource/folder", ::downloadsPath, ::archiveRootPath
+            )
+        )
+        assertEquals(0, downloadsPathCalls)
+        assertEquals(emptyList<Path>(), archiveRootPathArgs)
+    }
+
+    // T-04 (REQ-80-01, 08)
+    @Test
+    fun resolveIntentPath_archiveView_returnsArchiveRoot() {
+        assertSame(
+            archiveRoot,
+            resolveIntentPath(
+                Intent.ACTION_VIEW, archive, "application/zip", ::downloadsPath, ::archiveRootPath
+            )
+        )
+        assertEquals(listOf(archive), archiveRootPathArgs)
+        assertEquals(0, downloadsPathCalls)
+    }
+
+    // T-05 (REQ-80-08)
+    @Test
+    fun resolveIntentPath_nonArchiveMime_returnsPath() {
+        for (mimeType in listOf("text/plain", "zip", null)) {
+            assertSame(
+                mimeType.toString(),
+                archive,
+                resolveIntentPath(
+                    Intent.ACTION_VIEW, archive, mimeType, ::downloadsPath, ::archiveRootPath
+                )
+            )
+        }
+        assertEquals(emptyList<Path>(), archiveRootPathArgs)
+        assertEquals(0, downloadsPathCalls)
+    }
+
+    // T-06 (REQ-80-01, 08)
+    @Test
+    fun resolveIntentPath_downloads_ignoresPath() {
+        for (path in listOf(folder, null)) {
+            downloadsPathCalls = 0
+            assertSame(
+                path.toString(),
+                downloads,
+                resolveIntentPath(
+                    ACTION_VIEW_DOWNLOADS, path, null, ::downloadsPath, ::archiveRootPath
+                )
+            )
+            assertEquals(1, downloadsPathCalls)
+        }
+        assertEquals(emptyList<Path>(), archiveRootPathArgs)
+    }
+
+    // T-07 (REQ-80-04)
+    @Test
+    fun resolveIntentPath_noPath_null() {
+        for (action in listOf(Intent.ACTION_VIEW, Intent.ACTION_MAIN)) {
+            assertNull(
+                action,
+                resolveIntentPath(action, null, "resource/folder", ::downloadsPath, ::archiveRootPath)
+            )
+        }
+        assertEquals(0, downloadsPathCalls)
+        assertEquals(emptyList<Path>(), archiveRootPathArgs)
+    }
+
+    // T-08 (REQ-80-01)
+    @Test
+    fun newIntent_browseScreen_folderView_opensInActivePane() {
+        assertEquals(
+            NewIntentAction.OPEN_IN_ACTIVE_PANE,
+            resolveNewIntentAction(false, Intent.ACTION_VIEW, Intent.FLAG_ACTIVITY_NEW_TASK, folder)
+        )
+    }
+
+    // T-09 (REQ-80-01)
+    @Test
+    fun newIntent_browseScreen_downloads_opensInActivePane() {
+        assertEquals(
+            NewIntentAction.OPEN_IN_ACTIVE_PANE,
+            resolveNewIntentAction(false, ACTION_VIEW_DOWNLOADS, 0, downloads)
+        )
+    }
+
+    // T-10 (REQ-80-05)
+    @Test
+    fun newIntent_pickScreen_path_opensInNewTask() {
+        assertEquals(
+            NewIntentAction.OPEN_IN_NEW_TASK,
+            resolveNewIntentAction(true, Intent.ACTION_VIEW, Intent.FLAG_ACTIVITY_NEW_TASK, folder)
+        )
+    }
+
+    // T-11 (REQ-80-04, 05, 06)
+    @Test
+    fun newIntent_ignored() {
+        for (isPickScreen in listOf(false, true)) {
+            for (action in pickActions) {
+                assertEquals(
+                    "$isPickScreen $action",
+                    NewIntentAction.IGNORE,
+                    resolveNewIntentAction(
+                        isPickScreen, action, Intent.FLAG_ACTIVITY_NEW_TASK, folder
+                    )
+                )
+            }
+            for (action in listOf(Intent.ACTION_MAIN, Intent.ACTION_VIEW)) {
+                assertEquals(
+                    "$isPickScreen $action",
+                    NewIntentAction.IGNORE,
+                    resolveNewIntentAction(
+                        isPickScreen, action, Intent.FLAG_ACTIVITY_NEW_TASK, null
+                    )
+                )
+            }
+            assertEquals(
+                "$isPickScreen new task",
+                NewIntentAction.IGNORE,
+                resolveNewIntentAction(
+                    isPickScreen, Intent.ACTION_VIEW, NEW_TASK_VIEW_INTENT_FLAGS, folder
+                )
+            )
+        }
+    }
+
+    // T-12 (REQ-80-05, 06)
+    @Test
+    fun newTaskViewIntentFlags_includePreviousIsTop() {
+        for (flag in listOf(
+            Intent.FLAG_ACTIVITY_PREVIOUS_IS_TOP, Intent.FLAG_ACTIVITY_MULTIPLE_TASK,
+            Intent.FLAG_ACTIVITY_NEW_DOCUMENT
+        )) {
+            assertEquals(flag.toString(16), flag, NEW_TASK_VIEW_INTENT_FLAGS and flag)
+        }
+    }
+
+    // T-13 (REQ-80-01, PM decision L1): only some of the new task bits aren't ignored.
+    @Test
+    fun newIntent_partialNewTaskFlags_notIgnored() {
+        for (flags in listOf(
+            Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK,
+            Intent.FLAG_ACTIVITY_NEW_DOCUMENT or Intent.FLAG_ACTIVITY_MULTIPLE_TASK
+        )) {
+            assertEquals(
+                flags.toString(16),
+                NewIntentAction.OPEN_IN_ACTIVE_PANE,
+                resolveNewIntentAction(false, Intent.ACTION_VIEW, flags, folder)
+            )
+        }
     }
 }

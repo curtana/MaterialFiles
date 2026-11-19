@@ -1,6 +1,6 @@
 # 규격 추적표 — Android app quality guidelines
 
-- 상태: v0.12 (2026-11-19. v0.1~v0.2 PM 보조 작성, v0.3 오너 결정 기록, v0.4 4장 #2 행 REQ ID, v0.5 Q7~Q9 오너 결정, v0.6 `Keyboard_Shortcuts` 비고, v0.7 4장 #29 행, v0.8 4장 #30 행, v0.9 #9 not planned 반영, v0.11 4장 #29 행 A1·A2, v0.12 #11 `State_Preservation` 편차 해소 — 5장 이력). 조항 해석·필수 여부 판정은 오너 승인 사항이다(PROCESS_ROLES 부록 S).
+- 상태: v0.13 (2026-11-20. v0.1~v0.2 PM 보조 작성, v0.3 오너 결정 기록, v0.4 4장 #2 행 REQ ID, v0.5 Q7~Q9 오너 결정, v0.6 `Keyboard_Shortcuts` 비고, v0.7 4장 #29 행, v0.8 4장 #30 행, v0.9 #9 not planned 반영, v0.11 4장 #29 행 A1·A2, v0.12 #11 `State_Preservation` 편차 해소, v0.13 4장 #80 행 — 5장 이력). 조항 해석·필수 여부 판정은 오너 승인 사항이다(PROCESS_ROLES 부록 S).
 - 작성 규칙: 원문 문장은 옮기지 않고 한국어 요지만 적는다. 아래 근거 문서에서 직접 확인하지 못한 내용은 "원문 판독 필요"로 둔다.
 - 결과 로직을 바꾸는 PR은 이 표를 같은 PR에서 고친다(부록 S).
 
@@ -135,6 +135,7 @@
 | #30 파일 작업 표시(툴바의 달리는 선 사람) | `Theme_Support`, `Visual_Contrast`, `Content_Description`, `Consistent_UX`, `Display_State_Parity`, `Stability_ANR`, `Minimize_Permissions`, `Touch_Target_Size`(해당 없음), A11Y-2, A11Y-3, A11P-2, A11P-4, RTL-1, RTL-2, RTL-4 | REQ-30-01~16 (`docs/design/30-job-runner/SRS.md` v1.3 5장) | 새 권한 없음. 모션 줄이기·상태 변화 낭독은 추적표에 조항이 없어 원문 판독 필요(요구사항 결정으로 둠). 새 편차 없음 |
 | #36 앱 안 파일 작업 목록과 취소(#39·#44 흡수) | `Theme_Support`, `Visual_Contrast`, `Content_Description`, `Touch_Target_Size`, `State_Preservation`, `Orientation_Transitions`, `Display_State_Parity`, `Consistent_UX`, `Back_Button_Nav`, `Stability_ANR`, `Minimize_Permissions`, A11Y-2, A11Y-3, A11P-2, A11P-4, RTL-1, RTL-2, RTL-4 | REQ-36-01~19 (`docs/design/36-job-list/SRS.md` v2.6 5장) | 새 권한 없음. 상태 변화 낭독은 추적표에 조항이 없어 원문 판독 필요. 알림 꺼짐에서의 토스트는 오너 결정으로 사용자 몫(요구사항 v5), 알림 관련 CQ 조항은 원문 판독 필요. 새 편차 없음 |
 | #11 프로세스 종료 후 창 경로 복원 | `State_Preservation`, `Back_Button_Nav`, `Stability_ANR`, `Orientation_Transitions`, `Config_Changes` | REQ-11-01~09 (`docs/design/11-path-restore/SRS.md` v1.2 5장) | 3장 `State_Preservation` 편차 해소. 새 권한·설정 키·영구 저장 없음. 새 편차 없음 |
+| #80 앱이 떠 있을 때 받은 경로 열기(활성 창) | `Back_Button_Nav`, `State_Preservation`, `Stability_ANR` | REQ-80-01~08 (`docs/design/80-view-intent/SRS.md` v1.3 5장) | `FileListActivity`를 `singleTop`으로. 받은 경로는 활성 창이 열고 다른 창은 그대로(오너 결정 2026-11-19), 뒤로 가기는 활성 창의 기존 처리. 받는 경로에 파일 입출력 없음. 새 권한·설정 키·영구 저장 없음. 새 편차 없음 |
 
 ## 5. 변경 이력
 
@@ -152,3 +153,4 @@
 | 2026-11-04 | v0.10 | 4장에 #36 행(파일 작업 목록, SRS REQ-36-01~19) 추가 | 개발팀 |
 | 2026-11-04 | v0.11 | 4장 #29 행에 A1·A2 결함 수정 명시, `Target_SDK_Version` 비고의 현재 값을 36으로(#25). 조항 해석 변경 없음 | 설계팀 |
 | 2026-11-19 | v0.12 | 3장 `State_Preservation` 편차 해소 표시(#11, PR #70), 2.1 행의 해당 열·충족 방법 갱신, 4장 #11 행 추가 | 개발팀 |
+| 2026-11-20 | v0.13 | 4장에 #80 행(받은 경로 열기, SRS REQ-80-01~08) 추가 | 개발팀 |
