@@ -42,6 +42,5 @@ fun createSymbolicLinkForCopy(
             e2.addSuppressed(e)
             throw e2
         }
-        throw e
     }
 }
