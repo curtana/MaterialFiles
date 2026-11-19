@@ -4,7 +4,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 검수 조건부 통과 (v1), 경미 m1·m2 반영 (v1.1), A2 줄 번호를 C2 머지 뒤 90f2c1e로 (v1.2), m3·m4 반영 (v1.3) |
+| 상태 | 검수 통과 (v1.3) — v1·v1.2 조건부 통과(m1–m4 [기계]) 반영 뒤 통과 (PR #72 코멘트) |
 | 근거 | SRS v1.4 (2절 Q1·Q3·Q5, REQ-55-01·03, 8절 D1), HLD v1.3 (1, 2.2 조각 A, 2.4, 3.1, 4, 5 D1·D2) |
 | 기준 코드 | A1(1·2.1–2.7절): `origin/develop` f899359(C1 머지 뒤, PR #66). A2(2.8–2.11절): `origin/develop` 90f2c1e(C2 머지 뒤, PR #71). A1 파일(`filejob/`, `provider/common/`)은 두 커밋 사이에 바뀌지 않았다(`git diff --stat f899359 90f2c1e -- app/src/main/java/me/zhanghai/android/files/filejob app/src/main/java/me/zhanghai/android/files/provider/common` 비어 있음). 경로는 `app/src/main/java/me/zhanghai/android/files/` 기준. 줄과 함께 코드 앵커(주석·식)도 적는다 |
 | 추적 REQ | REQ-55-01, REQ-55-03 (REQ-55-02의 속성 부분: 폰→폰은 지금 그대로) |
