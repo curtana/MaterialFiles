@@ -38,17 +38,22 @@ internal object ForeignCopyMove {
         if (!copyOptions.replaceExisting && target.exists(LinkOption.NOFOLLOW_LINKS)) {
             throw FileAlreadyExistsException(source.toString(), target.toString(), null)
         }
+        // Delete an existing target only after the source is known to be readable.
+        val deleteExisting: (() -> Unit)? = if (copyOptions.replaceExisting) {
+            { target.deleteIfExists() }
+        } else {
+            null
+        }
         when {
             sourceAttributes.isRegularFile -> {
-                if (copyOptions.replaceExisting) {
-                    target.deleteIfExists()
-                }
                 val openOptions = if (copyOptions.noFollowLinks) {
                     arrayOf(LinkOption.NOFOLLOW_LINKS)
                 } else {
                     emptyArray()
                 }
-                source.newInputStream(*openOptions).use { inputStream ->
+                replaceAfterOpeningSource(
+                    { source.newInputStream(*openOptions) }, { it.close() }, deleteExisting
+                ) { inputStream ->
                     val outputStream = target.newOutputStream(
                         StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE
                     )
@@ -84,10 +89,15 @@ internal object ForeignCopyMove {
                 }
             }
             sourceAttributes.isDirectory -> {
-                if (copyOptions.replaceExisting) {
-                    target.deleteIfExists()
+                replaceAfterCheckingSource(
+                    {
+                        if (deleteExisting != null) {
+                            source.newDirectoryStream().close()
+                        }
+                    }, deleteExisting
+                ) {
+                    target.createDirectory()
                 }
-                target.createDirectory()
                 copyOptions.progressListener?.invoke(sourceAttributes.size())
             }
             sourceAttributes.isSymbolicLink -> {
