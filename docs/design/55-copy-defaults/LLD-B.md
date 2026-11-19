@@ -4,9 +4,9 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 작성 중 (v1.1) — 검수 1차 반려, [판단] M1·m1·m4 PM 판단 대기 |
+| 상태 | 작성 중 (v1.2) — 검수 1차 반려 지적 반영, 2차 검수 대기 |
 | 근거 | SRS v1.4 (2절 Q2, REQ-55-02·04·05·06·07, 6절, 7절), HLD v1.3 (2.3 조각 B, 2.4, 3.1, 3.3, 4, 5 D5–D10, 6) |
-| 기준 코드 | `origin/develop` 55c521f(C1·C2 머지 뒤, A1 머지 전). 경로는 `app/src/main/java/me/zhanghai/android/files/` 기준. B2는 **A1 머지 뒤** develop에서 분기한다 — A1이 `FileJobs.kt`의 같은 함수에 인자를 더하므로(LLD-A 2.6), 줄 번호는 55c521f 기준으로 적고 코드 앵커(식·주석)를 함께 적는다. B1 파일은 A·C가 고치지 않는다 |
+| 기준 코드 | `origin/develop` c39a97e(A1 머지 뒤, PR #75). v1·v1.1은 55c521f 기준이었고 v1.2에서 `FileJobs.kt` 줄을 c39a97e로 옮겼다. 그 밖의 파일(`FileJobConflictDialogFragment.kt`, `ftp/client/Client.kt`, `FileItem.kt`, `provider/common/`)은 두 커밋 사이에 바뀌지 않았다(`git diff --stat 55c521f c39a97e`). 경로는 `app/src/main/java/me/zhanghai/android/files/` 기준. 줄과 함께 코드 앵커(식·주석)를 적는다. A2(네트워크 백엔드 속성 단계)는 B 파일과 겹치지 않는다 |
 | 추적 REQ | B1: REQ-55-04(FTP 원본). B2: REQ-55-02, 04, 05, 06, 07 |
 | 나눔 | **B1**(FTP 상대 링크 풀기, 어느 때나) → **B2**(따라가기·깊이·항목 단위 실패·충돌 판정, A1 머지 뒤 — HLD 2.4 `B1 → B2`, `A1 → A2 → B2`). PR을 따로 한다. #54(PR #68)는 머지됐다 |
 
@@ -88,7 +88,7 @@ interface Path {
           get() = "${super.message}: more than $MAX_LINK_DEPTH levels of symbolic links"
   }
   ```
-  오류 창 본문은 `e.toString()`(`FileJobs.kt:1476-1482`의 `file_job_copy_error_message_format` 인자)이고 `Throwable.toString()`은 `getLocalizedMessage()` → `getMessage()`를 쓰므로 창에 "…LinkDepthExceededException: /a/l/l/…: more than 8 levels of symbolic links"가 보인다(REQ-55-06 "깊이 제한 때문임을 알 수 있어야"). 영어 고정 문구 — 예외 문자열은 지금도 번역하지 않는다(D6).
+  오류 창 본문은 `e.toString()`(`FileJobs.kt:1486-1492`의 `file_job_copy_error_message_format` 인자)이고 `Throwable.toString()`은 `getLocalizedMessage()` → `getMessage()`를 쓰므로 창에 "…LinkDepthExceededException: /a/l/l/…: more than 8 levels of symbolic links"가 보인다(REQ-55-06 "깊이 제한 때문임을 알 수 있어야"). 영어 고정 문구 — 예외 문자열은 지금도 번역하지 않는다(D6).
 - **기존 코드와의 관계**: `java8.nio.file.FileSystemLoopException`은 `public class`(final 아님, retrofile 1.2.0 `javap` 확인), 생성자 `(String)` 하나. `FileSystemException.getMessage()`는 `open`이다.
 
 #### 2.4 `internal class LinkWalkState(private val baseDepth: Int = 0)`
@@ -131,18 +131,46 @@ internal class ExitedDirectory(val depth: Int, val visitedChildren: Set<Path>)
 #### 2.5 `internal class ItemWalkFailure(val error: IOException, val enteredDepth: Int?, val visitedChildren: Set<Path>)`
 - **추적**: HLD 2.3 오류 처리 ②·③, D10 / REQ-55-05
 - **책임**: 순회의 시작 항목 자신이 실패했음을 바깥 반복문에 돌려주는 값.
-- **필드**: `error` — 창에 보일 예외. `enteredDepth` — ③(목록 도중 실패, `postVisitDirectory(폴더, 예외)`)이면 그 폴더에 들어갔던 깊이, ②(들어가기 전 실패, `visitFileFailed`)면 `null`. `visitedChildren` — ③에서 이미 방문한 자식(②면 빈 집합).
+- **필드**: `error` — 창에 보일 예외. `enteredDepth` — 그 폴더에 **이미 들어가 대상 폴더를 만든 적이 있으면** 그 깊이, 아니면 `null`. ③(목록 도중 실패, `postVisitDirectory(폴더, 예외)`)이면 들어갔던 깊이다. ②(들어가기 전 실패, `visitFileFailed`)는 앞선 ③의 재개 중이면 그 값을 **이어받고**(2.5a, 검수 M1), 아니면 `null`. `visitedChildren` — 이미 방문한 자식(같은 규칙으로 이어받음, 없으면 빈 집합).
+- **`val isCountedOnSkip: Boolean get() = enteredDepth == null`**: 건너뛸 때 진행률에서 한 항목을 뺄지(검수 m1). 들어간 적 있는 폴더는 대상 폴더를 이미 만들었고 `copyOrMove`가 옮긴 수에 셌으므로 빼지 않는다. 들어간 적 없는 항목은 집계가 한 항목(크기 0)으로 셌으므로(2.10) 뺀다.
 
-#### 2.6 `internal inline fun retryFailedWalk(first: ItemWalkFailure, ask: (IOException) -> Boolean, rewalk: (ItemWalkFailure) -> ItemWalkFailure?): Boolean`
+#### 2.5a `internal fun startFailureBeforeEntering(error: IOException, resume: ItemWalkFailure?): ItemWalkFailure` + `internal fun LinkWalkState.enterIfResumedStart(directory: Path, start: Path, resume: ItemWalkFailure?): Boolean` (B2, 신규, 순수 — 검수 M1·m4)
+- **추적**: HLD 2.3 오류 처리 ②·③ / REQ-55-05, 검수 M1
+- **책임**: 방문자의 재개 판단을 순수 함수로 뗀다(JVM 시험, 3.2 U-B25–27).
+- **알고리즘**:
+  ```kotlin
+  /**
+   * The failure of a walk start that failed before being entered. A start being resumed (#55 ③)
+   * keeps what the previous failure knew, so the next retry still doesn't copy it again.
+   */
+  internal fun startFailureBeforeEntering(error: IOException, resume: ItemWalkFailure?): ItemWalkFailure =
+      ItemWalkFailure(error, resume?.enteredDepth, resume?.visitedChildren ?: emptySet())
+
+  /** Enters [directory] without copying it again if it is a resumed start; false otherwise. */
+  internal fun LinkWalkState.enterIfResumedStart(
+      directory: Path, start: Path, resume: ItemWalkFailure?
+  ): Boolean {
+      val depth = resume?.enteredDepth ?: return false
+      if (directory != start) {
+          return false
+      }
+      enter(depth, resume.visitedChildren)
+      return true
+  }
+  ```
+- **M1의 경우**: ③으로 실패한 폴더 `D`(깊이 3, 자식 `a` 방문)를 다시 시도 → 다시 순회에서 `D`의 목록을 아예 열지 못함(라이브러리가 `preVisitDirectory` 전에 `visitFileFailed(D)`) → `startFailureBeforeEntering(e, resume)`이 깊이 3·`{a}`를 이어받는다 → 다음 다시 시도에서 `enterIfResumedStart`가 참이 되어 `D`를 `copy`로 다시 만들지 않고 `a`도 건너뛴다. v1.1은 여기서 `ItemWalkFailure(e, null, emptySet())`를 만들어 재개 정보를 잃었다.
+- 시작 항목이 아닌 항목의 ② 실패는 `startFailureBeforeEntering(exception, null)`(= 들어간 적 없음).
+
+#### 2.6 `internal inline fun retryFailedWalk(first: ItemWalkFailure, ask: (ItemWalkFailure) -> Boolean, rewalk: (ItemWalkFailure) -> ItemWalkFailure?): Boolean`
 - **추적**: HLD 2.3 오류 처리 ②·③, D10, HLD 검수 지적("연속 실패는 재귀가 아니라 반복", "다시 순회 결과를 바깥에 넘김") / REQ-55-05
 - **책임**: 한 항목의 순회 실패를 묻고, 다시 시도면 그 항목부터 다시 순회하고, 그 항목 자신이 또 실패하면 **같은 반복문에서** 다시 묻는다.
-- **입력·전제**: `ask(e)` — 참이면 다시 시도, 거짓이면 건너뜀(호출자가 진행률을 이미 정리함). 취소면 `ask`가 예외를 던진다. `rewalk(previous)` — 그 항목부터 새로 순회하고, 그 항목 **자신**이 또 실패하면 새 `ItemWalkFailure`를, 지나갔으면(복사·건너뛰기·하위 항목 실패 처리 포함) `null`을 돌려준다. 바로 앞 실패(`previous`)를 받아 ③의 재개 정보를 이어 간다.
+- **입력·전제**: `ask(failure)` — 참이면 다시 시도, 거짓이면 건너뜀(호출자가 진행률을 이미 정리함). 취소면 `ask`가 예외를 던진다. `rewalk(previous)` — 그 항목부터 새로 순회하고, 그 항목 **자신**이 또 실패하면 새 `ItemWalkFailure`를, 지나갔으면(복사·건너뛰기·하위 항목 실패 처리 포함) `null`을 돌려준다. 바로 앞 실패(`previous`)를 받아 ③의 재개 정보를 이어 간다.
 - **출력**: 참 = 그 항목을 순회했다, 거짓 = 건너뛰었다.
 - **알고리즘**:
   ```kotlin
   var failure = first
   while (true) {
-      if (!ask(failure.error)) {
+      if (!ask(failure)) {
           return false
       }
       failure = rewalk(failure) ?: return true
@@ -152,7 +180,7 @@ internal class ExitedDirectory(val depth: Int, val visitedChildren: Set<Path>)
 
 #### 2.7 `internal enum class CopyErrorDecision { RETRY, SKIP, CANCEL }` + `internal inline fun decideCopyError(actionAllInfo: ActionAllInfo, canRetry: Boolean, tryUserAction: () -> Boolean, showDialog: () -> ErrorResult): CopyErrorDecision`
 - **추적**: HLD 2.3 "오류 처리(추출)", D10 / REQ-55-05, 06
-- **책임**: 지금 `copyOrMove`의 일반 `IOException` 처리(`FileJobs.kt:1454-1509`)의 판단 부분. 복사 오류와 순회 오류가 같은 '모두 건너뛰기' 상태를 쓴다.
+- **책임**: 지금 `copyOrMove`의 일반 `IOException` 처리(`FileJobs.kt:1464-1519`)의 판단 부분. 복사 오류와 순회 오류가 같은 '모두 건너뛰기' 상태를 쓴다.
 - **알고리즘**(지금 코드의 순서 그대로):
   ```kotlin
   if (actionAllInfo.skipCopyMoveError) {
@@ -177,20 +205,21 @@ internal class ExitedDirectory(val depth: Int, val visitedChildren: Set<Path>)
       FileJobErrorAction.NEUTRAL -> CopyErrorDecision.CANCEL
   }
   ```
-- **지금 코드와 같음 확인**: 1456-1460(모두 건너뛰기면 묻지 않고 건너뜀) → 1461-1467(`UserActionRequiredException`이면 사용자 동작 뒤 다시 시도) → 1468-1488(창) → 1489-1508(긍정=다시 시도, 부정=건너뛰기(+모두), 닫힘=건너뛰기, 중립=취소). `canRetry == false`(① 깊이 초과·순환)일 때는 사용자 동작을 시도하지 않고(그 예외는 `UserActionRequiredException`이 아니다) 긍정 버튼이 없다.
-- **가시성 변경**(`FileJobs.kt`): `ActionAllInfo`(661)와 `ErrorResult`(606)를 `private class` → `internal class`로. 생성자·필드는 그대로.
+- **지금 코드와 같음 확인**: 1466-1470(모두 건너뛰기면 묻지 않고 건너뜀) → 1471-1477(`UserActionRequiredException`이면 사용자 동작 뒤 다시 시도) → 1478-1498(창) → 1499-1518(긍정=다시 시도, 부정=건너뛰기(+모두), 닫힘=건너뛰기, 중립=취소). `canRetry == false`(① 깊이 초과·순환)일 때는 사용자 동작을 시도하지 않고(그 예외는 `UserActionRequiredException`이 아니다) 긍정 버튼이 없다.
+- **가시성 변경**(`FileJobs.kt`): `ActionAllInfo`(662)와 `ErrorResult`(607)를 `private class` → `internal class`로. 생성자·필드는 그대로.
 
 ### B2 — `filejob/FileJobs.kt` (수정)
 
-#### 2.8 `TransferInfo` 상한 + `ScanInfo`·`TransferInfo` 가시성 (481-536, 351-381)
+#### 2.8 `TransferInfo` 상한 + `ScanInfo`·`TransferInfo` 가시성 (482-537, 352-382)
 - **추적**: HLD 6절 "다시 순회와 집계" / PM 지시(진행률 100% 초과 — 상한 설계)
 - **책임**: 옮긴 수·크기가 집계보다 커지면 **전체를 늘려** 진행률이 100%를 넘지 않게 한다.
 - **알고리즘**:
-  - `incrementTransferredFileCount()`(493-495)·`addTransferredFile(path)`(497-506)의 `++transferredFileCount` 뒤: `if (transferredFileCount > fileCount) { fileCount = transferredFileCount }`.
-  - `addToTransferredSize(size)`(523-525)·`addTransferredFile`의 `transferredSize += …` 뒤: `if (transferredSize > this.size) { this.size = transferredSize }`.
-  - 비공개 메서드 하나로 묶는다: `private fun growTotalsToTransferred()`.
-- **이유**: 집계는 순회 실패 항목을 한 항목(크기 0)으로 센다(2.10). 그 항목을 다시 시도로 복사하면 실제 항목이 더 많다. 지금도 집계 뒤 바뀐 폴더에서 같은 일이 생긴다(HLD 6절). 표시 쪽에는 이미 부분 상한이 있다 — `FileJobProgress.percent`의 `coerceIn(0, 100)`(`filejob/FileJobProgress.kt:23-38`, 앱 안 작업 목록), "N/M"의 `coerceAtMost(fileCount)`(`FileJobs.kt:414-415`, 469) — 하지만 알림 진행 막대(`postTransferSizeNotification` 383-436, `postNotification(…, max, progress, …)`)는 `progress > max`를 그대로 넘기고 그 처리를 프레임워크에 맡긴다. 전체를 늘리면 진행 값이 최대값을 넘는 일이 없어지고 모든 표시(알림 막대·"N/M"·앱 안 목록)가 한 곳의 값으로 맞는다. 초과 뒤에는 전체가 옮긴 수와 같아지므로 막대는 100%에 머문다 — 얻는 것은 최대값 초과 방지다. 폰→폰에도 적용되지만 지금 100%를 넘던 경우에만 결과가 달라진다(표시만).
-- **가시성**: JVM 시험을 위해 `ScanInfo`(351)·`TransferInfo`(481)를 `private class` → `internal class`. `TransferInfo` 생성자가 `ScanInfo`를 받으므로 둘 다 바꾼다. 필드·메서드 가시성은 그대로.
+  - `incrementTransferredFileCount()`(494-496)·`addTransferredFile(path)`(498-507)의 `++transferredFileCount` 뒤: `if (transferredFileCount > fileCount) { fileCount = transferredFileCount }`.
+  - `addToTransferredSize(size)`(524-526)·`addTransferredFile`의 `transferredSize += …` 뒤: `if (transferredSize > this.size) { this.size = transferredSize }`.
+  - `skipFile(path)`(509-518)·`skipFileIgnoringSize()`(520-522)의 `--fileCount`·`size -= …` 뒤에도 같은 검사를 한다 — 건너뛰기가 전체를 옮긴 값 아래로 줄이지 못한다(검수 m1).
+  - 비공개 메서드 하나로 묶는다: `private fun growTotalsToTransferred()` — `fileCount = max(fileCount, transferredFileCount)`, `size = max(size, transferredSize)`. 불변식: 언제나 `transferredFileCount <= fileCount`, `transferredSize <= size`.
+- **이유**: 집계는 순회 실패 항목을 한 항목(크기 0)으로 센다(2.10). 그 항목을 다시 시도로 복사하면 실제 항목이 더 많다. 지금도 집계 뒤 바뀐 폴더에서 같은 일이 생긴다(HLD 6절). 표시 쪽에는 이미 부분 상한이 있다 — `FileJobProgress.percent`의 `coerceIn(0, 100)`(`filejob/FileJobProgress.kt:23-38`, 앱 안 작업 목록), "N/M"의 `coerceAtMost(fileCount)`(`FileJobs.kt:415-416`, 470) — 하지만 알림 진행 막대(`postTransferSizeNotification` 384-438, `postNotification(…, max, progress, …)`)는 `progress > max`를 그대로 넘기고 그 처리를 프레임워크에 맡긴다. 전체를 늘리면 진행 값이 최대값을 넘는 일이 없어지고 모든 표시(알림 막대·"N/M"·앱 안 목록)가 한 곳의 값으로 맞는다. 초과 뒤에는 전체가 옮긴 수와 같아지므로 막대는 100%에 머문다 — 얻는 것은 최대값 초과 방지다. 폰→폰에도 적용되지만 지금 100%를 넘던 경우에만 결과가 달라진다(표시만).
+- **가시성**: JVM 시험을 위해 `ScanInfo`(352)·`TransferInfo`(482)를 `private class` → `internal class`. `TransferInfo` 생성자가 `ScanInfo`를 받으므로 둘 다 바꾼다. 필드·메서드 가시성은 그대로.
 - **오류**: 없음.
 
 #### 2.9 `scan` 복사용 — `FileJob.scan(sources: List<Path>, copyKinds: List<CopyKind>, notificationTitleRes: Int): ScanInfo` (신규 오버로드) + `FileJob.scanTree(source: Path?, scanInfo, titleRes)` (기존 본문을 떼어 냄)
@@ -198,7 +227,7 @@ internal class ExitedDirectory(val depth: Int, val visitedChildren: Set<Path>)
 - **책임**: 복사 작업의 집계를 시작 항목마다 그 분류로 한다. 네트워크면 링크를 따라가고 같은 깊이 규칙으로 멈춘다(집계가 끝나지 않는 일이 없다).
 - **입력·전제**: `sources.size == copyKinds.size`(`require`). 파일 작업 스레드.
 - **알고리즘**:
-  1. 지금 `scan(sources: List<Path?>, …)`(269-299)의 `for` 안 `Files.walkFileTree(source, object : SimpleFileVisitor<Path>() {…})`(272-295)를 **글자 그대로** `private fun FileJob.scanTree(source: Path?, scanInfo: ScanInfo, @PluralsRes notificationTitleRes: Int)`로 옮기고, 기존 `scan(sources)`는 `for (source in sources) { scanTree(source, scanInfo, notificationTitleRes) }`가 된다(삭제·이동·압축하기 등 다른 작업의 동작 그대로).
+  1. 지금 `scan(sources: List<Path?>, …)`(270-300)의 `for` 안 `Files.walkFileTree(source, object : SimpleFileVisitor<Path>() {…})`(273-296)를 **글자 그대로** `private fun FileJob.scanTree(source: Path?, scanInfo: ScanInfo, @PluralsRes notificationTitleRes: Int)`로 옮기고, 기존 `scan(sources)`는 `for (source in sources) { scanTree(source, scanInfo, notificationTitleRes) }`가 된다(삭제·이동·압축하기 등 다른 작업의 동작 그대로).
   2. 새 오버로드:
      ```kotlin
      val scanInfo = ScanInfo()
@@ -212,7 +241,7 @@ internal class ExitedDirectory(val depth: Int, val visitedChildren: Set<Path>)
      postScanNotification(scanInfo, notificationTitleRes)
      return scanInfo
      ```
-- **기존 코드와의 관계**: `scan(source: Path, …)`(302-304)·`scan(source, recursive, …)`(307-322)는 그대로(복사가 아닌 작업이 쓴다).
+- **기존 코드와의 관계**: `scan(source: Path, …)`(303-305)·`scan(source, recursive, …)`(308-323)는 그대로(복사가 아닌 작업이 쓴다).
 
 #### 2.10 `FileJob.scanTreeFollowingLinks(source: Path, scanInfo: ScanInfo, titleRes: Int)` (신규) + `FileJob.scanFailedPath(scanInfo, titleRes)` (신규) + `Path.isSymbolicLinkForLinkDepth(): Boolean` (신규)
 - **추적**: HLD 2.3 "순회(집계)", D5, D8 / REQ-55-06, 07
@@ -252,7 +281,7 @@ internal class ExitedDirectory(val depth: Int, val visitedChildren: Set<Path>)
   )
   ```
   - 초과·순환·목록 실패 항목은 **한 항목, 크기 0**으로 센다(HLD 2.3 "한 항목으로 세고", D8 — 창은 복사 단계에서 한 번만). 목록 도중 실패(`postVisitDirectory`의 예외)는 그때까지 센 자식만 남기고 조용히 넘어간다.
-  - `scanFailedPath`: `scanInfo.incrementFileCount(); postScanNotification(scanInfo, notificationTitleRes)` — `scanPath`(324-332)에서 크기만 뺀 것.
+  - `scanFailedPath`: `scanInfo.incrementFileCount(); postScanNotification(scanInfo, notificationTitleRes)` — `scanPath`(325-333)에서 크기만 뺀 것.
   - `Path.isSymbolicLinkForLinkDepth()`(파일 안 `private`):
     ```kotlin
     // Unknown counts as a link, so that a walk can't go deeper than the limit by failing here.
@@ -267,9 +296,9 @@ internal class ExitedDirectory(val depth: Int, val visitedChildren: Set<Path>)
     폴더마다 링크를 따르지 않는 속성 읽기 1회(HLD D5, SRS 6절 "폴더마다 1회 허용"). 파일에는 하지 않는다.
 - **오류**: 취소(`throwIfInterrupted`)만 밖으로 나간다. 그 밖의 순회 실패는 세고 계속한다.
 
-#### 2.11 `CopyFileJob.run()` (805-826, A1 뒤)
+#### 2.11 `CopyFileJob.run()` (807-828)
 - **추적**: HLD 3.1 1·2단계 / REQ-55-01(A1), 06, 07
-- **바꾸는 것**: A1은 `for` 안에서 `val copyKind = classifyCopy(source, targetDirectory)`를 한다(LLD-A 2.6). B2는 분류를 집계보다 **먼저** 한 번 한다:
+- **바꾸는 것**: A1은 `for` 안에서 `val copyKind = classifyCopy(source, targetDirectory)`를 한다(824, LLD-A 2.6). B2는 분류를 집계보다 **먼저** 한 번 한다:
   ```kotlin
   val copyKinds = sources.map { classifyCopy(it, targetDirectory) }
   val scanInfo = scan(sources, copyKinds, <지금의 제목 리소스>)
@@ -278,7 +307,7 @@ internal class ExitedDirectory(val depth: Int, val visitedChildren: Set<Path>)
   ```
   분류 호출 수·위치(`CopyFileJob.run`·`open`·`save` 세 곳, LLD-A 3.3)는 그대로이고 결과를 집계와 순회가 함께 쓴다(SRS D1).
 
-#### 2.12 `CopyFileJob.copyRecursively(...)` (829-863, A1 뒤) + 새 멤버 `copyRecursivelyFollowingLinks`, `walkFollowingLinks`, `retryWalk`, `askWalkError`, `private inner class FollowingLinksCopyVisitor`, `private class CopyWalk`
+#### 2.12 `CopyFileJob.copyRecursively(...)` (830-867) + 새 멤버 `copyRecursivelyFollowingLinks`, `walkFollowingLinks`, `retryWalk`, `askWalkError`, `private inner class FollowingLinksCopyVisitor`, `private class CopyWalk`
 - **추적**: HLD 2.3 "순회(복사)", "오류 처리" ①②③, 3.1 3단계 / REQ-55-04, 05, 06
 - **책임**: 네트워크면 링크를 따라가며 복사하고, 깊이 초과·순환·순회 실패를 그 항목만의 실패로 처리한다. 폰→폰은 지금 그대로.
 - **`copyRecursively`**: 맨 앞에
@@ -288,7 +317,7 @@ internal class ExitedDirectory(val depth: Int, val visitedChildren: Set<Path>)
       return
   }
   ```
-  그 뒤 지금의 `Files.walkFileTree(source, object : SimpleFileVisitor<Path>() {…})`(836-862, A1이 `copyKind`를 넘김)는 **그대로**(폰→폰: 링크 안 따라감, `visitFileFailed`는 다시 던짐).
+  그 뒤 지금의 `Files.walkFileTree(source, object : SimpleFileVisitor<Path>() {…})`(839-866, A1이 `copyKind`를 넘김)는 **그대로**(폰→폰: 링크 안 따라감, `visitFileFailed`는 다시 던짐).
 - **`CopyWalk`**(`CopyFileJob` 안 `private class`): 복사 시작 항목 하나의 문맥.
   ```kotlin
   private class CopyWalk(
@@ -299,7 +328,7 @@ internal class ExitedDirectory(val depth: Int, val visitedChildren: Set<Path>)
       fun targetOf(path: Path): Path = target.resolveForeign(source.relativize(path))
   }
   ```
-  `targetOf`는 지금 방문자의 `target.resolveForeign(source.relativize(…))`(842, 852)와 같다. 다시 순회도 **복사 시작 항목**(`source`) 기준으로 대상 경로를 계산하므로 같은 자리에 복사된다(HLD 2.3 ②).
+  `targetOf`는 지금 방문자의 `target.resolveForeign(source.relativize(…))`(845, 855)와 같다. 다시 순회도 **복사 시작 항목**(`source`) 기준으로 대상 경로를 계산하므로 같은 자리에 복사된다(HLD 2.3 ②).
 - **`copyRecursivelyFollowingLinks(walk)`**:
   ```kotlin
   val failure = walkFollowingLinks(walk, walk.source, LinkWalkState(), null) ?: return
@@ -316,43 +345,45 @@ internal class ExitedDirectory(val depth: Int, val visitedChildren: Set<Path>)
   ```kotlin
   retryFailedWalk(
       first,
-      { e -> askWalkError(walk, item, e, true) },
+      { failure -> askWalkError(walk, item, failure.error, true, failure.isCountedOnSkip) },
       { previous -> walkFollowingLinks(walk, item, LinkWalkState(baseDepth), previous) }
   )
   ```
   `baseDepth`는 실패한 항목의 **부모** 깊이(HLD 2.3 "깊이는 … 부모까지에서 이어진다"). 반환값(참/거짓)은 쓰지 않는다 — 어느 쪽이든 바깥 순회는 `CONTINUE`이고, 건너뛰기의 진행률 정리는 `askWalkError`가 했다.
-- **`askWalkError(walk, item: Path, e: IOException, canRetry: Boolean): Boolean`** — 참 = 다시 시도, 거짓 = 건너뜀:
+- **`askWalkError(walk, item: Path, e: IOException, canRetry: Boolean, isCountedOnSkip: Boolean = true): Boolean`** — 참 = 다시 시도, 거짓 = 건너뜀:
   ```kotlin
   e.printStackTrace()
   return when (askCopyError(e, item, walk.targetOf(item), walk.type, canRetry, walk.actionAllInfo)) {
       CopyErrorDecision.RETRY -> true
       CopyErrorDecision.SKIP -> {
-          walk.transferInfo.skipFileIgnoringSize()
+          if (isCountedOnSkip) {
+              walk.transferInfo.skipFileIgnoringSize()
+          }
           postCopyMoveNotification(walk.transferInfo, item, walk.type)
           false
       }
       CopyErrorDecision.CANCEL -> throw canceledByUser()
   }
   ```
-  `skipFileIgnoringSize`(519-521): 집계가 그 항목을 크기 0으로 셌으므로(2.10) 크기는 빼지 않는다.
+  `skipFileIgnoringSize`(520-522): 집계가 그 항목을 크기 0으로 셌으므로(2.10) 크기는 빼지 않는다. 이미 들어간 폴더(③, `isCountedOnSkip == false`)는 수도 빼지 않는다(2.5, 검수 m1). ①(깊이 초과·순환)은 들어가기 전이라 기본값 `true`.
 - **`private inner class FollowingLinksCopyVisitor(walk, start, state, resume) : SimpleFileVisitor<Path>()`**: (`private` — 비공개 `CopyWalk`를 받는다) `var startFailure: ItemWalkFailure? = null; private set`.
 
   | 메서드 | 알고리즘 |
   |---|---|
-  | `preVisitDirectory(directory, attributes)` | (a) **재개한 시작 폴더**: `resume?.enteredDepth != null && directory == start`면 `state.enter(resume.enteredDepth, resume.visitedChildren)` 후 `CONTINUE` — 이미 만든 대상 폴더라 `copy`를 다시 부르지 않는다(합치기 창이 다시 뜨지 않음, HLD 2.3 ③ "합치기로 이어 간다"). (b) `if (!state.markVisited(directory)) return SKIP_SUBTREE` — 재개 전에 이미 방문한 자식. (c) `val depth = state.depthOf(directory.isSymbolicLinkForLinkDepth())`; `if (state.isExceeded(depth)) { askWalkError(walk, directory, LinkDepthExceededException(directory.toString()), false); return SKIP_SUBTREE }` — ①, 쌓지 않음. (d) `val copied = copy(directory, walk.targetOf(directory), walk.isExtract, CopyKind.NETWORK, walk.transferInfo, walk.actionAllInfo)`; `throwIfInterrupted()`; `if (!copied) return SKIP_SUBTREE`(쌓지 않음); `state.enter(depth)`; `CONTINUE` |
+  | `preVisitDirectory(directory, attributes)` | (a) **재개한 시작 폴더**: `if (state.enterIfResumedStart(directory, start, resume)) return CONTINUE`(2.5a) — 이미 만든 대상 폴더라 `copy`를 다시 부르지 않는다(합치기 창이 다시 뜨지 않음, HLD 2.3 ③ "합치기로 이어 간다"). (b) `if (!state.markVisited(directory)) return SKIP_SUBTREE` — 재개 전에 이미 방문한 자식. (c) `val depth = state.depthOf(directory.isSymbolicLinkForLinkDepth())`; `if (state.isExceeded(depth)) { askWalkError(walk, directory, LinkDepthExceededException(directory.toString()), false); return SKIP_SUBTREE }` — ①, 쌓지 않음. (d) `val copied = copy(directory, walk.targetOf(directory), walk.isExtract, CopyKind.NETWORK, walk.transferInfo, walk.actionAllInfo)`; `throwIfInterrupted()`; `if (!copied) return SKIP_SUBTREE`(쌓지 않음); `state.enter(depth)`; `CONTINUE` |
   | `visitFile(file, attributes)` | `if (!state.markVisited(file)) return CONTINUE`; `copy(file, walk.targetOf(file), walk.isExtract, CopyKind.NETWORK, …)`; `throwIfInterrupted()`; `CONTINUE`. 대상 없는 링크는 라이브러리가 링크 자체의 속성으로 여기 넘긴다(retrofile `FileTreeWalker.getAttributes`가 따라간 읽기 실패 시 `NOFOLLOW_LINKS`로 다시 읽음, `javap` 확인) → `copyOrMove`(NOFOLLOW 없음)에서 백엔드가 따라간 속성을 읽다 실패 → 지금의 복사 오류 창(REQ-55-05, HLD 3.1) |
-  | `visitFileFailed(file, exception)` | `if (!state.markVisited(file)) return CONTINUE`. `exception is FileSystemLoopException`(라이브러리 순환, `LinkDepthExceededException` 포함)이면 `askWalkError(walk, file, exception, false)` 후 `CONTINUE` — ①. 아니면 `val failure = ItemWalkFailure(exception, null, emptySet())`; `file == start`면 `startFailure = failure` 후 `CONTINUE`(라이브러리는 시작 항목 실패 뒤 순회를 끝낸다); 아니면 `retryWalk(walk, file, failure, state.currentDepth)` 후 `CONTINUE` — ② |
+  | `visitFileFailed(file, exception)` | `if (!state.markVisited(file)) return CONTINUE`. `exception is FileSystemLoopException`(라이브러리 순환, `LinkDepthExceededException` 포함)이면 `askWalkError(walk, file, exception, false)` 후 `CONTINUE` — ①. 아니면 `file == start`면 `startFailure = startFailureBeforeEntering(exception, resume)` 후 `CONTINUE`(라이브러리는 시작 항목 실패 뒤 순회를 끝낸다. 재개 정보를 이어받는다 — 2.5a, 검수 M1); 아니면 `retryWalk(walk, file, startFailureBeforeEntering(exception, null), state.currentDepth)` 후 `CONTINUE` — ② |
   | `postVisitDirectory(directory, exception)` | `val exited = state.exit()`. `exception == null`이면 `CONTINUE`. 아니면(③, `DirectoryIteratorException`의 원인 — retrofile `FileTreeWalker`가 목록 도중 실패를 `END_DIRECTORY`의 예외로 넘김, `javap` 확인) `val failure = ItemWalkFailure(exception, exited.depth, exited.visitedChildren)`; `directory == start`면 `startFailure = failure`; 아니면 `retryWalk(walk, directory, failure, state.currentDepth)`(빼고 난 뒤 = 부모 깊이). `CONTINUE` |
 
 - **입력·전제**: `start`는 복사 시작 항목이거나 그 아래 항목. `resume`은 `start`의 바로 앞 실패(첫 순회·②의 다시 시도면 `enteredDepth == null`).
 - **출력·사후조건**: 순회가 끝나면 `state`의 프레임이 비어 있다(들어간 폴더마다 `postVisitDirectory`가 한 번). 시작 항목 자신의 실패만 `startFailure`로 남고, 다른 항목의 실패는 그 자리에서 처리됐다.
-- **오류**: 취소(`canceledByUser()`, `throwIfInterrupted`)는 바깥으로 나가 작업이 끝난다(지금과 같음). `copy`가 던지는 예외는 지금처럼 `copyOrMove`가 처리하고, `InvalidFileNameException`(1445-1451)처럼 지금도 다시 던지는 예외는 지금처럼 작업을 끝낸다.
+- **오류**: 취소(`canceledByUser()`, `throwIfInterrupted`)는 바깥으로 나가 작업이 끝난다(지금과 같음). `copy`가 던지는 예외는 지금처럼 `copyOrMove`가 처리하고, `InvalidFileNameException`(1455-1461)처럼 지금도 다시 던지는 예외는 지금처럼 작업을 끝낸다.
 - **재귀의 범위**: `retryWalk` 안의 다시 순회에서 **더 깊은 다른 항목**이 실패하면 그 방문자가 다시 `retryWalk`를 부른다(중첩). 중첩 깊이는 폴더 깊이로 묶인다. 같은 항목의 연속 실패는 `retryFailedWalk`의 `while`이 맡는다(0절 5).
 - **기존 코드와의 관계**: import 추가 `java.util.EnumSet`, `java8.nio.file.FileVisitOption`, `java8.nio.file.FileSystemLoopException`. 라이브러리가 목록을 못 열면 `preVisitDirectory` 전에 `visitFileFailed`를 부른다(retrofile `FileTreeWalker.visit`: `newDirectoryStream` 실패 → `ENTRY` 이벤트에 예외, `javap` 확인) — 그래서 ②의 다시 순회는 대상 폴더를 아직 만들지 않은 상태에서 시작한다.
 
 #### 2.13 `FileJob.askCopyError(e: IOException, source: Path, target: Path, type: CopyMoveType, canRetry: Boolean, actionAllInfo: ActionAllInfo): CopyErrorDecision` (신규, `private`)
 - **추적**: HLD 2.3 "오류 처리(추출)" / REQ-55-05
-- **책임**: 지금 `copyOrMove`의 오류 창(1468-1488)을 띄우고 2.7로 판단한다.
+- **책임**: 지금 `copyOrMove`의 오류 창(1478-1498)을 띄우고 2.7로 판단한다.
 - **알고리즘**:
   ```kotlin
   val targetParent = target.parent
@@ -370,8 +401,8 @@ internal class ExitedDirectory(val depth: Int, val visitedChildren: Set<Path>)
       )
   }
   ```
-  `canRetry == false`면 긍정 버튼이 없다(`FileJobErrorDialogFragment`가 `null` 문구 버튼을 만들지 않음 — 압축하기 오류 창 777-787과 같은 방식). '모두' 체크는 보인다(모두 건너뛰기). `showErrorDialog`의 `isPositiveRetry`(568)는 `null`이면 거짓이라 건너뛰기·취소는 지금처럼 '해결 안 됨'으로 기록된다(`isFileJobErrorResolved`).
-- **`copyOrMove`의 `catch (e: IOException)`(1454-1509)**는 이렇게 바뀐다(동작 같음):
+  `canRetry == false`면 긍정 버튼이 없다(`FileJobErrorDialogFragment`가 `null` 문구 버튼을 만들지 않음 — 압축하기 오류 창 778-788과 같은 방식). '모두' 체크는 보인다(모두 건너뛰기). `showErrorDialog`의 `isPositiveRetry`(569)는 `null`이면 거짓이라 건너뛰기·취소는 지금처럼 '해결 안 됨'으로 기록된다(`isFileJobErrorResolved`).
+- **`copyOrMove`의 `catch (e: IOException)`(1464-1519)**는 이렇게 바뀐다(동작 같음):
   ```kotlin
   } catch (e: IOException) {
       e.printStackTrace()
@@ -386,31 +417,31 @@ internal class ExitedDirectory(val depth: Int, val visitedChildren: Set<Path>)
       }
   }
   ```
-  지금 코드에서 `targetParent`(1264 `val targetParent = target.parent`)는 **원래** `target`의 부모이고, 창 문구의 `target`은 이름 바꾸기로 바뀐 `target`(1345 `var target = target`)이다. 두 값의 부모는 같다(`resolveSibling`) — `askCopyError`가 바뀐 `target`의 부모를 써도 문구는 같다.
+  지금 코드에서 `targetParent`(1270 `val targetParent = target.parent`)는 **원래** `target`의 부모이고, 창 문구의 `target`은 이름 바꾸기로 바뀐 `target`(1351 `var target = target`)이다. 두 값의 부모는 같다(`resolveSibling`) — `askCopyError`가 바뀐 `target`의 부모를 써도 문구는 같다.
 
-#### 2.14 `copy(...)` (949-959, A1 뒤) + `copyOrMove(...)` (1255-, A1 뒤)
+#### 2.14 `copy(...)` (952-963) + `copyOrMove(...)` (1260-)
 - **추적**: HLD 2.3 "옵션 조립", "충돌 판정", D7, D9 / REQ-55-02, 04, 07
 - **`copy`**: `copyOrMove(source, target, type, true, false, copyKind == CopyKind.NETWORK, copyKind == CopyKind.NETWORK, transferInfo, actionAllInfo)` — A1의 `skipAttributes` 다음에 `followLinks`.
-- **`copyOrMove`**: 인자 `followLinks: Boolean`을 `skipAttributes` 뒤에 더한다. KDoc 한 줄: `// Only copies may follow links or skip attributes; moves keep both off (#55 Q4).` `copyForMove`(1232-1237)·`moveByCopy`(1245-1252)는 `followLinks = false`를 위치 인자로 더한다.
-  - 옵션 조립(1353-1366): `this += LinkOption.NOFOLLOW_LINKS`(1354)를 `if (!followLinks) { this += LinkOption.NOFOLLOW_LINKS }`로. 나머지 순서는 그대로 — 폰→폰·이동의 배열은 지금과 같다.
-  - 충돌 판정(1377-1386):
+- **`copyOrMove`**: 인자 `followLinks: Boolean`을 `skipAttributes` 뒤에 더한다. KDoc 한 줄: `// Only copies may follow links or skip attributes; moves keep both off (#55 Q4).` `copyForMove`(1236-1242)·`moveByCopy`(1250-1256)는 `followLinks = false`를 위치 인자로 더한다.
+  - 옵션 조립(1359-1376): `this += LinkOption.NOFOLLOW_LINKS`(1360)를 `if (!followLinks) { this += LinkOption.NOFOLLOW_LINKS }`로. 나머지 순서는 그대로 — 폰→폰·이동의 배열은 지금과 같다.
+  - 충돌 판정(1387-1396):
     ```kotlin
     val sourceIsDirectory = (if (followLinks) sourceFile.attributes else sourceFile.attributesNoFollowLinks).isDirectory
     val targetIsDirectory = (if (followLinks) targetFile.attributes else targetFile.attributesNoFollowLinks).isDirectory
     ```
-    `FileItem.attributes`는 링크를 따라간 속성이고, 대상 없는 링크면 링크 자체의 속성이다(`file/FileItem.kt:36-37`, `loadFileItem` 56-61). 대상도 따라간다(HLD D9). 그 뒤 `isMerge`(1386)와 '모두 적용' 분기(1387-1400)는 그대로.
-  - 창 호출(1401): `showConflictDialog(sourceFile, targetFile, type, isMerge)`.
+    `FileItem.attributes`는 링크를 따라간 속성이고, 대상 없는 링크면 링크 자체의 속성이다(`file/FileItem.kt:36-37`, `loadFileItem` 56-61). 대상도 따라간다(HLD D9). 그 뒤 `isMerge`(1396)와 '모두 적용' 분기(1397-1410)는 그대로.
+  - 창 호출(1411): `showConflictDialog(sourceFile, targetFile, type, isMerge)`.
 - **출력·사후조건**: 네트워크 복사의 모든 `copyTo`(첫 시도·바꾸기·이름 바꾸기 다시 시도)에 `NOFOLLOW_LINKS`가 없다. 작업의 `isMerge`와 창의 버튼·제목·문구·#54 경고가 **같은 값**에서 나온다(REQ-55-07, D7).
 - **#54와의 관계**: #54(PR #68)는 창에서 `binding.replaceWarningText.isVisible = !isMerge`(`FileJobConflictDialogFragment.kt:82`)로 경고를 보인다. B2 뒤 이 `isMerge`는 `Args.isMerge` = 작업의 판정이다. 폰→폰·이동은 판정이 지금과 같으므로 경고도 같다. 네트워크에서 폴더 링크 ↔ 폴더는 합치기가 되어 경고가 없다(SRS 5절, #54 D1과 맞음).
 
-#### 2.15 `FileJob.showConflictDialog(sourceFile, targetFile, type, isMerge: Boolean): ConflictResult` (612-635)
+#### 2.15 `FileJob.showConflictDialog(sourceFile, targetFile, type, isMerge: Boolean): ConflictResult` (613-637)
 - **추적**: HLD 2.3 "충돌 창", D7 / REQ-55-07
-- **알고리즘**: 인자 `isMerge`를 더해 `FileJobConflictDialogFragment.Args(sourceFile, targetFile, type, isMerge) { action, name, all -> … }`, `getTitle(targetFile, isMerge, service)`, `getMessage(targetFile, type, isMerge, service)`(626-629). 백그라운드 알림(`BackgroundActivityStarter`의 제목·본문)도 같은 값을 쓴다.
+- **알고리즘**: 인자 `isMerge`를 더해 `FileJobConflictDialogFragment.Args(sourceFile, targetFile, type, isMerge) { action, name, all -> … }`, `getTitle(targetFile, isMerge, service)`, `getMessage(targetFile, type, isMerge, service)`(629-630). 백그라운드 알림(`BackgroundActivityStarter`의 제목·본문)도 같은 값을 쓴다.
 
-#### 2.16 `open(...)` (1583-1609) + `save(...)` (1794-1806), A1 뒤
+#### 2.16 `open(...)` (1593-1623) + `save(...)` (1806-1821)
 - **추적**: HLD 2.3 "순회(집계)" / REQ-55-06
-- **바꾸는 것**: A1은 두 함수에서 `copy(…)` 호출 자리에서 `classifyCopy(…)`를 한다(LLD-A 2.6). B2는 그 값을 지역 변수로 먼저 구해 집계와 복사에 함께 쓴다:
-  - `open`: `val cacheDirectory = …`가 `scan`보다 뒤에 있으므로(1586-1593 → 1594) `cacheDirectory` 계산을 `scan` 앞으로 옮기고 `val copyKind = classifyCopy(file, cacheDirectory)`; `scan(listOf(file), listOf(copyKind), <지금의 제목>)`; `copy(file, targetFile, isExtract, copyKind, …)`. `cacheDirectory.createDirectories()`는 그 자리(scan 뒤)에 둔다 — 순서를 바꾸는 것은 경로 계산뿐.
+- **바꾸는 것**: A1은 두 함수에서 `copy(…)` 호출 자리에서 `classifyCopy(…)`를 한다(`open` 1613-1615, `save` 1811-1813, LLD-A 2.6). B2는 그 값을 지역 변수로 먼저 구해 집계와 복사에 함께 쓴다:
+  - `open`: `val cacheDirectory = …`가 `scan`보다 뒤에 있으므로(1600-1606 → 1607) `cacheDirectory` 계산을 `scan` 앞으로 옮기고 `val copyKind = classifyCopy(file, cacheDirectory)`; `scan(listOf(file), listOf(copyKind), <지금의 제목>)`; `copy(file, targetFile, isExtract, copyKind, …)`. `cacheDirectory.createDirectories()`는 그 자리(scan 뒤)에 둔다 — 순서를 바꾸는 것은 경로 계산뿐.
   - `save`: `val targetParent = target.parent`를 `scan` 앞으로, `val copyKind = classifyCopy(source, targetParent ?: target)`; `scan(listOf(source), listOf(copyKind), R.plurals.file_job_copy_scan_notification_title_format)`; `copy(source, target, false, copyKind, …)`.
 - 둘 다 시작 항목 하나를 `copy`로 직접 복사한다(순회 없음). B2에서 달라지는 것은 집계가 링크를 따라가는 것과 `copyOrMove`의 `followLinks`뿐이다.
 
@@ -458,7 +489,7 @@ internal class ExitedDirectory(val depth: Int, val visitedChildren: Set<Path>)
 |---|---|---|
 | U-B10 `skip_doesNotRewalk` | `ask`가 거짓 | 거짓, `rewalk` 0회 |
 | U-B11 `consecutiveFailures_loopNotRecurse` | `rewalk`가 3번 새 실패 뒤 `null`, `ask`는 늘 참. `rewalk` 안에서 '실행 중' 표시를 켜고 `ask`가 그 표시가 꺼져 있음을 단언 | 참, `ask` 4회·`rewalk` 3회, 단언 실패 없음(같은 항목의 재시도가 `rewalk` 안에서 다시 묻지 않는다 = 재귀 아님) |
-| U-B12 `rewalk_receivesPreviousFailure` | 첫 실패 `ItemWalkFailure(e1, 2, {a})`, 둘째 `(e2, 2, {a, b})` | 첫 `rewalk`가 첫 실패를, 둘째가 둘째 실패를 받음; `ask`가 e1, e2 순으로 받음 |
+| U-B12 `rewalk_receivesPreviousFailure` | 첫 실패 `ItemWalkFailure(e1, 2, {a})`, 둘째 `(e2, 2, {a, b})` | 첫 `rewalk`가 첫 실패를, 둘째가 둘째 실패를 받음; `ask`가 첫·둘째 실패를 순서대로 받음 |
 | U-B13 `cancel_propagates` | `ask`가 둘째 호출에서 `InterruptedIOException` | 예외 전파, `rewalk` 1회 |
 
 **오류 판단과 `ActionAllInfo`(2.7)**
@@ -479,17 +510,26 @@ internal class ExitedDirectory(val depth: Int, val visitedChildren: Set<Path>)
 | U-B22 `transferInfo_countNeverExceedsTotal` | `ScanInfo` 1개 항목으로 만든 `TransferInfo`에 `incrementTransferredFileCount()` 3회 | `fileCount == 3`, `transferredFileCount == 3` | **실패**(`fileCount == 1`) |
 | U-B23 `transferInfo_sizeNeverExceedsTotal` | 크기 10으로 집계, `addToTransferredSize(25)` | `size == 25`; `FileJobProgress(SIZE, …).percent == 100` | **실패**(`size == 10`) |
 | U-B24 `transferInfo_withinTotals_unchanged` | 3개·30으로 집계, 1개·10 옮김 | `fileCount == 3`, `size == 30`(폰→폰 정상 경우 회귀 방지) | 통과 |
+| U-B28 `transferInfo_skipNeverBelowTransferred` | 2개로 집계, 2개 옮김 뒤 `skipFileIgnoringSize()` | `fileCount == 2`(옮긴 수 아래로 줄지 않음, 검수 m1) | **실패**(`fileCount == 1`) |
 
-`ScanInfo`에 항목을 넣는 방법: `ScanInfo`의 `incrementFileCount()`·`addToSize()`(363-369)는 공개 메서드다.
+**재개 판단(2.5, 2.5a — 검수 M1·m1·m4)**
+| 테스트 | 경우 | 기대 결과 | 수정 전(2.5a를 v1.1처럼 `ItemWalkFailure(e, null, emptySet())`로 둔 상태) |
+|---|---|---|---|
+| U-B25 `resumedStart_failingBeforeEntering_keepsResume` | ③ 실패 `r = ItemWalkFailure(e1, 3, {/s/d/a})` → `f = startFailureBeforeEntering(e2, r)` → 새 `LinkWalkState(2)`에서 `enterIfResumedStart(/s/d, /s/d, f)`, 이어서 `markVisited(/s/d/a)` | `f.error == e2`, `f.enteredDepth == 3`, `f.visitedChildren == {a}`; `enterIfResumedStart` 참, `currentDepth == 3`; `markVisited(a)` 거짓(다시 복사하지 않음) | **실패**(`enteredDepth == null`, `enterIfResumedStart` 거짓) |
+| U-B26 `enterIfResumedStart_onlyForEnteredStart` | `resume == null`; `enteredDepth == null`; `directory != start` | 셋 다 거짓, 프레임 없음(`currentDepth == baseDepth`, `exit()`가 `IllegalStateException`) | 통과 |
+| U-B27 `isCountedOnSkip` | `startFailureBeforeEntering(e, null)`; ③ 실패(`enteredDepth` 2); U-B25의 `f` | 참; 거짓; 거짓 | U-B25의 `f`에서 **실패**(참) |
 
-구현 순서: (1) 2.7·2.8의 가시성만 바꾸고 3.2의 U-B22–24를 먼저 써서 **U-B22·23 실패 확인** → (2) 2.8 상한 → 통과 확인 → (3) 나머지(2.3–2.7, 2.9–2.17)와 U-B01–21. 두 출력의 끝부분을 PR 코멘트에 붙인다(PROCESS_ROLES 11-1 5번). 순회·충돌 결선은 실제 백엔드(JNI·네트워크)가 필요해 JVM에서 시험하지 않는다 — 코드 검사(3.3)와 수동(3.4).
+`ScanInfo`에 항목을 넣는 방법: `ScanInfo`의 `incrementFileCount()`·`addToSize()`(364-370)는 공개 메서드다.
+
+구현 순서: (1) 2.7·2.8의 가시성만 바꾸고 3.2의 U-B22–24·28을 먼저 써서 **U-B22·23·28 실패 확인** → (2) 2.8 상한 → 통과 확인 → (3) 2.4·2.5를 쓰고 2.5a를 **v1.1 동작**(`ItemWalkFailure(error, null, emptySet())`)으로 둔 채 U-B25–27을 써서 **U-B25·27 실패 확인** → (4) 2.5a를 이 문서대로 → 통과 확인 → (5) 나머지(2.3, 2.6–2.7, 2.9–2.17)와 U-B01–21. 두 출력의 끝부분을 PR 코멘트에 붙인다(PROCESS_ROLES 11-1 5번). 순회·충돌 결선은 실제 백엔드(JNI·네트워크)가 필요해 JVM에서 시험하지 않는다 — 코드 검사(3.3)와 수동(3.4).
 
 ### 3.3 실행·코드 검사
 - JVM: `JAVA_HOME="/c/Program Files/Android/Android Studio/jbr" ./gradlew testDebugUnitTest --tests "me.zhanghai.android.files.provider.ftp.client.*" --console=plain`(B1), `--tests "me.zhanghai.android.files.filejob.*"`(B2) 후 전체 `testDebugUnitTest`, 그리고 `assembleDebug`.
 - 코드 검사(검수자):
   - B1: `listFile`이 `resolveSymbolicLinkTarget`을 쓰고, `FtpPath.kt`는 바뀌지 않았다.
-  - B2 폰→폰 불변(REQ-55-02): `copyRecursively`의 폰→폰 분기, `scanTree`, `copyForMove`·`moveByCopy`의 옵션 배열, 폰→폰 충돌 판정(`attributesNoFollowLinks`)이 55c521f+A1과 같은 동작이다. `NOFOLLOW_LINKS`가 빠지는 곳은 `followLinks == true`(= `copy`의 `CopyKind.NETWORK`)뿐.
+  - B2 폰→폰 불변(REQ-55-02): `copyRecursively`의 폰→폰 분기, `scanTree`, `copyForMove`·`moveByCopy`의 옵션 배열, 폰→폰 충돌 판정(`attributesNoFollowLinks`)이 c39a97e(A1 머지 뒤)와 같은 동작이다. `NOFOLLOW_LINKS`가 빠지는 곳은 `followLinks == true`(= `copy`의 `CopyKind.NETWORK`)뿐.
   - B2 깊이(HLD 2.3): `state.enter`는 `CONTINUE`를 돌려주는 분기에만 있고, 들어간 폴더마다 `postVisitDirectory`가 `exit` 한 번. 집계(2.10)와 복사(2.12)가 같은 `LinkWalkState`·`MAX_LINK_DEPTH`·`isSymbolicLinkForLinkDepth`를 쓴다.
+  - B2 재개(검수 M1): 방문자의 `visitFileFailed`에서 시작 항목의 실패가 `startFailureBeforeEntering(exception, resume)`(재개 정보를 이어받음)이고, `preVisitDirectory` (a)가 `enterIfResumedStart`를 쓴다. ③의 건너뛰기는 `isCountedOnSkip`이 거짓이라 `skipFileIgnoringSize`를 부르지 않는다.
   - B2 반복문: 같은 항목의 다시 시도는 `retryFailedWalk`의 `while`뿐이고, 다시 순회 안에서 시작 항목 자신의 실패는 창을 띄우지 않고 `startFailure`로 돌아간다.
   - B2 충돌(REQ-55-07): 작업의 `isMerge`가 `Args.isMerge`·`getTitle`·`getMessage`·알림에 그대로 가고, 창 안에 `isMerge`를 계산하는 코드가 없다. #54 경고(`replaceWarningText.isVisible = !isMerge`)가 그 값을 쓴다.
 
@@ -507,7 +547,7 @@ internal class ExitedDirectory(val depth: Int, val visitedChildren: Set<Path>)
 | M-B9 폰→폰 회귀 | B2 | 에뮬레이터 | M-B2의 `s`를 `/sdcard/Documents`로 복사 → `adb shell ls -l /sdcard/Documents/s` | `lf`·`ld`가 링크 그대로(REQ-55-02). 같은 이름 링크가 대상에 있을 때 '교체' 창과 #54 경고(지금과 같음) |
 | M-B10 목록 실패 다시 시도 | B2 | SFTP 서버 | 원본 하위 폴더 `chmod 000` → 폰으로 복사 → 오류 창에서 권한을 되돌린 뒤 '다시 시도' | 그 폴더가 같은 자리에 복사되고 합치기 창이 뜨지 않는다. 되돌리지 않고 다시 시도하면 같은 창이 다시 뜬다(반복) |
 
-서버가 없으면 M-B1–B8·M-B10은 PR에 "미확인"으로 적는다(SRS 6절). 오너 기기에는 설치하지 않는다(사전 승인 필요). M-B10의 ③(목록 **도중** 실패)은 재현 방법이 없어 코드 검사·U-B08·U-B12로 대신한다.
+서버가 없으면 M-B1–B8·M-B10은 PR에 "미확인"으로 적는다(SRS 6절). 오너 기기에는 설치하지 않는다(사전 승인 필요). M-B10의 ③(목록 **도중** 실패)은 재현 방법이 없어 코드 검사·U-B08·U-B12·U-B25로 대신한다.
 
 ## 4. 설계 피드백
 - **F1 (LLD 해석, 설계팀 확인함)**: 깊이는 **폴더 링크**만 센다(0절 3). SRS REQ-55-06 글자는 "링크 깊이가 8을 넘는 링크"지만, HLD 2.3·D5는 `preVisitDirectory`에서만 링크 여부를 읽고 파일에는 왕복을 더하지 않는다(SRS 6절 권장). 그래서 폴더 링크 8겹 안의 **파일 링크**(깊이로 치면 9)는 복사된다. 파일 링크는 순환을 만들 수 없어 REQ-55-06의 목적(순환 종료)에는 영향이 없다. 파일 링크까지 세려면 파일마다 링크 안 따른 속성 읽기 1회가 는다. **설계팀 답(2026-11-19)**: OK, SRS·HLD 변경 없음 — HLD 2.3·D5가 깊이를 폴더 링크로 좁혔고 SRS 6절이 파일 왕복을 더하지 않기를 권장하며, 파일 링크는 순환을 만들지 않는다.
@@ -515,8 +555,8 @@ internal class ExitedDirectory(val depth: Int, val visitedChildren: Set<Path>)
 - **F3 (LLD 결정, PM 지시 응답)**: 진행률 100% 초과는 `TransferInfo`가 전체를 늘려 막는다(2.8). 표시 쪽 상한만 더하는 안은 알림·"N/M"·앱 안 목록 세 곳에 따로 상한을 두어야 해서 버렸다. 어느 안이든 초과 뒤 막대는 100%에 머문다(검수 m2).
 - **F4 (LLD 결정, 기록)**: 순회 오류(①·②)의 '모두 건너뛰기'는 복사 오류와 같은 `skipCopyMoveError`를 쓴다(HLD 2.3 "같은 오류 처리", SRS REQ-55-06 "REQ-55-05와 같은 오류 처리"). 깊이 초과만 따로 모두 건너뛰기를 두는 안은 플래그가 늘고 사용자에게 차이가 보이지 않는다. 설계팀 확인: 이의 없음(2026-11-19).
 - **F5 (LLD 결정, 기록)**: 폴더의 링크 여부를 읽지 못하면 링크로 친다(2.10 `isSymbolicLinkForLinkDepth`). 따라간 속성은 읽혔는데 따르지 않은 속성만 실패하는 드문 경우다. 링크가 아닌 것으로 치면 그 경로로 깊이 제한을 벗어날 수 있다.
-- **F6 (LLD 결정, 기록)**: `getTitle`·`getMessage`에서 쓰지 않게 되는 `sourceFile` 인자를 뺀다(2.17). 호출자는 `showConflictDialog` 한 곳뿐이다(`FileJobs.kt:628-629`).
-- **F7 (A1 의존, 기록)**: B2가 기대는 A1 심볼(LLD-A 2.1·2.4·2.6) — `CopyKind`(`PHONE_TO_PHONE`, `NETWORK`), `classifyCopy(Path, Path)`, `copy(source, target, isExtract, copyKind, transferInfo, actionAllInfo)`, `CopyFileJob.copyRecursively(source, target, isExtract, copyKind, transferInfo, actionAllInfo)`, `copyOrMove(…, copyAttributes, skipAttributes, …)`. A1 구현이 이 이름·인자 순서와 다르면 B2 구현 전에 이 문서의 해당 절을 맞춘다(설계 동작 변화 없음).
+- **F6 (LLD 결정, 기록)**: `getTitle`·`getMessage`에서 쓰지 않게 되는 `sourceFile` 인자를 뺀다(2.17). 호출자는 `showConflictDialog` 한 곳뿐이다(`FileJobs.kt:629-630`).
+- **F7 (A1 의존, 기록)**: B2가 기대는 A1 심볼(LLD-A 2.1·2.4·2.6) — `CopyKind`(`PHONE_TO_PHONE`, `NETWORK`), `classifyCopy(Path, Path)`, `copy(source, target, isExtract, copyKind, transferInfo, actionAllInfo)`, `CopyFileJob.copyRecursively(source, target, isExtract, copyKind, transferInfo, actionAllInfo)`, `copyOrMove(…, copyAttributes, skipAttributes, …)`. v1.2에서 머지된 A1(c39a97e, PR #75)과 대조했다: `CopyKind`·`classifyCopy(Path, Path)`(`filejob/CopyClassification.kt:19-22`, 51-52), `CopyFileJob.run`의 분류(`FileJobs.kt:824`), `copyRecursively(…, copyKind, …)`(830-838), `copy(…, isExtract, copyKind, …)`(952-963, `copyOrMove`에 `copyKind == CopyKind.NETWORK`를 `skipAttributes`로 넘김), `copyOrMove(…, copyAttributes, skipAttributes, …)`(1260-, 1365 `if (skipAttributes)`), `copyForMove`·`moveByCopy`의 `false`(1242, 1256), `open`·`save`의 분류(1614, 1812) — 이름·인자 순서 모두 이 문서와 같다.
 - **F8 (참고)**: 대상 없는 링크의 건너뛰기는 `copyOrMove`의 `transferInfo.skipFile(source)`(링크 자체 크기를 뺌)이고 집계는 링크 자체 속성(라이브러리가 넘긴 것)을 셌으므로 맞는다. 정상 링크 항목은 집계가 따라간 크기를, 건너뛰기가 링크 크기를 빼서 약간 어긋날 수 있다 — 2.8 상한이 100% 초과를 막는다. 고치려면 `TransferInfo`가 분류를 알아야 해서 하지 않는다.
 
 ## 5. 변경 이력
@@ -524,3 +564,4 @@ internal class ExitedDirectory(val depth: Int, val visitedChildren: Set<Path>)
 |---|---|---|---|---|
 | 2026-11-19 | v1 | 최초 작성(조각 B1·B2) | PM LLD 요청(조각 B, A1 위) | PM |
 | 2026-11-19 | v1.1 | 2.8·F3 상한 효과 문구 정정(m2), 2.12 방문자를 `private inner class`로(m3). M1·m1·m4([판단])는 PM 판단 대기 | LLD 검수 1차 반려 [기계] 항목 (PR #73 코멘트) | reviewer |
+| 2026-11-19 | v1.2 | 2.5a 신설(`startFailureBeforeEntering`·`enterIfResumedStart`, 재개 중 ②로 실패해도 재개 정보 유지 — M1·m4), 2.5 `isCountedOnSkip`·2.12 `askWalkError`가 ③ 건너뛰기에서 수를 빼지 않음, 2.8 건너뛰기에도 상한 불변식(m1), 2.6 `ask`가 `ItemWalkFailure`를 받음, U-B25–28, 3.3 검사 항목. 기준 코드를 A1 머지 뒤 c39a97e로 옮기고 `FileJobs.kt` 줄 번호 갱신, F7을 머지된 A1과 대조 | LLD 검수 1차 반려 M1·m1·m4([판단], PM 승인 — PR #73 결정 코멘트), A1 머지(PR #75) | PM, reviewer |
