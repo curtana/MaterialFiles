@@ -4,9 +4,9 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 검수 조건부 통과 (v1), 경미 m1·m2 반영 (v1.1) |
+| 상태 | 검수 조건부 통과 (v1), 경미 m1·m2 반영 (v1.1), A2 줄 번호를 C2 머지 뒤 90f2c1e로 (v1.2) |
 | 근거 | SRS v1.4 (2절 Q1·Q3·Q5, REQ-55-01·03, 8절 D1), HLD v1.3 (1, 2.2 조각 A, 2.4, 3.1, 4, 5 D1·D2) |
-| 기준 코드 | `origin/develop` f899359(C1 머지 뒤, PR #66). 경로는 `app/src/main/java/me/zhanghai/android/files/` 기준. 줄 번호는 이 커밋 기준이다 — A2의 네 파일은 C2(`feature/55-replace-check-c2`, 구현 중)가 먼저 고치므로 **A2는 C2 머지 뒤 develop 위에서** 하고, 위치는 줄 번호가 아니라 이 문서에 적은 코드 앵커(주석·식)로 찾는다(2.7) |
+| 기준 코드 | A1(1·2.1–2.7절): `origin/develop` f899359(C1 머지 뒤, PR #66). A2(2.8–2.11절): `origin/develop` 90f2c1e(C2 머지 뒤, PR #71). A1 파일(`filejob/`, `provider/common/`)은 두 커밋 사이에 바뀌지 않았다(`git diff --stat f899359 90f2c1e -- app/src/main/java/me/zhanghai/android/files/filejob app/src/main/java/me/zhanghai/android/files/provider/common` 비어 있음). 경로는 `app/src/main/java/me/zhanghai/android/files/` 기준. 줄과 함께 코드 앵커(주석·식)도 적는다 |
 | 추적 REQ | REQ-55-01, REQ-55-03 (REQ-55-02의 속성 부분: 폰→폰은 지금 그대로) |
 | 나눔 | **A1**(분류·옵션·`FileJobs`·공급자 간) → **A2**(SFTP·SMB·FTP·WebDAV). PR을 따로 하고 A1과 C2가 develop에 머지된 뒤 A2를 시작한다(HLD 2.4 `C1 → C2 → A1 → A2`) |
 
@@ -44,7 +44,7 @@
 
 파일 수 4. 네 백엔드는 `object Client`가 실제 네트워크 연결을 만들어 JVM에서 시험할 수 없다(테스트 의존성은 JUnit뿐, `app/build.gradle:222`; LLD-C 1절 C2와 같다). 옵션 해석은 A1의 테스트가, 백엔드 결선은 코드 검사와 서버 수동 시험(3.4)이 확인한다. SFTP의 생성 속성 식만 떼어 JVM 시험하는 안은 4절 F3에서 버렸다.
 
-**C2와의 관계**: A2의 네 파일은 C2가 모두 고친다(LLD-C 2.7–2.11). C2가 바꾸는 곳은 '바꾸기' 순서(대상 지우기·원본 열기)이고 A2가 바꾸는 곳은 (SFTP) `sourceModeAttributes` 정의와 각 파일 끝의 속성 단계다 — 줄이 겹치지 않는다. C2 뒤에도 `sourceModeAttributes`는 C2의 `write` 람다 안에서 그대로 쓰인다(LLD-C 2.7 "`sourceModeAttributes`(68-74) 그대로(조각 A가 고친다)"). A2 구현자는 C2 머지 뒤 develop에서 분기하고, 아래 앵커로 위치를 찾는다.
+**C2와의 관계**: A2의 네 파일은 C2가 모두 고친다(LLD-C 2.7–2.11). C2가 바꾸는 곳은 '바꾸기' 순서(대상 지우기·원본 열기)이고 A2가 바꾸는 곳은 (SFTP) `sourceModeAttributes` 정의와 각 파일 끝의 속성 단계다 — 줄이 겹치지 않는다. C2 뒤에도 `sourceModeAttributes`는 C2의 `write` 람다 안에서 그대로 쓰인다(LLD-C 2.7 "`sourceModeAttributes`(68-74) 그대로(조각 A가 고친다)"). C2는 90f2c1e(PR #71)로 머지됐다. 2.8–2.11의 줄 번호는 90f2c1e 기준이다. A2는 A1 머지 뒤 develop에서 분기한다.
 
 ## 2. 함수 명세
 
@@ -195,7 +195,7 @@ class CopyOptions(
 - **추적**: HLD 2.2 "SFTP 속성 단계" / REQ-55-03, SRS Q5 안 B
 - **책임**: 속성 생략이면 새 파일·폴더를 권한 없이 만들고(서버 기본) 복사 뒤 `setstat`을 하지 않는다.
 - **앵커와 알고리즘**:
-  1. `val sourceModeAttributes = FileAttributes.Builder() … .build()`(f899359 68-74, C2 뒤에도 `when (sourceType)` 바로 위):
+  1. `val sourceModeAttributes = FileAttributes.Builder() … .build()`(90f2c1e 70-76, `when (sourceType)` 바로 위):
      ```kotlin
      val sourceModeAttributes = if (copyOptions.skipAttributes) {
          FileAttributes.EMPTY
@@ -205,26 +205,26 @@ class CopyOptions(
              .build()
      }
      ```
-     이 값을 쓰는 곳 — 대상 `openByteChannel(target, targetFlags, sourceModeAttributes)`(98)·`mkdir(target, sourceModeAttributes)`(153) — 은 C2 뒤 `write` 람다 안에 있어도 그대로 이 값을 쓴다.
-  2. `when` 블록이 끝난 뒤, 주석 `// We don't take error when copying attribute fatal, …`(f899359 186) 앞에 `if (copyOptions.skipAttributes) { return }`. 그 뒤 `setstat` 블록(188-217)은 그대로.
-- **바뀌지 않는 것**: `if (!sourceAttributes.has(FileAttributes.Flag.MODE)) throw …`(37-41) — 원본 종류(`sourceAttributes.type`)를 알려면 모드가 필요하다. 원본 열기(`openByteChannel(source, READ, FileAttributes.EMPTY)`, 88)는 원래 빈 속성이다. 링크 분기(159-183)는 `symlink`에 속성을 넘기지 않는다.
+     이 값을 쓰는 곳 — 대상 `openByteChannel(target, targetFlags, sourceModeAttributes)`(114)·`mkdir(target, sourceModeAttributes)`(165) — 은 C2의 `write` 람다 안에 있고 그대로 이 값을 쓴다.
+  2. `when` 블록이 끝난 뒤, 주석 `// We don't take error when copying attribute fatal, …`(90f2c1e 199) 앞에 `if (copyOptions.skipAttributes) { return }`. 그 뒤 `setstat` 블록(201-230)은 그대로.
+- **바뀌지 않는 것**: `if (!sourceAttributes.has(FileAttributes.Flag.MODE)) throw …`(39-43) — 원본 종류(`sourceAttributes.type`)를 알려면 모드가 필요하다. 원본 열기(`openByteChannel(source, READ, FileAttributes.EMPTY)`, 93-95)는 원래 빈 속성이다. 링크 분기(172-196)는 `symlink`에 속성을 넘기지 않는다.
 - **오류**: 없음. 서버가 `SSH_FXP_OPEN`/`MKDIR`의 빈 속성을 받으면 서버 기본 권한으로 만든다(SFTP v3 규약, 서버 동작은 미확인 — M-A4).
 - **기존 코드와의 관계**: `FileAttributes.EMPTY`는 sshj 상수로 이미 쓰고 있다(`SftpCopyMove.kt:88`, `sftp/client/Client.kt:40`). `Client.mkdir`·`openByteChannel`(`sftp/client/Client.kt:55-74`)은 받은 속성을 그대로 넘긴다.
 
 ### 2.9 `SmbCopyMove.copy(source: SmbPath, target: SmbPath, copyOptions: CopyOptions)` (A2, 수정, C2 위)
 - **추적**: HLD 2.2 "SMB 속성 단계" / REQ-55-03
-- **알고리즘**: `else { throw AssertionError() }`로 끝나는 갈래 다음, 주석 `// We don't take error when copying attribute fatal, …`(f899359 142) 앞에 `if (copyOptions.skipAttributes) { return }`. 그 뒤 `FileBasicInformation`·`setFileInformation`(146-156)은 그대로.
-- **만들 때 속성**: 복사는 `copyAttributes == false`라 `attributesToCopy`가 이미 `FILE_ATTRIBUTE_NORMAL`이다(67-73, `smb/client/Client.kt:352-360`). 바꿀 것 없다. `Client.copyFile`(C2가 고침)은 A2에서 건드리지 않는다.
+- **알고리즘**: `else { throw AssertionError() }`로 끝나는 갈래 다음, 주석 `// We don't take error when copying attribute fatal, …`(90f2c1e 147) 앞에 `if (copyOptions.skipAttributes) { return }`. 그 뒤 `FileBasicInformation`·`setFileInformation`(151-161)은 그대로.
+- **만들 때 속성**: 복사는 `copyAttributes == false`라 `attributesToCopy`가 이미 `FILE_ATTRIBUTE_NORMAL`이다(68-74, `smb/client/Client.kt:366-374`). 바꿀 것 없다. `Client.copyFile`(C2가 고침)은 A2에서 건드리지 않는다.
 - **비고**: 서버 쪽 복사(`serverCopy`, 같은 세션)는 데이터만 옮긴다 — 수정 시각은 서버가 쓰기 시각으로 정한다(서버 동작 미확인, M-A3).
 
 ### 2.10 `FtpCopyMove.copy(source: FtpPath, target: FtpPath, copyOptions: CopyOptions)` (A2, 수정, C2 위)
 - **추적**: HLD 2.2 "FTP 속성 단계" / REQ-55-03
-- **알고리즘**: `when` 블록 다음, 주석 `// We don't take error when copying attribute fatal, …`(f899359 104) 앞에 `if (copyOptions.skipAttributes) { return }`. 그 뒤 `setLastModifiedTime`(106-115, `MFMT`)은 그대로.
+- **알고리즘**: `when` 블록 다음, 주석 `// We don't take error when copying attribute fatal, …`(90f2c1e 128) 앞에 `if (copyOptions.skipAttributes) { return }`. 그 뒤 `setLastModifiedTime`(130-139, `MFMT`)은 그대로.
 - **만들 때 속성**: `Client.createDirectory`·`storeFile`은 속성을 받지 않는다. 바꿀 것 없다.
 
 ### 2.11 `WebDavCopyMove.copy(source: WebDavPath, target: WebDavPath, copyOptions: CopyOptions)` (A2, 수정, C2 위)
 - **추적**: HLD 2.2 "WebDAV 속성 단계" / REQ-55-03
-- **알고리즘**: `when` 블록 다음, 주석 `// We don't take error when copying attribute fatal, …`(f899359 115) 앞에 `if (copyOptions.skipAttributes) { return }`. 그 뒤 `setLastModifiedTime`(117-126, `PROPPATCH getlastmodified`)은 그대로.
+- **알고리즘**: `when` 블록 다음, 주석 `// We don't take error when copying attribute fatal, …`(90f2c1e 139) 앞에 `if (copyOptions.skipAttributes) { return }`. 그 뒤 `setLastModifiedTime`(141-150, `PROPPATCH getlastmodified`)은 그대로.
 - **만들 때 속성**: `MKCOL`·`PUT`은 속성을 보내지 않는다(`webdav/client/Client.kt`에 수정 시각 헤더 없음 — `grep -i mtime` 결과 없음). 바꿀 것 없다.
 
 ## 3. 테스트 설계
@@ -301,3 +301,4 @@ fake 확장: `FakeProvider`에 `val setTimesPaths = mutableListOf<Path>()`를 �
 |---|---|---|---|---|
 | 2026-11-19 | v1 | 최초 작성(조각 A1·A2) | PM LLD 요청(조각 A만, A2는 C2 위) | PM |
 | 2026-11-19 | v1.1 | F1 문구의 수정 전 실패 테스트를 U-A07·08로 정정(m1), 2.6 `save`의 `target.parent`가 `null`일 때 `target`으로 판정(m2) | LLD 검수 1차 조건부 통과 m1·m2 [기계] (PR #72 코멘트) | reviewer |
+| 2026-11-19 | v1.2 | A2(2.8–2.11) 줄 번호를 C2 머지 뒤 develop 90f2c1e 기준으로, 기준 코드 행·C2 관계 문단 갱신(동작 변화 없음) | C2 머지(PR #71) | PM |
