@@ -6,9 +6,16 @@
 package me.zhanghai.android.files.provider.archive
 
 import me.zhanghai.android.files.provider.common.PathObservable
+import java.io.IOException
 import java.util.concurrent.Executor
 
-// TEMPORARY fail-before stub (#69): the prototype behavior, invalidating on the caller thread.
+/**
+ * Observes a path inside an archive by observing the archive file. Before an observer is notified,
+ * the archive is invalidated so that the next load reads the archive file again.
+ *
+ * The invalidation may wait for a load holding the archive file system lock, so it is done on
+ * [executor] instead of the thread notifying the observers, which is shared by all observables.
+ */
 internal class ArchivePathObservable(
     private val archiveFileObservable: PathObservable,
     private val invalidate: () -> Unit,
@@ -18,18 +25,25 @@ internal class ArchivePathObservable(
 
     override fun addObserver(observer: () -> Unit) {
         val wrapper: () -> Unit = {
-            try {
-                invalidate()
-            } catch (e: Exception) {
-                e.printStackTrace()
+            executor.execute {
+                try {
+                    invalidate()
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+                observer()
             }
-            observer()
         }
-        val previous = synchronized(wrappers) { wrappers.put(observer, wrapper) }
-        if (previous != null) {
-            archiveFileObservable.removeObserver(previous)
+        val previousWrapper = synchronized(wrappers) { wrappers.put(observer, wrapper) }
+        if (previousWrapper != null) {
+            archiveFileObservable.removeObserver(previousWrapper)
         }
-        archiveFileObservable.addObserver(wrapper)
+        try {
+            archiveFileObservable.addObserver(wrapper)
+        } catch (e: Exception) {
+            synchronized(wrappers) { wrappers.remove(observer, wrapper) }
+            throw e
+        }
     }
 
     override fun removeObserver(observer: () -> Unit) {
@@ -37,6 +51,7 @@ internal class ArchivePathObservable(
         archiveFileObservable.removeObserver(wrapper)
     }
 
+    @Throws(IOException::class)
     override fun close() {
         synchronized(wrappers) { wrappers.clear() }
         archiveFileObservable.close()
