@@ -22,7 +22,8 @@ import me.zhanghai.android.files.util.Stateful
 import me.zhanghai.android.files.util.valueCompat
 import java.io.Closeable
 
-// TODO: Use SavedStateHandle to save state.
+// TODO: Use SavedStateHandle to save the rest of the state. Only the current path is saved
+// now, by FileListFragment (#11).
 class FileListViewModel : ViewModel() {
     private val trailLiveData = TrailLiveData()
     val hasTrail: Boolean
