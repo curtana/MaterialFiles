@@ -58,6 +58,7 @@ import java8.nio.file.Path
 import java8.nio.file.Paths
 import kotlin.math.roundToInt
 import kotlinx.parcelize.Parcelize
+import me.zhanghai.android.files.BuildConfig
 import me.zhanghai.android.files.R
 import me.zhanghai.android.files.app.clipboardManager
 import me.zhanghai.android.files.compat.setGroupDividerEnabledCompat
@@ -185,6 +186,26 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
             return@DebouncedRunnable
         }
         viewModel.search(query)
+    }
+
+    // The path saved before the system recreated this pane, kept in case the state is saved again
+    // before the view is created.
+    private var restoredPathUri: String? = null
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        restoredPathUri = savedInstanceState?.getString(STATE_PATH_URI)
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+
+        // Only the current path is saved, and the view model keeps the rest across configuration
+        // changes (#11).
+        val pathUri =
+            if (viewModel.hasTrail) encodePanePath(viewModel.currentPath) else restoredPathUri
+        pathUri?.let { outState.putString(STATE_PATH_URI, it) }
     }
 
     override fun onCreateView(
@@ -325,10 +346,12 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
                         }
                     }
             }
-            if (path == null) {
-                path = Settings.FILE_LIST_DEFAULT_DIRECTORY.valueCompat
+            // The saved path takes precedence over the intent after the system recreated this pane,
+            // but the pick options above still come from the intent (#11).
+            val startPath = resolvePaneStartPath(decodePanePath(restoredPathUri), path) {
+                Settings.FILE_LIST_DEFAULT_DIRECTORY.valueCompat
             }
-            viewModel.resetTo(path)
+            viewModel.resetTo(startPath)
             if (pickOptions != null) {
                 viewModel.pickOptions = pickOptions
             }
@@ -1653,6 +1676,8 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
             "me.zhanghai.android.files.intent.action.VIEW_DOWNLOADS"
 
         private const val IMAGE_VIEWER_ACTIVITY_PATH_LIST_SIZE_MAX = 1000
+
+        private const val STATE_PATH_URI = "${BuildConfig.APPLICATION_ID}.state.PATH_URI"
     }
 
     @Parcelize

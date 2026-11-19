@@ -32,6 +32,7 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.switchMap
 import java8.nio.file.Path
 import kotlinx.parcelize.Parcelize
+import me.zhanghai.android.files.BuildConfig
 import me.zhanghai.android.files.R
 import me.zhanghai.android.files.app.application
 import me.zhanghai.android.files.compat.checkSelfPermissionCompat
@@ -145,6 +146,13 @@ class FileListHostFragment : Fragment(), FileListFragment.Listener, NavigationFr
                 as NavigationFragment
         }
         panes = listOfNotNull(pane1, pane2)
+        if (savedInstanceState != null) {
+            // The view model is new after the system killed the process, and everything below reads
+            // the active pane (#11).
+            viewModel.setActivePane(
+                savedInstanceState.getInt(STATE_ACTIVE_PANE, viewModel.activePane)
+            )
+        }
         navigationFragment.listener = this
         // The pane mode of the previous configuration doesn't apply to the new views, and the
         // layout reports the new one after its first measure.
@@ -231,6 +239,12 @@ class FileListHostFragment : Fragment(), FileListFragment.Listener, NavigationFr
         }
         // This must be the last, because consuming may call this method again synchronously.
         output.seqToConsume?.let { FileJobStateTracker.consumeResult(it) }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+
+        outState.putInt(STATE_ACTIVE_PANE, viewModel.activePane)
     }
 
     override fun onResume() {
@@ -535,6 +549,10 @@ class FileListHostFragment : Fragment(), FileListFragment.Listener, NavigationFr
         override fun parseResult(resultCode: Int, intent: Intent?): Boolean =
             application.checkSelfPermissionCompat(permissionName) ==
                 PackageManager.PERMISSION_GRANTED
+    }
+
+    companion object {
+        private const val STATE_ACTIVE_PANE = "${BuildConfig.APPLICATION_ID}.state.ACTIVE_PANE"
     }
 
     @Parcelize

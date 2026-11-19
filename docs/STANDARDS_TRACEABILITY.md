@@ -1,6 +1,6 @@
 # 규격 추적표 — Android app quality guidelines
 
-- 상태: v0.11 (2026-11-04. v0.1~v0.2 PM 보조 작성, v0.3 오너 결정 기록, v0.4 4장 #2 행 REQ ID, v0.5 Q7~Q9 오너 결정, v0.6 `Keyboard_Shortcuts` 비고, v0.7 4장 #29 행, v0.8 4장 #30 행, v0.9 #9 not planned 반영, v0.11 4장 #29 행 A1·A2 — 5장 이력). 조항 해석·필수 여부 판정은 오너 승인 사항이다(PROCESS_ROLES 부록 S).
+- 상태: v0.12 (2026-11-19. v0.1~v0.2 PM 보조 작성, v0.3 오너 결정 기록, v0.4 4장 #2 행 REQ ID, v0.5 Q7~Q9 오너 결정, v0.6 `Keyboard_Shortcuts` 비고, v0.7 4장 #29 행, v0.8 4장 #30 행, v0.9 #9 not planned 반영, v0.11 4장 #29 행 A1·A2, v0.12 #11 `State_Preservation` 편차 해소 — 5장 이력). 조항 해석·필수 여부 판정은 오너 승인 사항이다(PROCESS_ROLES 부록 S).
 - 작성 규칙: 원문 문장은 옮기지 않고 한국어 요지만 적는다. 아래 근거 문서에서 직접 확인하지 못한 내용은 "원문 판독 필요"로 둔다.
 - 결과 로직을 바꾸는 PR은 이 표를 같은 PR에서 고친다(부록 S).
 
@@ -43,7 +43,7 @@
 |---|---|---|---|---|---|
 | `Back_Button_Nav` | CQ, 시험 T-Back_Nav | 표준 시스템 뒤로 가기를 쓰고, 화면 안에 따로 만든 뒤로 버튼을 두지 않는다. | 필수 | 예(이슈 #2) | 시스템 뒤로 가기를 활성 창의 기존 처리(선택 해제·상위 폴더)에 연결한다. 확인: 두 창 모드·한 창 모드에서 뒤로 가기가 활성 창에만 작용하는지 수동 시험. |
 | `Back_Gesture_Nav` | CQ, 시험 T-Back_Nav | 제스처 내비게이션의 뒤로·홈 이동을 지원한다. | 필수 | 예(이슈 #2) | 창 전환 쓸기가 가장자리 뒤로 제스처·하단 홈 제스처를 가로채지 않게 한다(GN-1~3 참조). 확인: API 29 이상·제스처 내비게이션에서 좌우 가장자리 쓸기 → 뒤로 가기만 일어남. |
-| `State_Preservation` | CQ, 시험 T-State_Preservation, T-Back_Nav | 앞에서 벗어날 때 상태를 저장하고 돌아오면 복원해 뜻하지 않은 데이터 손실을 막는다. 짧게(수 분) 떠나 있었으면 최대한 그대로, 오래 떠나 있었으면 복원하거나 첫 화면에서 다시 시작해도 된다. | 필수 | 예(이슈 #2) | 두 창의 경로·기록·선택·복사 목록·확인 창을 화면 재생성에 견디게 둔다. 확인: 홈으로 나갔다가 몇 분 안에 복귀, 최근 앱에서 복귀. 앱 프로세스가 종료된 뒤 기본 폴더로 시작하는 기존 동작(SRS A6)은 경로 복원이 없어 편차로 등록했다(3장, 오너 승인 2026-10-28, 해소 이슈 #11). |
+| `State_Preservation` | CQ, 시험 T-State_Preservation, T-Back_Nav | 앞에서 벗어날 때 상태를 저장하고 돌아오면 복원해 뜻하지 않은 데이터 손실을 막는다. 짧게(수 분) 떠나 있었으면 최대한 그대로, 오래 떠나 있었으면 복원하거나 첫 화면에서 다시 시작해도 된다. | 필수 | 예(이슈 #2, #11) | 두 창의 경로·기록·선택·복사 목록·확인 창을 화면 재생성에 견디게 둔다. 확인: 홈으로 나갔다가 몇 분 안에 복귀, 최근 앱에서 복귀. 시스템이 앱 프로세스를 종료한 뒤 복원할 때는 각 창의 현재 경로와 활성 창을 저장 상태로 되살린다(#11, SRS REQ-11-01·09). 이동 기록의 아래 단계·단계별 스크롤 위치는 복원하지 않는다(오너 결정 Q1 A — 조항 허용 범위, issuecomment-6999035882). 확인: 홈 → adb shell am kill → 최근 앱에서 복귀(#11 LLD V2). |
 | `Orientation_Transitions` | CQ, 시험 T-Orientation_Transitions | 방향 전환·접기/펴기를 빠르게 반복해도 그리기 문제나 상태 손실이 없다. | 필수 | 예(이슈 #2) | 회전 시 한 창↔두 창 전환에서 상태 유지. 확인: 빠른 연속 회전 수동 시험. |
 | `Display_State_Parity` | CQ, 시험 T-Orientation_Transitions | 모든 방향·접힘 상태에서 같은 기능과 동작을 제공한다. | 필수 | 예(이슈 #2) | 한 창 모드에서도 두 창 모드와 같은 명령(붙여넣기, 창 전환, 반대쪽 경로 확인)을 쓸 수 있게 한다. 확인: 세로·가로 각각 명령 목록 비교. |
 | `Fullscreen_Display` | CQ, 시험 T-Orientation_Transitions | 두 방향·접힘 상태 모두에서 창을 꽉 채우고 레터박스가 없다(작은 보정은 허용). | 필수 | 예 | 기존 화면 유지. 확인: 가로·세로·분할 화면에서 여백 띠가 없는지. |
@@ -116,7 +116,7 @@
 | 일자 | 조항 | 편차 | 사유 | 오너 승인 | 해소 이슈 |
 |---|---|---|---|---|---|
 | 2026-10-28 | `Network_Security_Traffic` (필수) | 평문 통신 허용(`AndroidManifest.xml:57` `usesCleartextTraffic="true"`)을 유지한다. | FTP와 `http://` WebDAV 서버 접속이 앱 기능이며 평문 프로토콜이라 끌 수 없다. 암호화 방식(FTPS·FTPES·SFTP·`https://` WebDAV)은 별도로 제공된다. | 승인 (오너, 2026-10-28) | — |
-| 2026-10-28 | `State_Preservation` (필수) | 앱 프로세스가 백그라운드에서 종료된 뒤 다시 열리면 이전 창 경로를 복원하지 않고 기본 폴더(또는 Intent 경로)에서 시작한다(기존 동작이며 이슈 #2 이후에는 각 창에 같이 적용, `FileListViewModel.kt:25` 경로 상태 미저장, `FileListFragment.kt:282-338` 시작 경로 결정 — 이슈 #2 SRS A6). | 기존 동작이며 이슈 #2(두 창 파일 목록)가 새로 만든 것이 아니다. 이슈 #2 범위 밖 "창 경로의 영구 저장"과 구분되는 상태 복원 작업이라 별도 이슈로 해소한다. | 승인 (오너, 2026-10-28) | #11 |
+| 2026-10-28 | `State_Preservation` (필수) | 앱 프로세스가 백그라운드에서 종료된 뒤 다시 열리면 이전 창 경로를 복원하지 않고 기본 폴더(또는 Intent 경로)에서 시작한다(기존 동작이며 이슈 #2 이후에는 각 창에 같이 적용, `FileListViewModel.kt:25` 경로 상태 미저장, `FileListFragment.kt:282-338` 시작 경로 결정 — 이슈 #2 SRS A6). | 기존 동작이며 이슈 #2(두 창 파일 목록)가 새로 만든 것이 아니다. 이슈 #2 범위 밖 "창 경로의 영구 저장"과 구분되는 상태 복원 작업이라 별도 이슈로 해소한다. | 승인 (오너, 2026-10-28) | #11 — 해소(PR #70, 2026-11-19). 남는 범위: 이동 기록·단계별 스크롤 위치·경로 외 창 상태는 복원하지 않음(오너 결정 Q1 A, 조항 허용 범위) |
 
 권장 조항에서 의식적으로 다르게 정한 결정(편차 등록 대상은 아니지만 근거를 남긴다):
 - **WSC-3** (2026-10-28, 오너 결정): 폰 가로(너비 600dp 이상, 높이 Compact)에서도 두 창을 표시한다. 이슈 #2 요구사항(너비 600dp 기준)을 유지하며, 높이 조건은 넣지 않는다.
@@ -134,6 +134,7 @@
 | #29 SFTP 결함 수정(A1·A2)과 목록 자동 새로 고침의 조용한 갱신(B3) | `Stability_ANR`, `Consistent_UX`, A11P-4 | REQ-29-01~13 (`docs/design/29-list-refresh/SRS.md`). A1·A2는 결함 수정이라 REQ 없음(이슈 #29 작업지시서, PR #33) | A1(`FileProvider.query`의 네트워크 읽기)·A2(`provider/sftp/client/Client.kt`의 손상된 세션 버리기)는 `Stability_ANR` 쪽 결함 수정이며 위반이 아니다(PR #33 검수 판정). 새 UI·문구·권한 없음. 조용한 성공을 화면 낭독에 알리지 않는 것(REQ-29-13)은 요구사항 결정이며, 상태 변화 낭독에 관한 조항은 확인한 문서에 없다 — 원문 판독 필요(A11P-4) |
 | #30 파일 작업 표시(툴바의 달리는 선 사람) | `Theme_Support`, `Visual_Contrast`, `Content_Description`, `Consistent_UX`, `Display_State_Parity`, `Stability_ANR`, `Minimize_Permissions`, `Touch_Target_Size`(해당 없음), A11Y-2, A11Y-3, A11P-2, A11P-4, RTL-1, RTL-2, RTL-4 | REQ-30-01~16 (`docs/design/30-job-runner/SRS.md` v1.3 5장) | 새 권한 없음. 모션 줄이기·상태 변화 낭독은 추적표에 조항이 없어 원문 판독 필요(요구사항 결정으로 둠). 새 편차 없음 |
 | #36 앱 안 파일 작업 목록과 취소(#39·#44 흡수) | `Theme_Support`, `Visual_Contrast`, `Content_Description`, `Touch_Target_Size`, `State_Preservation`, `Orientation_Transitions`, `Display_State_Parity`, `Consistent_UX`, `Back_Button_Nav`, `Stability_ANR`, `Minimize_Permissions`, A11Y-2, A11Y-3, A11P-2, A11P-4, RTL-1, RTL-2, RTL-4 | REQ-36-01~19 (`docs/design/36-job-list/SRS.md` v2.6 5장) | 새 권한 없음. 상태 변화 낭독은 추적표에 조항이 없어 원문 판독 필요. 알림 꺼짐에서의 토스트는 오너 결정으로 사용자 몫(요구사항 v5), 알림 관련 CQ 조항은 원문 판독 필요. 새 편차 없음 |
+| #11 프로세스 종료 후 창 경로 복원 | `State_Preservation`, `Back_Button_Nav`, `Stability_ANR`, `Orientation_Transitions`, `Config_Changes` | REQ-11-01~09 (`docs/design/11-path-restore/SRS.md` v1.2 5장) | 3장 `State_Preservation` 편차 해소. 새 권한·설정 키·영구 저장 없음. 새 편차 없음 |
 
 ## 5. 변경 이력
 
@@ -150,3 +151,4 @@
 | 2026-11-04 | v0.9 | 오너 결정 2026-11-04(#9 코멘트, not planned) 반영: `Display_State_Parity`는 붙여넣기·창 전환·반대쪽 경로 확인으로 충족, `Keyboard_Navigation` 검토 대상을 창 전환·붙여넣기로, 4장 #2 행에서 REQ-2-12(삭제됨)를 빼고 붙여넣기 근거 REQ-2-13을 넣음. RTL-3의 반대쪽 경로 표시는 REQ-2-17이라 유지 | 설계팀 |
 | 2026-11-04 | v0.10 | 4장에 #36 행(파일 작업 목록, SRS REQ-36-01~19) 추가 | 개발팀 |
 | 2026-11-04 | v0.11 | 4장 #29 행에 A1·A2 결함 수정 명시, `Target_SDK_Version` 비고의 현재 값을 36으로(#25). 조항 해석 변경 없음 | 설계팀 |
+| 2026-11-19 | v0.12 | 3장 `State_Preservation` 편차 해소 표시(#11, PR #70), 2.1 행의 해당 열·충족 방법 갱신, 4장 #11 행 추가 | 개발팀 |
