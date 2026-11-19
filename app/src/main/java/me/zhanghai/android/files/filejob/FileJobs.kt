@@ -18,9 +18,12 @@ import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.IOException
 import java.io.InterruptedIOException
+import java.util.EnumSet
 import java8.nio.file.CopyOption
 import java8.nio.file.DirectoryIteratorException
 import java8.nio.file.FileAlreadyExistsException
+import java8.nio.file.FileSystemLoopException
+import java8.nio.file.FileVisitOption
 import java8.nio.file.FileVisitResult
 import java8.nio.file.FileVisitor
 import java8.nio.file.Files
@@ -271,14 +274,89 @@ private fun FileJob.throwIfInterrupted() {
 private fun FileJob.scan(sources: List<Path?>, @PluralsRes notificationTitleRes: Int): ScanInfo {
     val scanInfo = ScanInfo()
     for (source in sources) {
-        Files.walkFileTree(source, object : SimpleFileVisitor<Path>() {
+        scanTree(source, scanInfo, notificationTitleRes)
+    }
+    postScanNotification(scanInfo, notificationTitleRes)
+    return scanInfo
+}
+
+// Scans each copy source by its kind: a network copy follows links (#55 B2).
+@Throws(IOException::class)
+private fun FileJob.scan(
+    sources: List<Path>,
+    copyKinds: List<CopyKind>,
+    @PluralsRes notificationTitleRes: Int
+): ScanInfo {
+    require(sources.size == copyKinds.size)
+    val scanInfo = ScanInfo()
+    for ((source, copyKind) in sources.zip(copyKinds)) {
+        if (copyKind == CopyKind.NETWORK) {
+            scanTreeFollowingLinks(source, scanInfo, notificationTitleRes)
+        } else {
+            scanTree(source, scanInfo, notificationTitleRes)
+        }
+    }
+    postScanNotification(scanInfo, notificationTitleRes)
+    return scanInfo
+}
+
+@Throws(IOException::class)
+private fun FileJob.scanTree(
+    source: Path?,
+    scanInfo: ScanInfo,
+    @PluralsRes notificationTitleRes: Int
+) {
+    Files.walkFileTree(source, object : SimpleFileVisitor<Path>() {
+        @Throws(IOException::class)
+        override fun preVisitDirectory(
+            directory: Path,
+            attributes: BasicFileAttributes
+        ): FileVisitResult {
+            scanPath(attributes, scanInfo, notificationTitleRes)
+            throwIfInterrupted()
+            return FileVisitResult.CONTINUE
+        }
+
+        @Throws(IOException::class)
+        override fun visitFile(file: Path, attributes: BasicFileAttributes): FileVisitResult {
+            scanPath(attributes, scanInfo, notificationTitleRes)
+            throwIfInterrupted()
+            return FileVisitResult.CONTINUE
+        }
+
+        @Throws(IOException::class)
+        override fun visitFileFailed(file: Path, exception: IOException): FileVisitResult {
+            // TODO: Prompt retry, skip, skip-all or abort.
+            return super.visitFileFailed(file, exception)
+        }
+    })
+}
+
+// Counts an item whose walk failed as one item of size 0; the copy asks about it (#55 B2).
+@Throws(IOException::class)
+private fun FileJob.scanTreeFollowingLinks(
+    source: Path,
+    scanInfo: ScanInfo,
+    @PluralsRes notificationTitleRes: Int
+) {
+    val state = LinkWalkState()
+    Files.walkFileTree(
+        source, EnumSet.of(FileVisitOption.FOLLOW_LINKS), Int.MAX_VALUE,
+        object : SimpleFileVisitor<Path>() {
             @Throws(IOException::class)
             override fun preVisitDirectory(
                 directory: Path,
                 attributes: BasicFileAttributes
             ): FileVisitResult {
+                val depth = state.depthOf(directory.isSymbolicLinkForLinkDepth())
+                if (state.isExceeded(depth)) {
+                    scanFailedPath(scanInfo, notificationTitleRes)
+                    throwIfInterrupted()
+                    return FileVisitResult.SKIP_SUBTREE
+                }
                 scanPath(attributes, scanInfo, notificationTitleRes)
                 throwIfInterrupted()
+                state.enter(depth)
                 return FileVisitResult.CONTINUE
             }
 
@@ -291,14 +369,35 @@ private fun FileJob.scan(sources: List<Path?>, @PluralsRes notificationTitleRes:
 
             @Throws(IOException::class)
             override fun visitFileFailed(file: Path, exception: IOException): FileVisitResult {
-                // TODO: Prompt retry, skip, skip-all or abort.
-                return super.visitFileFailed(file, exception)
+                scanFailedPath(scanInfo, notificationTitleRes)
+                throwIfInterrupted()
+                return FileVisitResult.CONTINUE
             }
-        })
-    }
-    postScanNotification(scanInfo, notificationTitleRes)
-    return scanInfo
+
+            override fun postVisitDirectory(
+                directory: Path,
+                exception: IOException?
+            ): FileVisitResult {
+                state.exit()
+                return FileVisitResult.CONTINUE
+            }
+        }
+    )
 }
+
+private fun FileJob.scanFailedPath(scanInfo: ScanInfo, @PluralsRes notificationTitleRes: Int) {
+    scanInfo.incrementFileCount()
+    postScanNotification(scanInfo, notificationTitleRes)
+}
+
+// Unknown counts as a link, so that a walk can't go deeper than the limit by failing here.
+private fun Path.isSymbolicLinkForLinkDepth(): Boolean =
+    try {
+        readAttributes(BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS).isSymbolicLink
+    } catch (e: IOException) {
+        e.printStackTrace()
+        true
+    }
 
 @Throws(IOException::class)
 private fun FileJob.scan(source: Path, @PluralsRes notificationTitleRes: Int): ScanInfo {
@@ -626,7 +725,8 @@ internal class ErrorResult(
 private fun FileJob.showConflictDialog(
     sourceFile: FileItem,
     targetFile: FileItem,
-    type: CopyMoveType
+    type: CopyMoveType,
+    isMerge: Boolean
 ): ConflictResult =
     try {
         throwIfCanceled()
@@ -635,12 +735,12 @@ private fun FileJob.showConflictDialog(
                 BackgroundActivityStarter.startActivity(
                     FileJobConflictDialogActivity::class.createIntent().putArgs(
                         FileJobConflictDialogFragment.Args(
-                            sourceFile, targetFile, type
+                            sourceFile, targetFile, type, isMerge
                         ) { action, name, all ->
                             continuation.resume(ConflictResult(action, name, all))
                         }
-                    ), FileJobConflictDialogFragment.getTitle(sourceFile, targetFile, service),
-                    FileJobConflictDialogFragment.getMessage(sourceFile, targetFile, type, service),
+                    ), FileJobConflictDialogFragment.getTitle(targetFile, isMerge, service),
+                    FileJobConflictDialogFragment.getMessage(targetFile, type, isMerge, service),
                     service
                 )
             }
@@ -819,8 +919,10 @@ class CopyFileJob(private val sources: List<Path>, private val targetDirectory: 
     @Throws(IOException::class)
     override fun run() {
         val isExtract = sources.all { it.isArchivePath }
+        // Classified before the scan, which follows links for a network copy (#55 B2).
+        val copyKinds = sources.map { classifyCopy(it, targetDirectory) }
         val scanInfo = scan(
-            sources, if (isExtract) {
+            sources, copyKinds, if (isExtract) {
                 R.plurals.file_job_extract_scan_notification_title_format
             } else {
                 R.plurals.file_job_copy_scan_notification_title_format
@@ -828,13 +930,12 @@ class CopyFileJob(private val sources: List<Path>, private val targetDirectory: 
         )
         val transferInfo = TransferInfo(scanInfo, targetDirectory)
         val actionAllInfo = ActionAllInfo()
-        for (source in sources) {
+        for ((source, copyKind) in sources.zip(copyKinds)) {
             val target = if (source.parent == targetDirectory) {
                 getTargetPathForDuplicate(source)
             } else {
                 targetDirectory.resolveForeign(getTargetFileName(source))
             }
-            val copyKind = classifyCopy(source, targetDirectory)
             copyRecursively(source, target, isExtract, copyKind, transferInfo, actionAllInfo)
             throwIfInterrupted()
         }
@@ -849,6 +950,12 @@ class CopyFileJob(private val sources: List<Path>, private val targetDirectory: 
         transferInfo: TransferInfo,
         actionAllInfo: ActionAllInfo
     ) {
+        if (copyKind == CopyKind.NETWORK) {
+            copyRecursivelyFollowingLinks(
+                CopyWalk(source, target, isExtract, transferInfo, actionAllInfo)
+            )
+            return
+        }
         Files.walkFileTree(source, object : SimpleFileVisitor<Path>() {
             @Throws(IOException::class)
             override fun preVisitDirectory(
@@ -877,6 +984,166 @@ class CopyFileJob(private val sources: List<Path>, private val targetDirectory: 
                 return super.visitFileFailed(file, exception)
             }
         })
+    }
+
+    // A network copy follows links, stops at MAX_LINK_DEPTH and fails a walk item by item (#55 B2).
+    @Throws(IOException::class)
+    private fun copyRecursivelyFollowingLinks(walk: CopyWalk) {
+        val failure = walkFollowingLinks(walk, walk.source, LinkWalkState(), null) ?: return
+        retryWalk(walk, walk.source, failure, 0)
+    }
+
+    /** Returns the failure of [start] itself, or null. */
+    @Throws(IOException::class)
+    private fun walkFollowingLinks(
+        walk: CopyWalk,
+        start: Path,
+        state: LinkWalkState,
+        resume: ItemWalkFailure?
+    ): ItemWalkFailure? {
+        val visitor = FollowingLinksCopyVisitor(walk, start, state, resume)
+        Files.walkFileTree(
+            start, EnumSet.of(FileVisitOption.FOLLOW_LINKS), Int.MAX_VALUE, visitor
+        )
+        return visitor.startFailure
+    }
+
+    /** @param baseDepth the link depth of the parent of [item] */
+    @Throws(IOException::class)
+    private fun retryWalk(walk: CopyWalk, item: Path, first: ItemWalkFailure, baseDepth: Int) {
+        retryFailedWalk(
+            first,
+            { failure -> askWalkError(walk, item, failure.error, true, failure.isCountedOnSkip) },
+            { previous -> walkFollowingLinks(walk, item, LinkWalkState(baseDepth), previous) }
+        )
+    }
+
+    /** Returns true to retry, false if skipped. */
+    @Throws(IOException::class)
+    private fun askWalkError(
+        walk: CopyWalk,
+        item: Path,
+        e: IOException,
+        canRetry: Boolean,
+        isCountedOnSkip: Boolean = true
+    ): Boolean {
+        e.printStackTrace()
+        return when (
+            askCopyError(e, item, walk.targetOf(item), walk.type, canRetry, walk.actionAllInfo)
+        ) {
+            CopyErrorDecision.RETRY -> true
+            CopyErrorDecision.SKIP -> {
+                // The scan counted the item as one of size 0, unless it was already entered.
+                if (isCountedOnSkip) {
+                    walk.transferInfo.skipFileIgnoringSize()
+                }
+                postCopyMoveNotification(walk.transferInfo, item, walk.type)
+                false
+            }
+            CopyErrorDecision.CANCEL -> throw canceledByUser()
+        }
+    }
+
+    private inner class FollowingLinksCopyVisitor(
+        private val walk: CopyWalk,
+        private val start: Path,
+        private val state: LinkWalkState,
+        private val resume: ItemWalkFailure?
+    ) : SimpleFileVisitor<Path>() {
+        var startFailure: ItemWalkFailure? = null
+            private set
+
+        @Throws(IOException::class)
+        override fun preVisitDirectory(
+            directory: Path,
+            attributes: BasicFileAttributes
+        ): FileVisitResult {
+            // The target of a resumed start already exists, so it isn't copied (merged) again.
+            if (state.enterIfResumedStart(directory, start, resume)) {
+                return FileVisitResult.CONTINUE
+            }
+            if (!state.markVisited(directory)) {
+                return FileVisitResult.SKIP_SUBTREE
+            }
+            val depth = state.depthOf(directory.isSymbolicLinkForLinkDepth())
+            if (state.isExceeded(depth)) {
+                askWalkError(
+                    walk, directory, LinkDepthExceededException(directory.toString()), false
+                )
+                return FileVisitResult.SKIP_SUBTREE
+            }
+            val copied = copy(
+                directory, walk.targetOf(directory), walk.isExtract, CopyKind.NETWORK,
+                walk.transferInfo, walk.actionAllInfo
+            )
+            throwIfInterrupted()
+            if (!copied) {
+                return FileVisitResult.SKIP_SUBTREE
+            }
+            state.enter(depth)
+            return FileVisitResult.CONTINUE
+        }
+
+        @Throws(IOException::class)
+        override fun visitFile(file: Path, attributes: BasicFileAttributes): FileVisitResult {
+            if (!state.markVisited(file)) {
+                return FileVisitResult.CONTINUE
+            }
+            copy(
+                file, walk.targetOf(file), walk.isExtract, CopyKind.NETWORK, walk.transferInfo,
+                walk.actionAllInfo
+            )
+            throwIfInterrupted()
+            return FileVisitResult.CONTINUE
+        }
+
+        @Throws(IOException::class)
+        override fun visitFileFailed(file: Path, exception: IOException): FileVisitResult {
+            if (!state.markVisited(file)) {
+                return FileVisitResult.CONTINUE
+            }
+            if (exception is FileSystemLoopException) {
+                askWalkError(walk, file, exception, false)
+            } else if (file == start) {
+                // The walk ends after its start failed; the loop around it asks about it.
+                startFailure = startFailureBeforeEntering(exception, resume)
+            } else {
+                retryWalk(
+                    walk, file, startFailureBeforeEntering(exception, null), state.currentDepth
+                )
+            }
+            return FileVisitResult.CONTINUE
+        }
+
+        @Throws(IOException::class)
+        override fun postVisitDirectory(directory: Path, exception: IOException?): FileVisitResult {
+            val exited = state.exit()
+            if (exception == null) {
+                return FileVisitResult.CONTINUE
+            }
+            // The listing failed midway; a retry resumes after the children already visited.
+            val failure = ItemWalkFailure(exception, exited.depth, exited.visitedChildren)
+            if (directory == start) {
+                startFailure = failure
+            } else {
+                retryWalk(walk, directory, failure, state.currentDepth)
+            }
+            return FileVisitResult.CONTINUE
+        }
+    }
+
+    /** The context of walking one copy source. */
+    private class CopyWalk(
+        val source: Path,
+        val target: Path,
+        val isExtract: Boolean,
+        val transferInfo: TransferInfo,
+        val actionAllInfo: ActionAllInfo
+    ) {
+        val type: CopyMoveType
+            get() = if (isExtract) CopyMoveType.EXTRACT else CopyMoveType.COPY
+
+        fun targetOf(path: Path): Path = target.resolveForeign(source.relativize(path))
     }
 
     private fun getTargetPathForDuplicate(source: Path): Path {
@@ -972,7 +1239,7 @@ private fun FileJob.copy(
 ): Boolean =
     copyOrMove(
         source, target, if (isExtract) CopyMoveType.EXTRACT else CopyMoveType.COPY, true, false,
-        copyKind == CopyKind.NETWORK, transferInfo, actionAllInfo
+        copyKind == CopyKind.NETWORK, copyKind == CopyKind.NETWORK, transferInfo, actionAllInfo
     )
 
 class CreateFileJob(private val path: Path, private val createDirectory: Boolean) : FileJob() {
@@ -1252,7 +1519,9 @@ private fun FileJob.copyForMove(
     transferInfo: TransferInfo,
     actionAllInfo: ActionAllInfo
 ): Boolean =
-    copyOrMove(source, target, CopyMoveType.MOVE, true, true, false, transferInfo, actionAllInfo)
+    copyOrMove(
+        source, target, CopyMoveType.MOVE, true, true, false, false, transferInfo, actionAllInfo
+    )
 
 @Throws(IOException::class)
 private fun FileJob.moveAtomically(source: Path, target: Path) {
@@ -1266,9 +1535,12 @@ private fun FileJob.moveByCopy(
     transferInfo: TransferInfo,
     actionAllInfo: ActionAllInfo
 ): Boolean =
-    copyOrMove(source, target, CopyMoveType.MOVE, false, true, false, transferInfo, actionAllInfo)
+    copyOrMove(
+        source, target, CopyMoveType.MOVE, false, true, false, false, transferInfo, actionAllInfo
+    )
 
 // @see https://github.com/GNOME/nautilus/blob/master/src/nautilus-file-operations.c copy_move_file
+// Only copies may follow links or skip attributes; moves keep both off (#55 Q4).
 @Throws(IOException::class)
 private fun FileJob.copyOrMove(
     source: Path,
@@ -1277,6 +1549,7 @@ private fun FileJob.copyOrMove(
     useCopy: Boolean,
     copyAttributes: Boolean,
     skipAttributes: Boolean,
+    followLinks: Boolean,
     transferInfo: TransferInfo,
     actionAllInfo: ActionAllInfo
 ): Boolean {
@@ -1370,7 +1643,9 @@ private fun FileJob.copyOrMove(
         throwIfInterrupted()
         val attemptTarget = target
         val options = mutableListOf<CopyOption>().apply {
-            this += LinkOption.NOFOLLOW_LINKS
+            if (!followLinks) {
+                this += LinkOption.NOFOLLOW_LINKS
+            }
             if (copyAttributes) {
                 this += StandardCopyOption.COPY_ATTRIBUTES
             }
@@ -1400,8 +1675,13 @@ private fun FileJob.copyOrMove(
         } catch (e: FileAlreadyExistsException) {
             val sourceFile = source.loadFileItem()
             val targetFile = target.loadFileItem()
-            val sourceIsDirectory = sourceFile.attributesNoFollowLinks.isDirectory
-            val targetIsDirectory = targetFile.attributesNoFollowLinks.isDirectory
+            // A copy following links decides by what the links point to (#55 D9).
+            val sourceIsDirectory = (
+                if (followLinks) sourceFile.attributes else sourceFile.attributesNoFollowLinks
+            ).isDirectory
+            val targetIsDirectory = (
+                if (followLinks) targetFile.attributes else targetFile.attributesNoFollowLinks
+            ).isDirectory
             if (!sourceIsDirectory && targetIsDirectory) {
                 // TODO: Don't allow replace directory with file.
                 throw e
@@ -1421,7 +1701,7 @@ private fun FileJob.copyOrMove(
                 postCopyMoveNotification(transferInfo, source, type)
                 return false
             }
-            val result = showConflictDialog(sourceFile, targetFile, type)
+            val result = showConflictDialog(sourceFile, targetFile, type, isMerge)
             return when (result.action) {
                 FileJobConflictAction.MERGE_OR_REPLACE -> {
                     if (result.isAll) {
@@ -1610,22 +1890,21 @@ private fun FileJob.open(
     intentCreator: (Path) -> Intent
 ) {
     val isExtract = file.isArchivePath
+    val cacheDirectory = Paths.get(cacheDirectory.path, "open_cache")
+    val copyKind = classifyCopy(file, cacheDirectory)
     val scanInfo = scan(
-        file, if (isExtract) {
+        listOf(file), listOf(copyKind), if (isExtract) {
             R.plurals.file_job_extract_scan_notification_title_format
         } else {
             R.plurals.file_job_copy_scan_notification_title_format
         }
     )
-    val cacheDirectory = Paths.get(cacheDirectory.path, "open_cache")
     cacheDirectory.createDirectories()
     val targetFileName = getTargetFileName(file)
     val targetFile = cacheDirectory.resolveForeign(targetFileName)
     val transferInfo = TransferInfo(scanInfo, cacheDirectory)
     val actionAllInfo = ActionAllInfo(replace = true)
-    val copied = copy(
-        file, targetFile, isExtract, classifyCopy(file, cacheDirectory), transferInfo, actionAllInfo
-    )
+    val copied = copy(file, targetFile, isExtract, copyKind, transferInfo, actionAllInfo)
     if (!copied) {
         return
     }
@@ -1817,14 +2096,14 @@ class SaveFileJob(private val source: Path, private val target: Path) : FileJob(
 
 @Throws(IOException::class)
 private fun FileJob.save(source: Path, target: Path) {
-    val scanInfo = scan(source, R.plurals.file_job_copy_scan_notification_title_format)
     val targetParent = target.parent
+    val copyKind = classifyCopy(source, targetParent ?: target)
+    val scanInfo = scan(
+        listOf(source), listOf(copyKind), R.plurals.file_job_copy_scan_notification_title_format
+    )
     val transferInfo = TransferInfo(scanInfo, targetParent)
     val actionAllInfo = ActionAllInfo(replace = true)
-    val copied = copy(
-        source, target, false, classifyCopy(source, targetParent ?: target), transferInfo,
-        actionAllInfo
-    )
+    val copied = copy(source, target, false, copyKind, transferInfo, actionAllInfo)
     if (!copied) {
         return
     }
