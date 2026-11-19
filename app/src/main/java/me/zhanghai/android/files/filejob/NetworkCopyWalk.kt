@@ -65,7 +65,7 @@ internal class ItemWalkFailure(
  * keeps what the previous failure knew, so the next retry still doesn't copy it again.
  */
 internal fun startFailureBeforeEntering(error: IOException, resume: ItemWalkFailure?): ItemWalkFailure =
-    ItemWalkFailure(error, null, emptySet())
+    ItemWalkFailure(error, resume?.enteredDepth, resume?.visitedChildren ?: emptySet())
 
 /** Enters [directory] without copying it again if it is a resumed start; false otherwise. */
 internal fun LinkWalkState.enterIfResumedStart(
