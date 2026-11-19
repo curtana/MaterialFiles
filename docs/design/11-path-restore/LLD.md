@@ -4,7 +4,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 작성 중 |
+| 상태 | 검수 통과 (v1.1 — PR #60 issuecomment-6999407469 조건부 통과, 경미 3건 반영) |
 | 근거 | SRS v1.2, HLD v1.3 (설계 브랜치 `design/11-path-restore` 74408d9, PR #60 — v1.3은 F1 반영, 설계 불변). 오너 결정 Q1=A·Q2=가·Q3=활성 창 복원(이슈 #11 issuecomment-6999035882) |
 | 기준 코드 | `origin/develop` 0941fa7 — 이 문서가 인용하는 `filelist/`·`util/`·`provider/` 파일은 HLD 기준 7cf16b7과 같다(`git diff --stat 7cf16b7 origin/develop`에 테스트 파일 하나만 바뀜). 줄 번호는 이 커밋 기준이다. |
 
@@ -170,7 +170,11 @@
 ### 2-9. `FileListViewModel` `:25` 주석
 - **추적**: HLD K2 ("`:25` TODO는 LLD에서 정리 여부를 정한다")
 - **결정**: TODO를 지우지 않고 현재 사실로 고친다 — 경로는 이제 저장되지만 이동 기록·검색 상태 등은 여전히 저장되지 않으므로 할 일이 남아 있다.
-  `// TODO: Use SavedStateHandle to save state.` → `// TODO: Use SavedStateHandle to save the rest of the state. Only the current path is saved now, by FileListFragment (#11).`
+  `// TODO: Use SavedStateHandle to save state.` → 두 줄(줄 폭 100자 안):
+  ```kotlin
+  // TODO: Use SavedStateHandle to save the rest of the state. Only the current path is saved
+  // now, by FileListFragment (#11).
+  ```
 - 코드 변경 없음.
 
 ### 2-10. `docs/STANDARDS_TRACEABILITY.md` 갱신 (K5, REQ-11-08) — 구현 PR에 포함
@@ -214,7 +218,7 @@
 K1(2-4~2-6)·K4(2-7·2-8)는 프래그먼트·`LiveData`(메인 루퍼 필요, `arch core-testing`은 의존성에 없음) 코드라 JVM 시험 대상이 아니다 — 3-2 수동 절차와 코드 검사로 확인한다.
 
 ### 3-2. 수동 확인 (에뮬레이터만 — SRS 4.2 V1~V4 구체화)
-**기기 규칙**: 로컬 AVD만 쓴다. 실기기(오너 태블릿·폰)에는 설치하지 않는다. 모든 `adb` 명령에 `-s <에뮬레이터 serial>`(예: `emulator-5554`)을 붙이고, `./gradlew installDebug`(연결된 모든 기기에 설치)는 쓰지 않는다.
+**기기 규칙**: 로컬 AVD만 쓴다. 실기기(오너 태블릿·폰)에는 설치하지 않는다. 모든 `adb` 명령에 `-s <에뮬레이터 serial>`(예: `emulator-5554`)을 붙이고, `./gradlew installDebug`(연결된 모든 기기에 설치)는 쓰지 않는다. Git Bash에서 `/sdcard/...`·`/storage/...`처럼 `/`로 시작하는 인자를 넘기는 `adb` 명령(준비 3~4, M-03·M-04·M-08·M-09 등)은 MSYS 경로 변환을 막도록 `MSYS_NO_PATHCONV=1 adb ...`로 실행한다(또는 PowerShell).
 
 **준비**
 1. `adb devices`로 연결 목록 확인. 실기기가 있으면 `-s`로만 진행한다. 다른 작업(#27·#54·#55)이 같은 AVD를 쓰고 있으면 데이터를 지우지 말고 PM에게 순서를 묻는다.
@@ -278,3 +282,4 @@ K1(2-4~2-6)·K4(2-7·2-8)는 프래그먼트·`LiveData`(메인 루퍼 필요, `
 | 일자 | 버전 | 변경 | 사유 | 요청자 |
 |---|---|---|---|---|
 | 2026-11-19 | v1.0 | 처음 작성 | SRS v1.2·HLD v1.2 검수 통과 | PM |
+| 2026-11-19 | v1.1 | LLD 검수 1회차 경미 3건 반영: 3-2 Git Bash 경로 변환 방지(`MSYS_NO_PATHCONV=1`), 2-9 TODO 주석 두 줄로(100자 폭), 상태 줄을 검수 통과로. 근거 HLD v1.3(F1) | LLD 검수 1회차(PR #60 issuecomment-6999407469) | 검수팀 |
