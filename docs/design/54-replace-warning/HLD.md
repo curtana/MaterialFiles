@@ -2,7 +2,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 검수 통과(v1.1, 조건부 통과 경미 지적 반영) |
+| 상태 | v1.3 검수 대기(C1·E2·6장 글자 스타일 개정). v1.2까지 검수 통과 |
 | 근거 | SRS v1.3(`docs/design/54-replace-warning/SRS.md`, 검수 통과) |
 | 기준 코드 | `origin/develop` 7cf16b7. 경로는 `app/src/main/` 기준이다 |
 
@@ -25,7 +25,7 @@ flowchart LR
 ## 2. 구성요소
 | 구성요소 | 위치(패키지·파일) | 책임 | 추적 REQ |
 |---|---|---|---|
-| C1 경고 글자 뷰 `replaceWarningText` | `res/layout/file_job_conflict_dialog_view.xml` 최상위 `LinearLayout`의 첫 자식(지금 15행의 대상 줄 앞) | 경고 문구를 보인다. 기본 `visibility="gone"`, 글자는 `@string/file_job_replace_warning`. 좌우 `?dialogPreferredPadding`, 위아래 여백은 메시지·아래 대상 줄(높이 고정 `two_line_list_item_height`, 17행)과 붙어 보이지 않게 LLD에서 정한다(수동 확인 항목), 글자 모양은 이 레이아웃의 다른 본문 글자와 같은 `?textAppearanceListItem`(201·239행), 글자색을 따로 지정하지 않는다(5장 E2) | REQ-54-01, REQ-54-02 |
+| C1 경고 글자 뷰 `replaceWarningText` | `res/layout/file_job_conflict_dialog_view.xml` 최상위 `LinearLayout`의 첫 자식(지금 15행의 대상 줄 앞) | 경고 문구를 보인다. 기본 `visibility="gone"`, 글자는 `@string/file_job_replace_warning`. 좌우 `?dialogPreferredPadding`, 위아래 여백은 메시지·아래 대상 줄(높이 고정 `two_line_list_item_height`, 17행)과 붙어 보이지 않게 LLD에서 정한다(수동 확인 항목), 글자 스타일은 위쪽 창 메시지와 같은 `style="?materialAlertDialogBodyTextStyle"`(Material 라이브러리의 창 메시지 `TextView`가 쓰는 속성), 별도 `textColor`·`textAppearance`를 두지 않는다(5장 E2) | REQ-54-01, REQ-54-02 |
 | C2 표시 조건 | `filejob/FileJobConflictDialogFragment.kt` `onCreateDialog`의 `apply` 블록(81행 `inflate` 직후) | `binding.replaceWarningText.isVisible = !isMerge` 한 줄. 이름 입력 처리(`doAfterTextChanged`, 121-130)와 버튼 처리(`onDialogButtonClick`, 211-240)는 건드리지 않는다 | REQ-54-01, REQ-54-02, REQ-54-03, REQ-54-04 |
 | C3 경고 문자열 | `res/values/strings.xml`·`res/values-ko/strings.xml`의 충돌 창 문자열 묶음(영어 234-245, 한국어 203-214) 안, `file_job_replace_source_name` 다음 | 새 키 `file_job_replace_warning` 하나씩. 문구는 4.2 | REQ-54-01, REQ-54-05 |
 | C4 한국어 교체 메시지 고침 | `res/values-ko/strings.xml:204` `file_job_replace_message_format` | 첫 줄을 "“%1$s” 폴더에 …"로 고친다. 둘째 줄·키·인자 수는 그대로. 문구는 4.2 | REQ-54-07 |
@@ -63,7 +63,7 @@ Intent·권한·설정 키·파일 형식·AIDL은 바뀌지 않는다.
 | 결정 | 대안 | 고른 이유 |
 |---|---|---|
 | E1 경고를 레이아웃의 별도 `TextView`로 둔다 | (a) `getMessage` 문자열에 덧붙인다 (b) `onCreateDialog`에서 `setMessage`에만 덧붙인다 | (a)는 백그라운드 알림 본문도 바꿔 REQ-54-06·SRS D3에 어긋난다. (b)는 가능하지만 메시지와 경고가 한 덩어리가 되어 표시 조건을 따로 다루기 어렵고, SRS 3장(접근성)이 레이아웃의 `TextView`로 정했다. 별도 뷰는 #55가 선택지를 더할 때 문구를 따로 고치기도 쉽다 |
-| E2 글자 모양은 `?textAppearanceListItem`, 색 지정 없음(기본 본문 색). 경고 아이콘·오류 색 없음 | 오류 색(`?colorError`)이나 경고 아이콘으로 강조 | SRS 3장: 새 색을 정의하지 않고 #27(보조 글자 대비, `?android:textColorSecondary`)과 겹치지 않는다. 보조 글자색을 쓰지 않으므로 #27의 대비 결함(4.24:1)을 물려받지 않는다. 아이콘이 없으니 `Content_Description` 대상도 생기지 않는다. O3 오너 결정(2026-11-19): 제안대로 강조 없음 |
+| E2 글자 스타일은 창 메시지와 같은 `?materialAlertDialogBodyTextStyle`(메시지와 같은 크기·색 속성), 별도 색 지정 없음. 경고 아이콘·오류 색 없음 | (a) 오류 색(`?colorError`)이나 경고 아이콘으로 강조 (b) 레이아웃의 다른 글자와 같은 `?textAppearanceListItem` | (b)는 16sp·기본 본문 색이라 14sp 메시지보다 크고 진해 O3(강조 없음)에 어긋난다(개발팀 확인, Material 1.14.0 `mtrl_alert_dialog.xml`·`m3_alert_dialog.xml`). SRS 3장·5장 `Visual_Contrast`: 기존 창 메시지와 같은 색 속성, 새 색을 정의하지 않고 #27(보조 글자 대비, `?android:textColorSecondary`)과 겹치지 않는다. `?android:textColorSecondary`를 쓰지 않으므로 #27의 대비 결함(4.24:1)을 직접 물려받지 않는다. 메시지 색(기본 테마 `colorOnSurface` 60%, MD3 `colorOnSurfaceVariant`)의 대비는 6장에서 확인한다. 아이콘이 없으니 `Content_Description` 대상도 생기지 않는다. O3 오너 결정(2026-11-19): 제안대로 강조 없음 |
 | E3 문구 하나(작업 종류 공통) | 복사·이동·압축 풀기별 문구 셋(합치기 메시지처럼, 299-303) | 경고의 뜻이 종류마다 같고, 문자열 수를 줄여 번역(#21) 부담을 줄인다 |
 | E4 표시 조건은 `!isMerge` 하나 | 이름 입력 시 숨김(SRS D2의 대안) | SRS D2, O2 오너 결정(2026-11-19): 제안대로 이름 입력 중에도 유지. `doAfterTextChanged`를 건드리지 않아 변경이 한 줄로 끝난다 |
 | E5 경고를 레이아웃 맨 위(메시지 바로 아래)에 둔다 | 버튼 바로 위(체크 상자 아래) | 메시지("내용을 덮어씁니다")와 이어 읽혀 뜻이 이어지고, TalkBack도 제목→메시지→경고 순으로 읽는다. 창이 스크롤 안이라 어느 위치든 잘리지 않는다 |
@@ -74,12 +74,13 @@ Intent·권한·설정 키·파일 형식·AIDL은 바뀌지 않는다.
 - **기존 문구와의 겹침**: 메시지 둘째 줄 "내용을 덮어씁니다"(en "overwrite its content")와 경고 "먼저 지웁니다"가 함께 보인다. 모순이 아니라 경고가 덮어쓰기의 방식을 구체화하는 것이며, 기존 문구는 SRS 1.3·REQ-54-07에 따라 고치지 않는다.
 - **위험 자체는 남는다**: SRS 4장. `CHANGELOG.md:29`의 알려진 문제 문구는 다음 릴리스 문서 동기화에서 고친다.
 - **#55와의 관계**: #55가 충돌 창에 선택지를 더하면 C1의 문구가 그 선택지와 맞는지 #55 설계에서 다시 본다(SRS 4장).
-- **글자 크기·대비(미확인)**: `?textAppearanceListItem`은 Material 3에서 TitleMedium(약 16sp, 기본 본문 색, `styles_material3.xml:35-38`)이라 위쪽 창 메시지보다 크거나 진하게 보일 수 있다. 창 메시지의 실제 스타일은 Material 라이브러리 쪽이라 확인하지 못했다. LLD에서 밝은·어두운 테마 화면 캡처로 메시지와 어울리는지, 대비가 4.5:1 이상인지 확인하고, 어긋나면 기존 테마 속성 안에서 글자 모양만 바꾼다(새 색 금지는 유지).
+- **글자 크기·대비(일부 확인)**: 창 메시지 `TextView`는 `?attr/materialAlertDialogBodyTextStyle`을 쓴다(개발팀 확인, Material 1.14.0: 기본 테마 Body2 14sp + `colorOnSurface` 60%, MD3 BodyMedium 14sp + `colorOnSurfaceVariant`). 경고도 같은 속성을 써서 메시지와 같게 보인다(v1.3, E2). 이 색의 대비가 4.5:1 이상인지는 미확인이므로 LLD에서 밝은·어두운 테마로 확인하고, 미달이면 메시지 자체의 문제이므로 이 이슈에서 색을 바꾸지 않고 별도 이슈로 올린다(새 색 금지 유지).
 - **확인 방법의 한계**: 표시 조건은 코드 검사와 수동 확인(영어·한국어, 밝은·어두운 테마, 파일→파일·폴더→파일·폴더→폴더, 회전, 이름 입력)으로 본다. 기존에 이 창의 계측 테스트가 없어 자동 시험은 두지 않는다. 기기 설치는 오너에게 미리 묻는다.
 
 ## 7. 변경 이력
 | 일자 | 버전 | 변경 | 사유 | 요청자 |
 |---|---|---|---|---|
+| 2026-11-19 | v1.3 | C1·E2·6장: 경고 글자 스타일을 `?textAppearanceListItem`에서 창 메시지와 같은 `?materialAlertDialogBodyTextStyle`로 바꾸고 "색 지정 없음(기본 본문 색)"을 "메시지와 같은 색 속성, 별도 색 지정 없음"으로 고침. 6장 미결을 일부 확인으로 | LLD v1 작성 중 확인: ListItem은 16sp·기본 본문 색이라 메시지보다 크고 진해 O3에 어긋남. SRS 5장 `Visual_Contrast`(메시지와 같은 색 속성)와 일치시킴 | 개발팀 |
 | 2026-11-19 | v1.2 | 오너 결정 O1~O3(제안대로)를 E2·E4·6장에 기록, #55 조각 B와의 머지 순서 추가. 설계 변경 없음 | 오너 결정 2026-11-19, PM 메모(#54) | 오너·PM |
 | 2026-11-19 | v1.1 | HLD 검수 1회차 경미 지적 반영: 줄 번호 201·239, C1 위아래 여백을 LLD로, 링크 삭제 주장을 미확인으로 낮춤, 글자 크기·대비 확인을 6장에 추가, O3를 SRS 2.2로 모음 | 검수 m1~m4, O3 위치 | 검수팀 |
 | 2026-11-19 | v1 | 최초 작성 | SRS v1.1 검수 통과 | PM |
