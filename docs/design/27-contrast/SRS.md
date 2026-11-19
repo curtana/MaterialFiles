@@ -2,7 +2,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 작성 중 |
+| 상태 | 검수 통과 |
 | 근거 | 요구사항 정리 v2 (이슈 #27, 2026-11-19 — v1에 #61 탐색 서랍 부제목 추가) |
 
 ## 1. 목적과 범위
@@ -23,7 +23,7 @@ Material 3(설정 "Material Design 3" 켬) + 밝은 테마에서 보조 글자 �
 | 라이브러리 원래 값 | `m3_default_color_secondary_text` → `m3_sys_color_light_on_surface_variant`(= neutral variant 톤 30, 정적 `#49454F`) |
 | **앱의 덮어쓰기**(업스트림 작성자 Hai Zhang, 2022 저작권 표기, 마지막 변경 커밋 `4cd7710`) | `app/src/main/res/color/m3_default_color_secondary_text.xml:13` → `@color/m3_sys_color_light_outline`; `app/src/main/res/color-v31/m3_dynamic_default_color_secondary_text.xml:13` → `@color/m3_sys_color_dynamic_light_outline` |
 | `outline`의 값 | 정적: neutral variant 톤 50 `#79747E`(material 1.14.0 `values.xml:517,684`). 동적(API 31~33): `system_neutral2_500`(`values-v31.xml:111,22`). 동적(API 34+): `system_outline_light`(`values-v34.xml:54`) |
-| 탐색 서랍 부제목(Material 3) | `res/values/styles_material3.xml:48` `itemSubtitleTextColor` → `res/color/navigation_item_subtitle_text_color_material3.xml:14` `?colorOutline`(같은 톤 50). 적용: `java/.../navigation/NavigationListAdapter.kt:114,198`. 보조 글자 자원과 **별개 경로**다 |
+| 탐색 서랍 부제목(Material 3) | `res/values/styles_material3.xml:49` `itemSubtitleTextColor` → `res/color/navigation_item_subtitle_text_color_material3.xml:14` `?colorOutline`(같은 톤 50). 적용: `java/.../navigation/NavigationListAdapter.kt:114,198`. 보조 글자 자원과 **별개 경로**다 |
 | 어두운 테마(바꾸지 않음) | `app/src/main/res/color/m3_dark_default_color_secondary_text.xml:13`, `color-v31/m3_dynamic_dark_default_color_secondary_text.xml:13` → `outline`(톤 60) |
 
 검산: Material 3 색은 HCT 톤(= CIE L\*)이 상대 휘도를 정하므로 대비는 색상(hue)과 무관하게 톤만으로 거의 정해진다. 톤 50 글자 / 톤 98 배경(`colorSurface`) = **4.27:1**로 실측 4.24:1과 맞고, 어두운 테마 톤 60 / 톤 6 = 5.85:1도 실측 5.85:1과 맞는다. 즉 배경화면(동적 색)이 바뀌어도 이 미달은 재현된다.
@@ -40,7 +40,7 @@ Material 3(설정 "Material Design 3" 켬) + 밝은 테마에서 보조 글자 �
 | T4 | 기타 목록 항목 보조 글자 | `res/layout/bookmark_directory_item.xml:49`, `storage_item.xml:50`, `color/storage_name.xml:10`, `lan_smb_server_item.xml:49`, `lan_smb_server_loading_item.xml:20`, `about_fragment.xml:244` | 〃 | 화면 또는 대화상자 |
 | T5 | 대화상자 안 보조 글자 | `res/layout/permission_item.xml:33,40`, `principal_item.xml:48`(권한·소유자 대화상자), `file_job_conflict_dialog_view.xml:86,162`(충돌 대화상자) | 〃 | 대화상자 `colorSurfaceContainerHigh`(톤 92, material `values.xml:13651`) |
 | T6 | 코드에서 읽는 보조 색 | `java/.../ui/ThemedSpeedDialView.kt:159`(빠른 동작 라벨, M3에서 라벨 배경 투명 `:160-162`), `java/.../settings/StandardDirectoryListPreferenceFragment.kt:49` | 〃 | 화면(라벨은 뒤에 비치는 화면) |
-| T7 | 라이브러리 레이아웃이 쓰는 경우 | androidx.preference 1.2.1 `res/layout/preference_material.xml:57`(설정 항목 요약, 기본 Preference 배치 `values.xml:62`), `preference.xml:67`, `preference_category_material.xml:59`, `preference_dropdown.xml:74`, `expand_button.xml:58`, `preference_dialog_edittext.xml:41` | 〃 | 설정 화면(`colorSurface`) 또는 대화상자 |
+| T7 | 라이브러리 레이아웃이 쓰는 경우 | androidx.preference 1.2.1 `res/layout/preference_material.xml:58`(설정 항목 요약, 기본 Preference 배치 `values.xml:62`), `preference.xml:67`, `preference_category_material.xml:59`, `preference_dropdown.xml:74`, `expand_button.xml:58`, `preference_dialog_edittext.xml:41` | 〃 | 설정 화면(`colorSurface`) 또는 대화상자 |
 | T8 | 탐색 서랍 항목 부제목(10sp, 저장소 여유 공간 등) | `res/values/styles_material3.xml:48-49` → `res/color/navigation_item_subtitle_text_color_material3.xml:14` | `?colorOutline` 직접 | 서랍 배경 `?colorSurface`(`res/layout/file_list_host_fragment_include.xml:43`, sw600dp-land `:16`)에 고도 덧칠(`java/.../ui/NavigationFrameLayout.kt:38-41` `initializeElevationOverlay`) — 실제 색은 측정으로 정한다 |
 | T9 | (그래픽, 부수 영향) 앱바 팝업 메뉴 아이콘 틴트 | `res/values/styles.xml:67` `ThemeOverlay.MaterialFiles.ActionBarPopup`의 `colorControlNormal` | `?android:textColorSecondary` | 팝업 메뉴 배경 |
 
@@ -52,7 +52,7 @@ Material 3(설정 "Material Design 3" 켬) + 밝은 테마에서 보조 글자 �
 |---|---|---|---|
 | REQ-27-01 | Material 3 밝은 테마에서 툴바 부제목(T1)은 앱바의 평소 배경과 떠오른 배경 모두에 대해 4.5:1 이상 대비를 내야 한다. | 필수 | 3-1 측정 절차로 두 상태를 각각 측정 |
 | REQ-27-02 | Material 3 밝은 테마에서 경로 표시줄의 현재가 아닌 항목(T2)은 REQ-27-01과 같은 두 배경에 대해 4.5:1 이상이어야 한다. 현재 항목(`textColorPrimary`)의 색은 바뀌지 않는다. | 필수 | 3-1 측정 절차 |
-| REQ-27-03 | Material 3 밝은 테마에서 2-1의 T3~T7 글자도 각자 실제 배경에 대해 4.5:1 이상이어야 한다. T3은 평소·선택(checked) 상태 모두를 포함한다. | 필수 | 3-1 측정 절차로 T3(평소·선택), T5(권한 또는 충돌 대화상자 중 하나 이상), T6(빠른 동작 라벨), T7(설정 항목 요약 `preference_material.xml:57`) 측정 + 나머지는 같은 자원·같은 배경 종류임을 근거로 계산(HLD에서 정하는 방식) |
+| REQ-27-03 | Material 3 밝은 테마에서 2-1의 T3~T7 글자도 각자 실제 배경에 대해 4.5:1 이상이어야 한다. T3은 평소·선택(checked) 상태 모두를 포함한다. | 필수 | 3-1 측정 절차로 T3(평소·선택), T5(권한 또는 충돌 대화상자 중 하나 이상), T6(빠른 동작 라벨), T7(설정 항목 요약 `preference_material.xml:58`) 측정 + 나머지는 같은 자원·같은 배경 종류임을 근거로 계산(HLD에서 정하는 방식) |
 | REQ-27-04 | REQ-27-01~03, 09는 동적 색(API 31+, 배경화면에서 색을 뽑는 경우)과 정적 팔레트(API 23~30 또는 동적 색을 못 쓰는 경우) 모두에서 성립해야 한다. 배경화면에 따라 대비가 4.5:1 아래로 떨어지는 색 선택은 허용하지 않는다. | 필수 | 동적 색: 에뮬레이터(API 36) 실측 + 톤 기반 계산. 정적: 정적 팔레트 16진 값으로 계산, 가능하면 API 30 이하 에뮬레이터 실측 |
 | REQ-27-05 | 이미 기준을 넘는 테마의 보조 글자 색은 바뀌지 않아야 한다: Material 3 어두운 테마, Material 3 검은 밤 모드, Material 3 몰입(`Immersive`, 어두운 테마 기반) 화면, Material 3 끔의 모든 테마(밝음·어두움·검은 밤, 모든 테마 색). 또 `?colorOutline` 속성 값 자체는 바꾸지 않는다(스위치 틴트 `res/color/switch_track_tint_light_material3.xml:11` 등 다른 사용처가 있다). | 필수 | 변경 전후 해당 색 자원·테마 파일이 같음(diff) + 변경 **전** 빌드와 **후** 빌드에서 Material 3 어두운 테마와 Material 3 끔 밝은 테마의 부제목 화소값을 각각 재어 같음을 확인(이슈 본문 값 `#8F909A`, `#666666`은 참고값) |
 | REQ-27-06 | 보조 글자와 서랍 부제목의 비활성(`state_enabled=false`) 상태 색, 서랍 부제목의 선택(`state_checked`) 상태 색은 바뀌지 않아야 한다. | 필수 | 변경 전후 색 상태 목록의 해당 항목이 같음(diff) |
@@ -98,3 +98,4 @@ Material 3(설정 "Material Design 3" 켬) + 밝은 테마에서 보조 글자 �
 |---|---|---|---|---|
 | 2026-11-19 | v1.0 | 최초 작성 | 요구사항 정리 v1 | PM |
 | 2026-11-19 | v1.1 | 요구사항 정리 v2 반영(T8 서랍 부제목, REQ-27-09), T9 팝업 아이콘(REQ-27-10), T7 구체화, `textAppearanceListItemSecondary` 제외 근거, T3 선택 상태 배경, T6 측정법, REQ-27-05·06 보강, 4-1 갱신 | SRS 검수 1회 반려(중1 경3), 요구사항 정리 v2 | 검수팀, PM |
+| 2026-11-19 | v1.2 | 줄 번호 정정(`preference_material.xml:58`, `styles_material3.xml:49`), 상태 검수 통과 | SRS 검수 2회차 조건부 통과(경미 2) | 검수팀 |
