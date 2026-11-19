@@ -260,7 +260,7 @@ object Client {
             return file
         }
         val targetString = file.link ?: throw IOException("FTPFile.getLink() returned null: $file")
-        val target = path.resolve(targetString)
+        val target = path.resolveSymbolicLinkTarget(targetString)
         return listFileNoFollowLinks(target, false)
     }
 
@@ -365,3 +365,7 @@ object Client {
         }
     }
 }
+
+// A relative symbolic link target is relative to the directory containing the link (#55 B1).
+internal fun Client.Path.resolveSymbolicLinkTarget(target: String): Client.Path =
+    resolve(target)
