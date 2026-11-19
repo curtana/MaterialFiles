@@ -201,9 +201,10 @@
     <string name="file_job_cannot_move_over_itself_title">같은 파일로 옮길 수 없습니다.</string>
     <string name="file_job_cannot_copy_move_over_itself_message">원본 파일이 대상 파일을 덮어쓰게 됩니다.</string>
     <string name="file_job_replace_title_format">“%1$s” 파일을 교체하시겠습니까?</string>
-    <string name="file_job_replace_message_format">이름이 “%1$s”인 파일이 이미 있습니다.\n파일을 교체하면 대상 파일의 내용을 덮어씁니다.</string>
+    <string name="file_job_replace_message_format">“%1$s” 폴더에 같은 이름의 파일이 이미 있습니다.\n파일을 교체하면 대상 파일의 내용을 덮어씁니다.</string>
     <string name="file_job_replace_target_name">기존 파일</string>
     <string name="file_job_replace_source_name">교체할 파일</string>
+    <string name="file_job_replace_warning">교체하면 기존 파일을 먼저 지웁니다. 작업이 도중에 중단되면 기존 파일을 잃을 수 있습니다.</string>
     <string name="file_job_merge_title_format">“%1$s” 폴더를 합치시겠습니까?</string>
     <string name="file_job_merge_copy_message_format">합치기를 선택하면 복사할 파일들 중 교체가 필요한 파일이 있을 때 대화 상자를 띄웁니다.</string>
     <string name="file_job_merge_extract_message_format">합치기를 선택하면 압축 해제할 파일들 중 교체가 필요한 파일이 있을 때 대화 상자를 띄웁니다.</string>
