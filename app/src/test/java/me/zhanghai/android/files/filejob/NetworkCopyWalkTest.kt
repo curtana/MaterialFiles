@@ -5,7 +5,13 @@
 
 package me.zhanghai.android.files.filejob
 
+import java.io.IOException
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
+import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class NetworkCopyWalkTest {
@@ -55,5 +61,53 @@ class NetworkCopyWalkTest {
         repeat(2) { transferInfo.incrementTransferredFileCount() }
         transferInfo.skipFileIgnoringSize()
         assertEquals(2, transferInfo.fileCount)
+    }
+
+    // Resuming a walk start (#55 B2, LLD-B 2.5, 2.5a).
+
+    private fun path(path: String) = TestPaths.path(path)
+
+    @Test
+    fun resumedStart_failingBeforeEntering_keepsResume() {
+        val e1 = IOException("e1")
+        val e2 = IOException("e2")
+        val resume = ItemWalkFailure(e1, 3, setOf(path("/s/d/a")))
+        val failure = startFailureBeforeEntering(e2, resume)
+        assertSame(e2, failure.error)
+        assertEquals(3, failure.enteredDepth)
+        assertEquals(setOf(path("/s/d/a")), failure.visitedChildren)
+        val state = LinkWalkState(2)
+        assertTrue(state.enterIfResumedStart(path("/s/d"), path("/s/d"), failure))
+        assertEquals(3, state.currentDepth)
+        assertFalse(state.markVisited(path("/s/d/a")))
+    }
+
+    @Test
+    fun enterIfResumedStart_onlyForEnteredStart() {
+        val e = IOException("e")
+        val entered = ItemWalkFailure(e, 3, emptySet())
+        val notEntered = ItemWalkFailure(e, null, emptySet())
+        val cases = listOf(
+            Triple(path("/s/d"), path("/s/d"), null),
+            Triple(path("/s/d"), path("/s/d"), notEntered),
+            Triple(path("/s/d/x"), path("/s/d"), entered)
+        )
+        for ((directory, start, resume) in cases) {
+            val state = LinkWalkState(2)
+            assertFalse(state.enterIfResumedStart(directory, start, resume))
+            assertEquals(2, state.currentDepth)
+            assertThrows(IllegalStateException::class.java) { state.exit() }
+        }
+    }
+
+    @Test
+    fun isCountedOnSkip() {
+        val notEntered = startFailureBeforeEntering(IOException("e"), null)
+        assertNull(notEntered.enteredDepth)
+        assertTrue(notEntered.isCountedOnSkip)
+        val entered = ItemWalkFailure(IOException("e1"), 2, emptySet())
+        assertFalse(entered.isCountedOnSkip)
+        val resumed = startFailureBeforeEntering(IOException("e2"), entered)
+        assertFalse(resumed.isCountedOnSkip)
     }
 }
