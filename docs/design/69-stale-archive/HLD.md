@@ -74,12 +74,12 @@ flowchart LR
 | R2 | 파일 시스템이 "없음"을 다른 예외로 알리면(예: `DirectoryIteratorException`으로 감싼 경우, SAF가 `FileNotFoundException` 계열을 다른 형으로 바꾸는 경우) B3로 동작한다(SRS A-1). 루트·원격 프로세스 경로는 `ParcelableException`이 예외를 직렬화해(`provider/remote/ParcelableException.kt:24-34`) 형이 유지될 것으로 보나 **미확인**. | LLD에서 로컬·루트 경로의 `NoSuchFileException` 전달을 코드로 확인한다. 다른 provider는 지금보다 나빠지지 않으므로 확인 실패 시 이슈로 남긴다. |
 | R3 | 로컬 감시는 원본이 지워지면 watch가 사라진다(`WatchServicePathObservable.kt:74-76`). 다시 만든 파일은 당겨서 새로 고침이 필요하다(SRS L1). | 알려진 한계로 둔다. |
 | R4 | 오류 화면으로 바뀌어도 선택 상태(`FileListViewModel`의 선택 파일)는 지금처럼 지우지 않는다. 지금 첫 읽기 실패와 같은 동작이다. | 바꾸지 않는다(범위 밖). 선택된 항목에 대한 작업은 그 파일 작업의 오류로 끝난다. |
-| R6 | 공유 `Notifier` 스레드 막힘: 큰 압축을 읽는 중에 무효화가 `lock`을 기다리면 모든 경로의 변경 알림이 늦어진다(3.3). | D6으로 무효화를 작업 스레드로 넘긴다. 작업 스레드는 읽기가 끝날 때까지 기다릴 수 있으나 `Notifier`와 다른 알림에는 영향이 없다. JVM 시험: 무효화가 막혀 있어도 래퍼 호출이 곧바로 돌아오는지(6.1). |
+| R6 | 공유 `Notifier` 스레드 막힘: 큰 압축을 읽는 중에 무효화가 `lock`을 기다리면 모든 경로의 변경 알림이 늦어진다(3.3). | D6으로 무효화를 작업 스레드로 넘긴다. 작업 스레드는 읽기가 끝날 때까지 기다릴 수 있으나 `Notifier`와 다른 알림에는 영향이 없다. (#83 뒤: `refresh()`가 `lock`을 기다리지 않으므로 작업 스레드도 무효화에서 막히지 않는다. 위험은 #83으로 해소됐고 D6 위임은 그대로 둔다, `docs/design/83-archive-anr/HLD.md` 3.2.) JVM 시험: 무효화가 막혀 있어도 래퍼 호출이 곧바로 돌아오는지(6.1). |
 | R5 | 로컬 폴더가 통째로 지워질 때 폴더 자신의 삭제만으로 알림이 오는지는 미확인(SRS V3). | 결정적 확인은 명시 새로 고침으로 한다(SRS V3). |
 
 ### 6.1 검증 (SRS 2장·6장과 대응)
 - JVM 단위 시험(`app/src/test/.../filelist/`, `.../provider/archive/`): H3 — (목록, `NoSuchFileException`) → `null`, (목록, `AccessDeniedException`·`IOException`) → 목록, (`null`, 아무 예외) → `null`. H2 — 가짜 원본이 알리면 "무효화 → 관찰자" 순서, 무효화가 예외를 던져도 관찰자 호출, `removeObserver`·`close`가 원본에 전달, 무효화가 막혀 있어도(잠금을 쥔 채 기다리는 가짜 무효화 + 실제 스레드 실행기) 원본이 부른 래퍼는 곧바로 돌아옴(R6). REQ-69-04 — 목록 없는 `Failure(null, …)` 상태에서 `shouldLoadSilently(true, …)`와 `shouldNotifyFailure(…)`가 거짓(`FileListRefreshPolicy.kt:17-18`, `:30-42`; H3 결과가 이 상태를 만든다). 수정 전 코드에는 H2·H3이 없거나 다른 결과라 실패하고(fail-before), 수정 뒤 통과(pass-after). 기존 `FileListRefreshPolicyTest`·`FileListLoaderTest` 통과.
-- 코드 검사(LLD·코드 검수): H1·H2·H4가 주 스레드에서 `ArchiveFileSystem`의 `synchronized(lock)` 함수(`refresh`·`getEntry` 등)를 부르지 않는지 확인한다. 특히 H2 래퍼 본문은 실행기에 넘기는 일만 해야 한다(3.3).
+- 코드 검사(LLD·코드 검수): H1·H2·H4가 주 스레드에서 `ArchiveFileSystem`의 `synchronized(lock)` 함수(`refresh`·`getEntry` 등)를 부르지 않는지 확인한다. 특히 H2 래퍼 본문은 실행기에 넘기는 일만 해야 한다(3.3). (#83 뒤: `refresh()`는 `synchronized(lock)` 함수가 아니다 — 잠금 없는 무효화. 나머지 조회 함수는 그대로 잠금 함수다.)
 - AVD 확인 SRS V1(HOT)·V2(COLD)·V3·V4·V5. 실기기에는 설치하지 않는다.
 
 ## 7. 변경 이력
@@ -88,4 +88,4 @@ flowchart LR
 | 2026-11-19 | v1 | 최초 작성 | SRS v1.1 | PM |
 | 2026-11-19 | v1.1 | 3.1·3.3 스레드 서술을 코드에 맞춤(`Notifier` 스레드, `ArchiveFileSystem.lock`), H2가 무효화를 실행기로 넘김(D6), R6 추가, 6.1에 R6·REQ-69-04 시험. #29 HLD 3장·그림의 `Failure(이전 목록)` 주석 | HLD 1회차 검수 M1·m1·m2 (PR #81) | 검수팀 |
 | 2026-11-19 | v1.2 | 3.3에 스레드별 호출 위치와 "주 스레드는 `ArchiveFileSystem.lock`을 기다리지 않는다" 명시, 6.1에 코드 검사 항목. 설계 변경 없음 | #83 분류 뒤 PM 지시(#69가 #83 문제를 새로 만들지 않음을 명시) | PM |
-| 2026-11-20 | v1.3 | 3.3·D6에 "#83 뒤" 주석: `refresh()`가 `lock`을 잡지 않음(세대 비교), 주 스레드 `archiveRefresh()`가 `lock`을 기다리지 않음. #69 설계·코드 변경 없음 | #83 HLD H3 (PR #87) | 설계팀 |
+| 2026-11-20 | v1.3 | 3.3·D6에 "#83 뒤" 주석: `refresh()`가 `lock`을 잡지 않음(세대 비교), 주 스레드 `archiveRefresh()`가 `lock`을 기다리지 않음. R6·6.1 코드 검사 줄에도 같은 주석. #69 설계·코드 변경 없음 | #83 HLD H3 (PR #87), HLD 1회차 검수 m2 | 설계팀 |

@@ -24,8 +24,8 @@ flowchart LR
 | 구성요소 | 위치(패키지·파일) | 책임 | 추적 REQ |
 |---|---|---|---|
 | H1 항목 캐시 상태 | `provider/archive/ArchiveEntriesCache.kt`(새 파일, 이 저장소 코드 — 이름·서명은 LLD에서 정함) | 제네릭 `<T>`(운영은 항목 지도·트리 쌍). 생성 인자로 `ArchiveFileSystem`의 `lock` 객체를 받는다(잠금은 하나로 유지, D2). 상태: 닫힘 여부(`@Volatile`), 요청 세대(`AtomicLong`), 읽은 세대·값(잠금 안에서만 읽고 씀). 연산 — **무효화**: 잠금 없이, 닫혔으면 `ClosedFileSystemException`, 아니면 요청 세대 +1. **잠금 안 조회**(호출자가 `lock`을 쥔 상태): 닫혔으면 `ClosedFileSystemException`; 요청 세대를 먼저 읽어 두고, 값이 없거나 읽은 세대가 그와 다르면 넘겨받은 읽기 함수를 불러 값과 읽은 세대(먼저 읽어 둔 값)를 바꾼다; 읽기 함수가 던지면 상태를 바꾸지 않고 그대로 던진다; 값을 돌려준다. **잠금 안 닫기**: 이미 닫혔으면 아무것도 안 함(그 사실을 돌려줌), 아니면 닫힘으로 바꾸고 값을 버린다. 안드로이드·libarchive 의존이 없다. | REQ-83-01, 02, 03, 04 |
-| H2 `ArchiveFileSystem` 연결 | `provider/archive/ArchiveFileSystem.kt`(기존·상위 코드) | 필드 `isOpen`·`isRefreshNeeded`·`entries`·`tree`(`:52-60`, `passwords`는 제외)를 H1 하나로 바꾼다. `refresh()`(`:122-129`)는 `synchronized(lock)` 없이 H1 무효화만 한다. `ensureEntriesLocked`(`:131-146`)는 H1 잠금 안 조회에 "`ArchiveReader.readEntries(archiveFile, passwords, rootDirectory)` + `ArchiveException` → `toFileSystemOrInterruptedIOException(file)` 변환"을 읽기 함수로 넘긴다. 조회 함수(`:62-111`)의 `synchronized(lock)`, `addPassword`(`:113-120`, 닫힘 검사는 H1로), `close()`(`:150-161`, H1 잠금 안 닫기가 "열려 있었음"이면 `provider.removeFileSystem(this)`), `isOpen()`(`:163`)는 잠금 구조를 그대로 둔다. | REQ-83-01~05 |
-| H3 #69 설계 문서 갱신 | `docs/design/69-stale-archive/HLD.md` 3.3·D6(문서) | "`refresh()`가 `lock`을 잡는다", "작업 스레드의 `refresh()`는 읽기가 끝날 때까지 기다린다", "명시 새로 고침의 주 스레드 `archiveRefresh()`는 #83 범위라 그대로 둔다" 서술을 이 HLD에 맞춰 고친다. #69 코드(`ArchivePathObservable`의 실행기 위임)는 그대로다. | REQ-83-05 |
+| H2 `ArchiveFileSystem` 연결 | `provider/archive/ArchiveFileSystem.kt`(기존·상위 코드) | 필드 `isOpen`·`isRefreshNeeded`·`entries`·`tree`(`:52-60`, `passwords`는 제외)를 H1 하나로 바꾼다. `refresh()`(`:122-129`)는 `synchronized(lock)` 없이 H1 무효화만 한다. `ensureEntriesLocked`(`:131-146`)는 H1 잠금 안 조회에 "`ArchiveReader.readEntries(archiveFile, passwords, rootDirectory)` + `ArchiveException` → `toFileSystemOrInterruptedIOException(file)` 변환"을 읽기 함수로 넘긴다. 조회 함수(`:62-111`)의 `synchronized(lock)`, `addPassword`(`:113-120`, 닫힘 검사는 H1로), `close()`(`:150-161`, H1 잠금 안 닫기가 "열려 있었음"이면 `provider.removeFileSystem(this)`), `isOpen()`(`:163`)는 잠금 구조를 그대로 둔다. 필드가 H1로 옮겨지므로 `ensureEntriesLocked` 뒤 `entries!!`·`tree!!`를 읽던 곳(`getEntryLocked` `:70-73`, `getDirectoryChildren` `:99`)은 H1 잠금 안 조회가 돌려준 값을 쓴다(전달 방식은 LLD에서 확정). | REQ-83-01~05 |
+| H3 #69 설계 문서 갱신 | `docs/design/69-stale-archive/HLD.md` 3.3·D6(문서) | "`refresh()`가 `lock`을 잡는다", "작업 스레드의 `refresh()`는 읽기가 끝날 때까지 기다린다", "명시 새로 고침의 주 스레드 `archiveRefresh()`는 #83 범위라 그대로 둔다" 서술과 R6·6.1 코드 검사 줄을 이 HLD에 맞춰 "#83 뒤" 주석으로 고친다. #69 코드(`ArchivePathObservable`의 실행기 위임)는 그대로다. | REQ-83-05 |
 
 ## 3. 데이터 흐름·상태
 
@@ -73,7 +73,7 @@ flowchart LR
 ### 6.1 검증
 - JVM 단위 시험(`app/src/test/java/me/zhanghai/android/files/provider/archive/`, H1 대상, 실제 스레드 + 래치):
   1. 읽기 함수를 래치로 막은 채 다른 스레드가 `lock`을 쥐고 조회 중 → 무효화가 1초 안에 돌아옴(REQ-83-01).
-  2. 1의 상태에서 무효화 → 래치 해제 → 첫 조회는 막혔던 읽기의 값을 받음 → 다음 조회에서 읽기 함수가 한 번 더 불림. 무효화 없이 두 번 조회하면 읽기 한 번(REQ-83-02).
+  2. 1의 상태에서 무효화 → 래치 해제 → 첫 조회는 막혔던 읽기의 값을 받음 → 다음 조회에서 읽기 함수가 한 번 더 불림. 무효화 없이 두 번 조회하면 읽기 한 번. 진행 중 읽기 없이(첫 조회 끝난 뒤) 무효화 → 다음 조회에서 읽기 함수가 한 번 더 불림(REQ-83-02).
   3. 닫은 뒤 무효화·조회가 `ClosedFileSystemException`, 닫기 두 번은 두 번째가 "이미 닫힘"(REQ-83-03).
   4. 읽기 함수가 한 번 던짐 → 조회가 그 예외를 던짐 → 다음 조회에서 다시 읽어 성공(REQ-83-04).
   - fail-before/pass-after(SRS REQ-83-01·02): H1과 같은 모양에 지금의 잠금 구조(무효화도 `synchronized(lock)`, 읽기 끝에 플래그 지움, `:122-146`)를 흉내 낸 임시 구현을 먼저 커밋해 1·2가 시간 초과로 실패하고 3·4는 통과함을 보인 뒤 실제 구현으로 바꿔 모두 통과시킨다(#69와 같은 방식). 시험은 시간 초과(예: 1초 기다림 + 끝에 래치 해제)로 끝나야 하며 멈춰 있으면 안 된다.
@@ -85,3 +85,4 @@ flowchart LR
 | 일자 | 버전 | 변경 | 사유 | 요청자 |
 |---|---|---|---|---|
 | 2026-11-20 | v1 | 최초 작성. #69 HLD 3.3·D6 서술 갱신(H3) | SRS v1.1 검수 통과 | PM |
+| 2026-11-20 | v1.1 | H2에 `entries!!`·`tree!!` 읽던 곳이 H1 값을 쓴다고 명시, 6.1 시험 2에 "진행 중 읽기 없는 무효화" 경우 추가, H3에 #69 HLD R6·6.1 코드 검사 주석 포함 | HLD 1회차 검수 m1·m2·m3 (PR #87) | 검수팀 |
