@@ -41,3 +41,6 @@ internal fun shouldNotifyFailure(
     }
     return isExplicitLoadResult || previous !is Failure
 }
+
+// TEMPORARY fail-before stub (#69): keeps the list like FileListLiveData does today.
+internal fun <T> failureValue(previous: T?, e: Exception): T? = previous
