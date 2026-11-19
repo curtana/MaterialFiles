@@ -14,6 +14,7 @@ import java8.nio.file.FileSystemException
 import java8.nio.file.NoSuchFileException
 import java8.nio.file.StandardCopyOption
 import me.zhanghai.android.files.provider.common.CopyOptions
+import me.zhanghai.android.files.provider.common.createSymbolicLinkForCopy
 import me.zhanghai.android.files.provider.smb.client.Client
 import me.zhanghai.android.files.provider.smb.client.ClientException
 import me.zhanghai.android.files.provider.smb.client.FileInformation
@@ -116,29 +117,24 @@ internal object SmbCopyMove {
             } catch (e: ClientException) {
                 throw e.toFileSystemException(source.toString())
             }
-            try {
-                Client.createSymbolicLink(target, sourceReparseData, attributesToCopy)
-            } catch (e: ClientException) {
-                val exception = e.toFileSystemException(target.toString())
-                if (exception is FileAlreadyExistsException && copyOptions.replaceExisting) {
-                    try {
-                        Client.delete(target)
-                    } catch (e2: ClientException) {
-                        if (e2.toFileSystemException(target.toString()) !is NoSuchFileException) {
-                            e2.addSuppressed(exception)
-                            throw e2.toFileSystemException(target.toString())
-                        }
-                    }
+            createSymbolicLinkForCopy(
+                copyOptions.replaceExisting,
+                createLink = {
                     try {
                         Client.createSymbolicLink(target, sourceReparseData, attributesToCopy)
-                    } catch (e2: ClientException) {
-                        e2.addSuppressed(exception)
-                        throw e2.toFileSystemException(target.toString())
+                    } catch (e: ClientException) {
+                        e.maybeThrowInvalidFileNameException(target.toString())
+                        throw e.toFileSystemException(target.toString())
+                    }
+                },
+                deleteExisting = {
+                    try {
+                        Client.delete(target)
+                    } catch (e: ClientException) {
+                        throw e.toFileSystemException(target.toString())
                     }
                 }
-                e.maybeThrowInvalidFileNameException(target.toString())
-                throw e.toFileSystemException(target.toString())
-            }
+            )
             copyOptions.progressListener?.invoke(sourceInformation.endOfFile)
         } else {
             throw AssertionError()
