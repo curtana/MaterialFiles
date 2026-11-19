@@ -70,9 +70,10 @@ class FileJobConflictDialogFragment : AppCompatDialogFragment() {
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
         val sourceFile = args.sourceFile
         val targetFile = args.targetFile
-        val title = getTitle(sourceFile, targetFile, requireContext())
-        val message = getMessage(sourceFile, targetFile, args.type, requireContext())
-        val isMerge = isMerge(sourceFile, targetFile)
+        // The job decides whether it merges, which may follow links (#55 D7).
+        val isMerge = args.isMerge
+        val title = getTitle(targetFile, isMerge, requireContext())
+        val message = getMessage(targetFile, args.type, isMerge, requireContext())
         val positiveButtonRes = if (isMerge) R.string.merge else R.string.replace
         return MaterialAlertDialogBuilder(requireContext(), theme)
             .setTitle(title)
@@ -281,8 +282,8 @@ class FileJobConflictDialogFragment : AppCompatDialogFragment() {
     }
 
     companion object {
-        fun getTitle(sourceFile: FileItem, targetFile: FileItem, context: Context): String {
-            val titleRes = if (isMerge(sourceFile, targetFile)) {
+        fun getTitle(targetFile: FileItem, isMerge: Boolean, context: Context): String {
+            val titleRes = if (isMerge) {
                 R.string.file_job_merge_title_format
             } else {
                 R.string.file_job_replace_title_format
@@ -291,12 +292,12 @@ class FileJobConflictDialogFragment : AppCompatDialogFragment() {
         }
 
         fun getMessage(
-            sourceFile: FileItem,
             targetFile: FileItem,
             type: CopyMoveType,
+            isMerge: Boolean,
             context: Context
         ): String {
-            val messageRes = if (isMerge(sourceFile, targetFile)) {
+            val messageRes = if (isMerge) {
                 type.getResourceId(
                     R.string.file_job_merge_copy_message_format,
                     R.string.file_job_merge_extract_message_format,
@@ -307,12 +308,6 @@ class FileJobConflictDialogFragment : AppCompatDialogFragment() {
             }
             return context.getString(messageRes, targetFile.path.parent.fileName)
         }
-
-        private fun isMerge(sourceFile: FileItem, targetFile: FileItem): Boolean {
-            val sourceIsDirectory = sourceFile.attributesNoFollowLinks.isDirectory
-            val targetIsDirectory = targetFile.attributesNoFollowLinks.isDirectory
-            return sourceIsDirectory && targetIsDirectory
-        }
     }
 
     @Parcelize
@@ -320,6 +315,7 @@ class FileJobConflictDialogFragment : AppCompatDialogFragment() {
         val sourceFile: FileItem,
         val targetFile: FileItem,
         val type: CopyMoveType,
+        val isMerge: Boolean,
         val listener: @WriteWith<ListenerParceler>()
         (FileJobConflictAction, String?, Boolean) -> Unit
     ) : ParcelableArgs {
