@@ -349,7 +349,7 @@ private fun FileJob.postScanNotification(scanInfo: ScanInfo, @PluralsRes titleRe
     postNotification(title, null, null, null, 0, 0, true, true)
 }
 
-private class ScanInfo {
+internal class ScanInfo {
     var fileCount = 0
         private set
     var size = 0L
@@ -479,7 +479,7 @@ private fun FileJob.postTransferCountNotification(
     postNotification(title, text, null, null, max, progress, indeterminate, true)
 }
 
-private class TransferInfo(scanInfo: ScanInfo, val target: Path?) {
+internal class TransferInfo(scanInfo: ScanInfo, val target: Path?) {
     var fileCount: Int = scanInfo.fileCount
         private set
     var transferredFileCount = 0
@@ -604,7 +604,7 @@ private fun FileJob.getReadOnlyFileStore(path: Path, exception: IOException): Po
     return if (fileStore.isReadOnly) fileStore else null
 }
 
-private class ErrorResult(
+internal class ErrorResult(
     val action: FileJobErrorAction,
     val isAll: Boolean
 )
@@ -659,7 +659,7 @@ private class ConflictResult(
     val isAll: Boolean
 )
 
-private class ActionAllInfo(
+internal class ActionAllInfo(
     var skipCopyMoveIntoItself: Boolean = false,
     var skipCopyMoveOverItself: Boolean = false,
     var merge: Boolean = false,
