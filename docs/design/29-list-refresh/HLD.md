@@ -2,7 +2,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | v1 조건부 통과(경미 h1~h3 반영, v1.1 — PR #33 코드 검수에서 함께 확인), 구현됨(PR #33). v1.2는 상태 줄만 동기화 |
+| 상태 | v1 조건부 통과(경미 h1~h3 반영, v1.1 — PR #33 코드 검수에서 함께 확인), 구현됨(PR #33). v1.2는 상태 줄만 동기화. v1.3: 이슈 #69가 K1 실패 게시·K5 압축 감시를 고침(`docs/design/69-stale-archive/HLD.md`) |
 | 근거 | SRS v1.1 (`docs/design/29-list-refresh/SRS.md`) |
 | 기준 코드 | `origin/develop` 4437e43. 줄 번호는 모두 이 커밋 기준이다. 결함 수정 B1·B2·B6(`feature/29-sftp-list-reload`)은 이 HLD 작성 시점에 원격에 없어 그 코드의 줄은 인용하지 않는다 |
 
@@ -34,11 +34,11 @@ graph TD
 
 | 구성요소 | 위치(패키지·파일) | 책임 | 추적 REQ |
 |---|---|---|---|
-| K1 읽기 종류 구분 | `filelist/FileListLiveData.kt` (기존, 상위 코드) | 다시 읽기를 **명시**(생성자 첫 읽기, 공개 `loadValue()` — `FileListViewModel`이 부르는 경로)와 **자동**(T1 `onChangeObserved`, T2 `onActive`, T3 B1 뒤따르는 읽기)으로 나눠 시작한다. 자동이면 시작 순간 K3 `shouldLoadSilently`로 조용함을 정한다. 조용하면 `Loading`을 게시하지 않고 현재 값(`Success` 또는 `Failure(이전 목록)`)을 그대로 둔 채 읽기만 시작한다. 그 밖은 지금처럼 `Loading(이전 목록)`을 게시한다. 읽기 결과 게시(`Success`/`Failure(valueCompat.value, e)`, `:55-60`)와 B2의 "대체된 읽기는 게시 안 함"은 그대로 쓴다. 명시 읽기는 진행 중인 읽기(조용한 것 포함)를 지금처럼 끊고 새로 시작한다(`:38`). B1 작업지시서는 읽기 로직을 새 `filelist/FileListLoader.kt`로 옮긴다 — 자동/명시 구분을 넘기는 호출 위치(어느 파일·함수에서 K3를 부르는지)는 LLD에서 B1 구현에 맞춰 확정한다. | REQ-29-01, 03, 04, 05, 08, 09, 11 |
+| K1 읽기 종류 구분 | `filelist/FileListLiveData.kt` (기존, 상위 코드) | (#69 수정: 실패가 `NoSuchFileException`이면 `Failure(null, e)` — #69 HLD H3·H4) 다시 읽기를 **명시**(생성자 첫 읽기, 공개 `loadValue()` — `FileListViewModel`이 부르는 경로)와 **자동**(T1 `onChangeObserved`, T2 `onActive`, T3 B1 뒤따르는 읽기)으로 나눠 시작한다. 자동이면 시작 순간 K3 `shouldLoadSilently`로 조용함을 정한다. 조용하면 `Loading`을 게시하지 않고 현재 값(`Success` 또는 `Failure(이전 목록)`)을 그대로 둔 채 읽기만 시작한다. 그 밖은 지금처럼 `Loading(이전 목록)`을 게시한다. 읽기 결과 게시(`Success`/`Failure(valueCompat.value, e)`, `:55-60`)와 B2의 "대체된 읽기는 게시 안 함"은 그대로 쓴다. 명시 읽기는 진행 중인 읽기(조용한 것 포함)를 지금처럼 끊고 새로 시작한다(`:38`). B1 작업지시서는 읽기 로직을 새 `filelist/FileListLoader.kt`로 옮긴다 — 자동/명시 구분을 넘기는 호출 위치(어느 파일·함수에서 K3를 부르는지)는 LLD에서 B1 구현에 맞춰 확정한다. | REQ-29-01, 03, 04, 05, 08, 09, 11 |
 | K2 실패 토스트 반복 억제 | `filelist/FileListFragment.kt` `onFileListChanged`(`:707-739`, 기존, 상위 코드) | 직전에 이 화면(뷰)이 받은 목록 상태를 기억하고, 토스트를 띄울지 K3 `shouldNotifyFailure`로 정한다. 부제목·원형·가운데 진행·오류 글의 기존 분기(`:710-718`)는 바꾸지 않는다 — 조용한 읽기는 `Loading`을 게시하지 않으므로 이 분기만으로 REQ-29-01의 "표시 없음"이 된다. | REQ-29-02, 06, 07, 10, 13 |
 | K3 표시 판단 함수 | `filelist/FileListRefreshPolicy.kt` (새 파일, 이 저장소 코드 — 이름은 LLD에서 바꿀 수 있음) | 안드로이드 의존 없는 순수 함수 둘. `shouldLoadSilently(isAutomatic, current: Stateful<List<FileItem>>?)` = 자동이고 `current?.value != null`이면 참. `shouldNotifyFailure(previous: Stateful<…>?, current: Stateful<…>)` = `current`가 `Failure`이고, 그 목록에 항목이 있고(빈 목록·`null`이면 가운데 오류 글이 대신함, `FileListFragment.kt:723-726`), `previous`가 `Failure`가 아니면 참(`previous == null`, 즉 뷰가 새로 만들어진 직후는 참 — SRS REQ-29-06 재생성 허용). 숨김 파일 거르기 뒤의 "항목 있음" 판단은 지금 코드처럼 거르기 전 목록 기준(`:715`)이다. | REQ-29-01, 03, 06, 07, 09 |
 | K4 명시 새로 고침 경로 | `filelist/FileListViewModel.kt` `reload()`(`:71-77`), `FileListSwitchMapLiveData.reload()`(`:257-262`), `FileListHostFragment.refreshPanes()`(`:250-252`) | **B3은 바꾸지 않는다**(B6 작업지시서는 `FileListSwitchMapLiveData`를 바꾼다 — 그 변경은 B6 범위). 공개 `FileListLiveData.loadValue()`를 명시 읽기로 부르는 유일한 경로임을 유지한다. 압축 파일 안의 `archiveRefresh()`(`:73-75`)도 그대로. | REQ-29-04 |
-| K5 감시 | `filelist/PathObserver.kt`, `provider/common/LocalWatchService.kt`, 각 `provider/*/…FileSystemProvider.observe()` | **변경 없음.** 알림 빈도·간격(1000ms, `PathObserver.kt:61`)은 B4 범위 밖. 감시 미지원(압축, `ArchiveFileSystemProvider.kt:279-281`)이면 T1~T3이 생기지 않는다. | REQ-29-11 |
+| K5 감시 | `filelist/PathObserver.kt`, `provider/common/LocalWatchService.kt`, 각 `provider/*/…FileSystemProvider.observe()` | (#69 수정: 압축은 원본 파일 감시에 위임해 T1이 생긴다 — #69 HLD H1·H2) **변경 없음.** 알림 빈도·간격(1000ms, `PathObserver.kt:61`)은 B4 범위 밖. 감시 미지원(압축, `ArchiveFileSystemProvider.kt:279-281`)이면 T1~T3이 생기지 않는다. | REQ-29-11 |
 | K6 검색 목록 | `filelist/SearchFileListLiveData.kt` | **변경 없음**(SRS 1.3 범위 밖, T9). | — |
 | K7 숨긴 창 정지 (B6) | `filelist/FileListHostFragment.kt`·`DualPaneLayout.kt`(B6 구현 위치는 개발팀) | **B3이 바꾸지 않는다.** B6이 숨긴 창의 관찰을 비활성으로 만들면 그동안의 알림은 `isChangedWhileInactive`(`FileListLiveData.kt:68`)로 쌓이고, 다시 보일 때 `onActive`가 T2 자동 읽기로 K1에 들어온다. | REQ-29-01(T2), 10 |
 | K8 정렬·보기·숨김 설정 | `FileListFragment.kt:794-797`, `:852-863` | **변경 없음.** 다시 읽지 않고 어댑터만 다시 정렬·거른다. | REQ-29-12 |
@@ -130,3 +130,4 @@ sequenceDiagram
 | 2026-11-03 | v1 | 최초 작성 | SRS v1.1(검수 1회차 조건부 통과) | PM |
 | 2026-11-03 | v1.1 | 1.2 그림·K4의 `FileListSwitchMapLiveData` 변경 범위를 B6과 구분, K1에 B1 `FileListLoader.kt` 호출 위치는 LLD에서 확정, 6장 R6(비활성 뷰의 명시 실패 토스트 억제 위험) | HLD 1회차 검수 h1~h3 (PR #31) | 검수팀 |
 | 2026-11-04 | v1.2 | 상태 줄을 구현 결과에 맞춤 | 릴리스 v1.7.5-beta.1 문서 동기화 | PM |
+| 2026-11-19 | v1.3 | K1·K5에 #69 수정 주석(`NoSuchFileException` 실패는 목록 없음, 압축 감시 위임) | 이슈 #69 오너 결정(2026-11-19), `docs/design/69-stale-archive/HLD.md` (PR #81) | PM |
