@@ -125,6 +125,9 @@ internal object FtpCopyMove {
                     }
                 }
         }
+        if (copyOptions.skipAttributes) {
+            return
+        }
         // We don't take error when copying attribute fatal, so errors will only be logged from now
         // on.
         if (!sourceFile.isSymbolicLink) {

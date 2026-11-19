@@ -67,13 +67,17 @@ internal object SftpCopyMove {
             // Symbolic links may not be supported so we cannot simply delete the target here.
         }
         val sourceType = sourceAttributes.type
-        val sourceModeAttributes = FileAttributes.Builder()
-            .apply {
-                if (sourceAttributes.has(FileAttributes.Flag.MODE)) {
-                    withPermissions(sourceAttributes.mode.mask)
+        val sourceModeAttributes = if (copyOptions.skipAttributes) {
+            FileAttributes.EMPTY
+        } else {
+            FileAttributes.Builder()
+                .apply {
+                    if (sourceAttributes.has(FileAttributes.Flag.MODE)) {
+                        withPermissions(sourceAttributes.mode.mask)
+                    }
                 }
-            }
-            .build()
+                .build()
+        }
         val deleteExisting: (() -> Unit)? = if (targetAttributes != null) {
             {
                 try {
@@ -195,6 +199,9 @@ internal object SftpCopyMove {
                 copyOptions.progressListener?.invoke(sourceSize)
             }
             else -> throw FileSystemException(source.toString(), null, "type $sourceType")
+        }
+        if (copyOptions.skipAttributes) {
+            return
         }
         // We don't take error when copying attribute fatal, so errors will only be logged from now
         // on.
