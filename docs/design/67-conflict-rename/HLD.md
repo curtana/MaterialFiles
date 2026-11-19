@@ -2,7 +2,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 작성 중 |
+| 상태 | 검수 통과(v1). v1.1은 경미 지적 2건 반영 |
 | 근거 | SRS v1.1 |
 | 기준 코드 | `origin/develop` 454206d. 줄 번호는 이 커밋 기준, 경로는 `app/src/main/java/me/zhanghai/android/files/` 기준 |
 
@@ -23,7 +23,7 @@ flowchart LR
 | C1 저장 상태 확장 | `filejob/FileJobConflictDialogFragment.kt` `State`(`:351-354`), `onSaveInstanceState`(`:64-68`) | `State`에 `newName: String?`(새 이름이 있을 때만 그 글자, 없으면 `null`)와 `isNameLayoutVisible: Boolean`을 더해 저장한다. `isAllChecked`는 그대로 | REQ-67-01, REQ-67-02 |
 | C2 복원 규칙 | `filejob/` 새 파일(예: `FileJobConflictNameRestore.kt`)의 순수 함수 | 저장 상태(없으면 `null`)와 대상 원래 이름을 받아 복원할 화면 값(입력란 글자, 입력란 펼침, 긍정 버튼이 "이름 바꾸기"인지, "모든 파일에 적용"의 체크·사용 가능)을 돌려준다. Android 타입을 쓰지 않아 JVM 단위 테스트가 가능하다 | REQ-67-01, REQ-67-02 |
 | C3 복원 적용 | `filejob/FileJobConflictDialogFragment.kt` `onCreateDialog`(`:70-148`) | C2의 결과를 뷰에 적용한다: 입력란 초기 글자(`:121-122`), `nameLayout` 표시와 화살표 회전(`:108-115`과 같은 최종 값, 애니메이션 없이), `allCheck` 체크·사용 가능(`:136-138` 대체), 긍정 버튼 초기 글자(`:140`) | REQ-67-01, REQ-67-02 |
-| C4 불변 부분 | 같은 파일 `:73-107`, `:123-135`, `:213-251`, `companion`, `Args` | 바꾸지 않는다: `Args.isMerge` 판정, 제목·메시지, `replaceWarningText` 조건, 글자 변경 리스너, 끝 아이콘, 버튼 처리, `hasNewName` | REQ-67-03, REQ-67-04 |
+| C4 불변 부분 | 같은 파일 `:73-107`, `:108-120`(펼침 클릭 리스너. C3는 그 최종 값만 따라 쓴다), `:123-135`, `:213-251`, `companion`, `Args` | 바꾸지 않는다: `Args.isMerge` 판정, 제목·메시지, `replaceWarningText` 조건, 펼침 클릭 동작, 글자 변경 리스너, 끝 아이콘, 버튼 처리, `hasNewName` | REQ-67-03, REQ-67-04 |
 
 ## 3. 데이터 흐름·상태
 - **저장**: `onSaveInstanceState`에서 `newName = if (hasNewName()) nameEdit 글자 else null`, `isNameLayoutVisible = nameLayout.isVisible`, `isAllChecked = allCheck.isChecked`.
@@ -53,7 +53,7 @@ flowchart LR
 | E5 긍정 버튼 글자는 빌더 초기 글자로 | `onStart`에서 버튼을 찾아 바꿈 | 창 생성 한 곳에서 끝나고 `requireDialog()` 시점 문제가 없다 |
 
 ## 6. 위험과 미결 사항
-- R1: 자동 복원 경로가 입력란 글자를 다시 쓰면서 리스너가 이른 시점에 불릴 가능성. LLD에서 AndroidX `DialogFragment`의 창 상태 복원 순서를 확인하고, AVD 재생성 확인(SRS V1 2·4)으로 크래시가 없음을 본다.
+- R1: 자동 복원 경로가 입력란 글자를 다시 쓰면서 리스너가 이른 시점에 불릴 가능성. LLD에서 AndroidX `DialogFragment`의 창 상태 복원 순서를 확인하고, AVD 재생성 확인(SRS V1 2와 4의 (a) Activity 파괴·(b) 프로세스 정리)으로 크래시가 없음을 본다. 둘은 복원 경로가 다르다((a)는 같은 프로세스, (b)는 Bundle만 남음) — 이 설계는 Bundle의 `State`만 쓰므로 두 경로 모두 같은 결과를 기대한다.
 - R2: 회전 전 화면 키보드가 떠 있었어도 복원 뒤에는 뜨지 않는다(SRS A2, 의도된 비보존).
 
 ## 7. 검증
@@ -62,9 +62,10 @@ flowchart LR
 | T1 | JVM 단위 테스트(`app/src/test/java/me/zhanghai/android/files/filejob/`): C2에 3장 표의 각 줄 + 방어 경우(`newName`이 빈 글자·원래 이름)를 넣고 결과 확인 | REQ-67-01, REQ-67-02 |
 | T2 | 빌드: `./gradlew assembleDebug` 와 `testDebugUnitTest` 통과 | 전체 |
 | T3 | 코드 검사: C4 범위(`Args`·`getTitle`·`getMessage`·`replaceWarningText` 조건·리스너·버튼 처리) diff 없음 | REQ-67-03, REQ-67-04 |
-| T4 | AVD 재생성 확인: SRS 2.1 V1 1~5(회전과 "활동 유지 안 함" 복원, en·ko). 실제 기기는 쓰지 않는다 | REQ-67-01~04 |
+| T4 | AVD 재생성 확인: SRS 2.1 V1 1~5(회전, "활동 유지 안 함"에 의한 Activity 파괴, `am kill` 프로세스 정리, en·ko). 실제 기기는 쓰지 않는다 | REQ-67-01~04 |
 
 ## 8. 변경 이력
 | 일자 | 버전 | 변경 | 사유 | 요청자 |
 |---|---|---|---|---|
 | 2026-11-19 | v1 | 최초 작성 | SRS v1.1 검수 통과 | PM |
+| 2026-11-19 | v1.1 | C4에 `:108-120` 펼침 리스너 추가, R1·T4에서 Activity 파괴와 프로세스 정리 구분 | HLD 검수 통과 경미 2건 | reviewer |
