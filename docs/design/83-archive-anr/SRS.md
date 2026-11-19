@@ -2,7 +2,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 작성 중 |
+| 상태 | 검수 통과(v1.1, PR #87 2회차) |
 | 근거 | 요구사항 정리 v1 (이슈 #83), 재현 결과(같은 이슈, PM 요약), PM 결정(A안) |
 | 기준 코드 | `origin/develop` ac012e0. 줄 번호는 모두 이 커밋 기준이다 |
 | 증거 | `_workspace/wo/83-archive-anr/`(ANR 트레이스 `anr_menu_refresh_trace.txt`·`anr_swipe_refresh_trace.txt`·`anr_observe_then_refresh_trace.txt`, `progress.md`) |
