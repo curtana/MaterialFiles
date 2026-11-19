@@ -2,7 +2,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 검수 통과(v1 PR #87 1회차 조건부, 경미 1건 v1.1 반영) |
+| 상태 | 검수 통과(v1.1, PR #87 2회차) |
 | 근거 | SRS v1.1, HLD v1.1 |
 | 기준 코드 | `origin/develop` ac012e0. 경로는 `app/src/main/java/me/zhanghai/android/files/` 기준, 테스트는 `app/src/test/java/me/zhanghai/android/files/` 기준. 줄 번호는 모두 이 커밋 기준이다 |
 
