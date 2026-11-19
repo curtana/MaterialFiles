@@ -8,12 +8,14 @@ package me.zhanghai.android.files.filelist
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.os.Environment
 import android.view.KeyEvent
 import android.view.View
 import androidx.activity.result.contract.ActivityResultContract
 import androidx.fragment.app.commit
 import androidx.fragment.app.commitNow
 import java8.nio.file.Path
+import java8.nio.file.Paths
 import me.zhanghai.android.files.app.AppActivity
 import me.zhanghai.android.files.file.MimeType
 import me.zhanghai.android.files.util.createIntent
@@ -55,6 +57,14 @@ class FileListActivity : AppActivity() {
         return hostFragment
     }
 
+    // The intent isn't set as the intent of this activity, so that the panes are restored from the
+    // original intent after the system recreated this activity (#11).
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+
+        fragment.onNewIntent(intent)
+    }
+
     // The panes don't use a support action bar, so the menu key is handled here instead of by
     // AppCompatActivity.dispatchKeyEvent().
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
@@ -77,6 +87,9 @@ class FileListActivity : AppActivity() {
             FileListActivity::class.createIntent()
                 .setAction(Intent.ACTION_VIEW)
                 .apply { extraPath = path }
+
+        fun createNewTaskViewIntent(path: Path): Intent =
+            createViewIntent(path).addFlags(NEW_TASK_VIEW_INTENT_FLAGS)
     }
 
     class OpenFileContract : ActivityResultContract<List<MimeType>, Path?>() {
@@ -119,3 +132,13 @@ class FileListActivity : AppActivity() {
             if (resultCode == RESULT_OK) intent?.extraPath else null
     }
 }
+
+/**
+ * The path that this intent opens, see [resolveIntentPath]. This doesn't access the file system.
+ */
+internal fun Intent.resolvePanePath(): Path? =
+    resolveIntentPath(action, extraPath, type, {
+        Paths.get(
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS).path
+        )
+    })
