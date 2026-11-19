@@ -2,7 +2,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 검수 통과(v1.1, PR #81 2회차). v1.2 3.3·6.1 보강은 재검수 대상 |
+| 상태 | 검수 통과(v1.1 PR #81 2회차, v1.2 변경 절 재검수 통과) |
 | 근거 | SRS v1.1 (`docs/design/69-stale-archive/SRS.md`) |
 | 기준 코드 | `origin/develop` 8cafb75. 줄 번호는 모두 이 커밋 기준이다 |
 | 시험한 수정안 | `_workspace/wo/69-stale-archive/prototype.diff`(커밋 없음, AVD HOT 2/2·COLD 1/1 확인). 이 HLD는 그 구조를 따르되 판단을 순수 함수·클래스로 빼 JVM 시험이 가능하게 한다 |
