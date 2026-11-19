@@ -1,9 +1,14 @@
 package me.zhanghai.android.files.filelist
 
+import java8.nio.file.AccessDeniedException
+import java8.nio.file.FileSystemException
+import java8.nio.file.NoSuchFileException
 import me.zhanghai.android.files.util.Failure
 import me.zhanghai.android.files.util.Loading
 import me.zhanghai.android.files.util.Success
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.IOException
@@ -74,5 +79,42 @@ class FileListRefreshPolicyTest {
     fun shouldNotifyFailure_sameStateAgain_doesNotNotify() {
         val failure = Failure(files, error)
         assertFalse(shouldNotifyFailure(failure, failure, true))
+    }
+
+    // T-H3-01 (REQ-69-03): a failure because the path no longer exists drops the list.
+    @Test
+    fun failureValue_noSuchFile_dropsList() {
+        assertNull(failureValue(files, NoSuchFileException("/x")))
+        assertNull(failureValue(files, object : NoSuchFileException("/x") {}))
+    }
+
+    // T-H3-02 (REQ-69-05): other failures keep the list (#29 B3), and the cause isn't looked at.
+    @Test
+    fun failureValue_otherFailure_keepsList() {
+        assertSame(files, failureValue(files, AccessDeniedException("/x")))
+        assertSame(files, failureValue(files, IOException("x")))
+        assertSame(files, failureValue(files, FileSystemException("/x")))
+        assertSame(files, failureValue(files, IOException(NoSuchFileException("/x"))))
+        assertSame(files, failureValue(files, RuntimeException()))
+    }
+
+    // T-H3-03: without a previous list there is nothing to keep.
+    @Test
+    fun failureValue_noPrevious_isNull() {
+        assertNull(failureValue<List<String>>(null, NoSuchFileException("/x")))
+        assertNull(failureValue<List<String>>(null, error))
+    }
+
+    // T-R4-01 (REQ-69-03, 04, 05): a NoSuchFile failure shows the error screen: the next automatic
+    // load shows the loading state and no toast is shown; other failures still toast.
+    @Test
+    fun noSuchFileFailure_showsErrorScreenRules() {
+        val noSuchFile = NoSuchFileException("/x")
+        val failure = Failure(failureValue(files, noSuchFile), noSuchFile)
+        assertFalse(shouldLoadSilently(true, failure))
+        assertFalse(shouldNotifyFailure(Success(files), failure, true))
+        assertFalse(shouldNotifyFailure(Success(files), failure, false))
+        val otherFailure = Failure(failureValue(files, error), error)
+        assertTrue(shouldNotifyFailure(Success(files), otherFailure, false))
     }
 }

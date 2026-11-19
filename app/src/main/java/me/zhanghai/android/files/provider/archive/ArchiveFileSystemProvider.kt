@@ -5,6 +5,7 @@
 
 package me.zhanghai.android.files.provider.archive
 
+import android.os.AsyncTask
 import java8.nio.channels.FileChannel
 import java8.nio.channels.SeekableByteChannel
 import java8.nio.file.AccessDeniedException
@@ -33,6 +34,7 @@ import me.zhanghai.android.files.provider.common.WalkFileTreeSearchable
 import me.zhanghai.android.files.provider.common.decodedPathByteString
 import me.zhanghai.android.files.provider.common.decodedQueryByteString
 import me.zhanghai.android.files.provider.common.isSameFile
+import me.zhanghai.android.files.provider.common.observe
 import me.zhanghai.android.files.provider.common.toAccessModes
 import me.zhanghai.android.files.provider.common.toByteString
 import me.zhanghai.android.files.provider.common.toOpenOptions
@@ -277,7 +279,12 @@ object ArchiveFileSystemProvider : FileSystemProvider(), PathObservableProvider,
 
     @Throws(IOException::class)
     override fun observe(path: Path, intervalMillis: Long): PathObservable {
-        throw UnsupportedOperationException()
+        path as? ArchivePath ?: throw ProviderMismatchException(path.toString())
+        val fileSystem = path.fileSystem
+        return ArchivePathObservable(
+            fileSystem.archiveFile.observe(intervalMillis), fileSystem::refresh,
+            AsyncTask.THREAD_POOL_EXECUTOR
+        )
     }
 
     @Throws(IOException::class)
