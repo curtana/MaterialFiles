@@ -2,13 +2,13 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 작성 중 |
-| 근거 | SRS v1.3 (오너 결정 2026-11-19 반영) |
+| 상태 | 작성 중 (v1.1) |
+| 근거 | SRS v1.4 (오너 결정 2026-11-19 반영) |
 | 기준 코드 | `origin/develop` 0941fa7. 경로는 `app/src/main/java/me/zhanghai/android/files/` 기준 |
 | 범위 | 조각 C → A → B (SRS 4절). 조각마다 LLD·PR을 따로 하며, 이 문서 2절이 조각별 경계다 |
 
 ## 1. 구조 개요
-기존 경계를 그대로 쓴다. 작업 단위의 판단(어떤 복사인가, 링크를 따라가는가, 충돌을 어떻게 볼 것인가)은 `filejob/`이, 실제 쓰기 순서와 속성 단계는 각 `provider/*/…CopyMove.kt`가 한다. 둘 사이는 지금처럼 `CopyOption` 배열로만 이어진다(`FileJobs.kt:1353-1366` → `provider/common/PathExtensions.kt:47-54` → 각 제공자의 `copy` → `toCopyOptions()`, `provider/common/CopyOptions.kt:220-252`).
+기존 경계를 그대로 쓴다. 작업 단위의 판단(어떤 복사인가, 링크를 따라가는가, 충돌을 어떻게 볼 것인가)은 `filejob/`이, 실제 쓰기 순서와 속성 단계는 각 `provider/*/…CopyMove.kt`가 한다. 둘 사이는 지금처럼 `CopyOption` 배열로만 이어진다(`FileJobs.kt:1353-1366` → `provider/common/PathExtensions.kt:47-54` → 각 제공자의 `copy` → `toCopyOptions()`, `provider/common/CopyOptions.kt:45-77`).
 
 ```mermaid
 flowchart LR
@@ -43,11 +43,23 @@ flowchart LR
 | WebDAV | `provider/webdav/WebDavCopyMove.kt:38-114` | 대상 지우기(46-50)를 원본 종류 확인(61-62)과 원본 `get`(64-68) 뒤로 옮긴다. 폴더: 지우기 전에 원본 목록(PROPFIND 깊이 1 — 제공자의 목록 호출)으로 열어 본다 | 08, (#56) |
 | 회귀 테스트 | `app/src/test/.../provider/common/` | 공용 함수: ① 열기 실패면 지우기·쓰기 호출 없음 ② 열기 성공 + 대상 있음 + 바꾸기면 지우기 1회 후 쓰기 ③ 지우기가 '없음'이면 무시 ④ 바꾸기 아님이면 지우기 없음 ⑤ 지우기 실패면 쓰기 없음, 열린 원본은 닫힘 | 08, 09 |
 
-**백엔드별 확인 가능 여부(REQ-55-09).** 코드 읽기로는 위 일곱 경로 모두 지우기 전에 원본을 열거나 열어 볼 수 있다. 확인할 수 없는 경로는 없다. 그래서 REQ-55-09는 "확인 실패 = ①의 예외로 실패, 지우지 않음"으로 충족되고, 충돌·오류 창은 바꾸지 않는다(Q6 (나)).
+**백엔드별 확인 가능 여부(REQ-55-09).** 확인할 수 없는 경로는 없다. REQ-55-09는 "확인 실패 = ①의 예외로 실패, 지우지 않음"으로 충족되고, 충돌·오류 창은 바꾸지 않는다(Q6 (나)).
+
+| 경로 | 일반 파일 확인 | 폴더 확인 | 확인 가능 | 근거 |
+|---|---|---|---|---|
+| 로컬·루트 | 원본 `open` 뒤 지움(열린 fd로 복사) | 원본을 폴더로 열어 보고 닫음 | 가능 | `LinuxCopyMove.kt:67-71`, 136-151 |
+| 공급자 간 | 원본 `newInputStream` 뒤 지움(열린 스트림으로 복사) | 원본 목록을 열어 보고 닫음 | 가능 | `ForeignCopyMove.kt:43-51`, 87-90 |
+| 문서 제공자(같은 제공자) | 원본을 열어 보고 닫음(D4) | 자식 목록을 열어 보고 닫음 | 가능(틈 있음, 6절) | `DocumentCopyMove.kt:32-51`, `DocumentResolver.kt:85-87`, 109, 389 |
+| SFTP | 원본 채널 연 뒤 지움 | `scandir`로 열어 봄 | 가능 | `SftpCopyMove.kt:77-91`, 142-151 |
+| SMB | `copyFile` 안에서 원본 연 뒤(336-349) 지움, 그 뒤 대상 `FILE_CREATE`(368) | `openDirectoryIterator`로 열어 봄 | 가능 | `SmbCopyMove.kt:75-90`, `smb/client/Client.kt:89`, 318- |
+| FTP | 원본 `RETR` 연 뒤 다른 연결로 지움 | `listDirectory`로 열어 봄 | 가능(서버 연결 수 제한 시 지우기 전에 실패, 6절) | `FtpCopyMove.kt:41-63`, `ftp/client/Client.kt:41-76`, 222-, 235 |
+| WebDAV | 원본 `GET` 연 뒤 지움 | 원본 목록으로 열어 봄 | 가능 | `WebDavCopyMove.kt:46-68` |
+
+원본 확인은 **대상이 있고 '바꾸기'일 때만** 추가 비용이 생긴다(폴더 목록 열어 보기, 문서 제공자 열어 보기). 일반 파일은 어차피 열 원본을 먼저 여는 것이라 비용이 없다.
 - 문서 제공자는 '열어 보고 닫기'라 확인과 실제 복사 사이에 짧은 틈이 있다(6절).
 - 원본이 일반 파일·폴더가 아닌 특수 파일이면 지금처럼 지우기 전에 실패한다(`LinuxCopyMove.kt:178-180`, `ForeignCopyMove.kt:34-37`).
 
-**나눔.** 파일 수(11-1 한도 5)를 지키려고 C1·C2로 나눈다. 둘은 서로 독립이고 어느 쪽이 먼저여도 된다.
+**나눔.** 파일 수(11-1 한도 5)를 지키려고 C1·C2로 나눈다. C2는 C1의 공용 함수를 쓰므로 **C1 → C2** 순서다.
 | 조각 | 파일 |
 |---|---|
 | C1 | 공용 함수(신규), `LinuxCopyMove.kt`, `ForeignCopyMove.kt`, `DocumentCopyMove.kt`, 테스트 |
@@ -57,14 +69,14 @@ flowchart LR
 | 구성요소 | 위치 | 책임 | 추적 REQ |
 |---|---|---|---|
 | 복사 분류(신규) | `filejob/` (이름은 LLD) | 경로 하나를 '폰'/'네트워크'로 판정하고, (원본, 대상 폴더) 쌍을 폰→폰/네트워크로 정한다(SRS 2.1 안 A). 판정 규칙: Linux 경로(`provider/linux/LinuxPath.kt:185` `isLinuxPath`, 루트 포함) → 폰. 압축 파일 안(`isArchivePath`, `provider/archive/ArchivePath.kt:110`) → `archiveFile`(`PathArchiveExtensions.kt:16`)로 다시 판정. 문서 제공자(`isDocumentPath`) → `DocumentResolver.isLocal`(`DocumentResolver.kt:269-272`)이 참이고 MTP(`DocumentResolver.kt:49`)가 아니면 폰. 그 밖(content·SFTP·SMB·FTP·WebDAV) → 네트워크. 경로 종류 → 판정 규칙은 순수 함수로 떼어 JVM에서 시험한다 | 01 |
-| 속성 생략 옵션(신규) | `provider/common/CopyOptions.kt` | 새 `CopyOption` 하나와 `CopyOptions`의 필드 하나. `toCopyOptions()`(220-252)가 알아보고 `toArray()`(196-217)가 되돌린다. 지금의 `ProgressCopyOption`·`CleanupFailureCopyOption`처럼 `Parcelable`로 둔다(루트 원격 호출로 넘어가도 깨지지 않게, D2) | 03 |
+| 속성 생략 옵션(신규) | `provider/common/CopyOptions.kt` | 새 `CopyOption` 하나와 `CopyOptions`의 필드 하나. `toCopyOptions()`(45-77)가 알아보고 `toArray()`(21-44)가 되돌린다. 지금의 `ProgressCopyOption`·`CleanupFailureCopyOption`처럼 `Parcelable`로 둔다(루트 원격 호출로 넘어가도 깨지지 않게, D2) | 03 |
 | 옵션 조립 | `filejob/FileJobs.kt:949-959`(`copy`), 1255-(`copyOrMove`), 804-(`CopyFileJob`), 1794-1799(`save`), 1583-1603(`open`) | 복사 시작 항목마다 분류를 한 번 하고(SRS D1) 하위 항목에 물려준다. 네트워크면 옵션 배열(1353-1366)에 속성 생략 옵션을 더한다. 폰→폰은 지금과 같은 옵션 | 01, 03 |
 | 공급자 간 속성 단계 | `provider/common/ForeignCopyMove.kt:109-130` | 속성 생략이면 `setTimes`를 하지 않는다. 대상 파일·폴더는 지금도 권한 없이 만든다(`newOutputStream`·`createDirectory`) | 03 |
 | SFTP 속성 단계 | `provider/sftp/SftpCopyMove.kt:68-74`, 98, 153, 186-217 | 속성 생략이면 만들 때 `FileAttributes.EMPTY`(Q5 안 B)이고 `setstat`을 하지 않는다 | 03 |
 | SMB 속성 단계 | `provider/smb/SmbCopyMove.kt:146-156` | 속성 생략이면 `setFileInformation`을 하지 않는다. 만들 때 속성은 이미 `FILE_ATTRIBUTE_NORMAL`(67-73) | 03 |
 | FTP 속성 단계 | `provider/ftp/FtpCopyMove.kt:104-115` | 속성 생략이면 `setLastModifiedTime`을 하지 않는다 | 03 |
 | WebDAV 속성 단계 | `provider/webdav/WebDavCopyMove.kt:115-126` | 속성 생략이면 `setLastModifiedTime`을 하지 않는다 | 03 |
-| 회귀 테스트 | `app/src/test/.../filejob/`, `.../provider/common/` | 분류 규칙 표 전체(SRS 2.1 안 A 열 × 원본·대상), 옵션 왕복(`toArray` ↔ `toCopyOptions`) | 01, 03 |
+| 회귀 테스트 | `app/src/test/.../filejob/` (파일 1개) | 분류 규칙 표 전체(SRS 2.1 안 A 열 × 원본·대상), 옵션 왕복(`toArray` ↔ `toCopyOptions`, 공개 API라 같은 테스트 파일에서 시험) | 01, 03 |
 
 - `LinuxCopyMove`·`DocumentCopyMove`는 바꾸지 않는다. Linux→Linux는 언제나 폰→폰이라 옵션을 받지 않는다. 문서 제공자 안의 복사는 속성 단계가 없다(`DocumentCopyMove.kt:43-51`). 클라우드 SAF와 폰 사이 복사는 `ForeignCopyMove`를 지난다.
 
@@ -79,15 +91,15 @@ A2는 A1의 옵션을 쓰므로 A1 뒤다.
 ### 2.3 조각 B — 링크 따라가기 + 깊이 제한 (REQ-55-02, 04, 05, 06, 07)
 | 구성요소 | 위치 | 책임 | 추적 REQ |
 |---|---|---|---|
-| 링크 깊이 계산(신규) | `filejob/` (이름은 LLD) | 폴더에 들어갈 때 "이 폴더가 링크인가"를 받아 깊이를 쌓고, 나올 때 뺀다. 깊이 = 부모 깊이 + (링크면 1). 8을 넘으면 '초과'를 돌려준다. 순수 상태 객체라 JVM에서 시험한다. 상한 8은 한 곳의 상수 | 06 |
-| 순회(복사) | `filejob/FileJobs.kt:829-863` (`copyRecursively`) | 네트워크면 `Files.walkFileTree(source, EnumSet.of(FileVisitOption.FOLLOW_LINKS), Int.MAX_VALUE, visitor)`. `preVisitDirectory`에서 링크 여부를 읽어(링크를 따르지 않은 속성 1회, D5) 깊이 계산에 넣는다. 초과면 그 폴더를 복사하지 않고 순환 오류(D6)로 오류 처리에 넘긴 뒤 `SKIP_SUBTREE`, `postVisitDirectory`에서 깊이를 뺀다. `visitFileFailed`(라이브러리 순환 감지 `FileSystemLoopException`, 대상 없는 링크 폴더, 목록 실패)도 오류 처리로 넘기고 계속한다. 폰→폰은 지금과 같다(링크 안 따라감, `visitFileFailed`는 지금처럼 다시 던짐) | 04, 05, 06 |
+| 링크 깊이 계산(신규) | `filejob/` (이름은 LLD) | 폴더에 들어갈 때 "이 폴더가 링크인가"를 받아 새 깊이(= 부모 깊이 + 링크면 1)를 계산하고 8을 넘으면 '초과'를 돌려준다. 깊이를 **쌓는 것은 그 폴더 안으로 실제로 들어갈 때(`CONTINUE`)만**이고, 빼는 것은 `postVisitDirectory`다. 라이브러리는 `preVisitDirectory`가 `SKIP_SUBTREE`를 돌려주면 `postVisitDirectory`를 부르지 않으므로(retrofile `FileTreeWalker`, javap 확인), `SKIP_SUBTREE`를 돌려주는 모든 분기(초과, 폴더 복사 실패, 건너뛰기 `copied == false` — `FileJobs.kt:843-847`, 합치기 건너뛰기)는 쌓지 않는다(또는 쌓았다면 그 자리에서 되돌린다). 순수 상태 객체라 JVM에서 시험한다. 상한 8은 한 곳의 상수 | 06 |
+| 순회(복사) | `filejob/FileJobs.kt:829-863` (`copyRecursively`) | 네트워크면 `Files.walkFileTree(source, EnumSet.of(FileVisitOption.FOLLOW_LINKS), Int.MAX_VALUE, visitor)`. `preVisitDirectory`에서 링크 여부를 읽어(링크를 따르지 않은 속성 1회, D5) 깊이 계산에 넣는다. 초과면 그 폴더를 복사하지 않고 순환 오류(D6)로 오류 처리에 넘긴 뒤 `SKIP_SUBTREE`, `postVisitDirectory`에서 깊이를 뺀다. `visitFileFailed`(라이브러리 순환 감지 `FileSystemLoopException`, 폴더 목록 실패)도 오류 처리로 넘기고 계속한다. 대상 없는 링크는 여기로 오지 않는다 — 라이브러리가 따라간 속성 읽기에 실패하면 링크 자체의 속성으로 다시 읽어 `visitFile`로 넘긴다(3.1). 폰→폰은 지금과 같다(링크 안 따라감, `visitFileFailed`는 지금처럼 다시 던짐) | 04, 05, 06 |
 | 순회(집계) | `filejob/FileJobs.kt:269-299` (`scan`), 307-322 | 복사 시작 항목마다 같은 분류로 순회한다. 네트워크면 같은 `FOLLOW_LINKS`와 같은 깊이 규칙. 초과는 그 폴더를 한 항목으로 세고 내려가지 않는다. `visitFileFailed`는 한 항목으로 세고 계속한다(오류 창은 복사 단계에서 한 번만, D8) | 06, 07 |
-| 오류 처리(추출) | `filejob/FileJobs.kt:1454-1508` | 지금 `copyOrMove`의 일반 `IOException` 처리(건너뛰기·모두 건너뛰기·취소, `skipCopyMoveError`)를 함수로 떼어 순회 쪽에서도 부른다. 동작·문구는 같다 | 05, 06 |
+| 오류 처리(추출) | `filejob/FileJobs.kt:1454-1508` | 지금 `copyOrMove`의 일반 `IOException` 처리(다시 시도·건너뛰기·모두 건너뛰기·취소, `skipCopyMoveError`)를 함수로 떼어 순회 쪽에서도 부른다. `copyOrMove`에서는 동작·문구가 지금과 같다. 순회 쪽 오류(깊이 초과·순환·`visitFileFailed`)에서는 **"다시 시도" 버튼을 보이지 않는다**(긍정 버튼 없음, 지금 압축하기 오류 창처럼 `FileJobs.kt:778-786`): 순회기는 지나간 폴더를 다시 들어갈 수 없고, 깊이 초과·순환은 다시 해도 같다(D10). 건너뛰기·모두 건너뛰기·취소는 같다 | 05, 06 |
 | 옵션 조립 | `filejob/FileJobs.kt:1353-1366` | 네트워크면 `NOFOLLOW_LINKS`를 넣지 않는다(백엔드가 원본 속성을 따라간 값으로 읽는다, SRS 1.4). 폰→폰은 지금과 같다 | 02, 04 |
 | 충돌 판정 | `filejob/FileJobs.kt:1377-1386`, 612-635(`showConflictDialog`) | 네트워크면 원본·대상 모두 `FileItem.attributes`(링크를 따라간 속성, `file/FileItem.kt:36-37`)로 폴더 여부를 본다. 폰→폰은 지금처럼 `attributesNoFollowLinks`. 정한 합치기 여부를 창에 넘긴다(D7) | 07 |
 | 충돌 창 | `filejob/FileJobConflictDialogFragment.kt:75-76`, 284, 298, 310-313, `Args` 318- | 합치기 여부를 스스로 계산하지 않고 `Args`로 받은 값을 버튼·제목·문구·(#54의) 경고 조건에 쓴다. 백그라운드 알림용 `getTitle`·`getMessage`(`FileJobs.kt:628-629`)도 같은 값을 받는다. **#54(PR #59)가 먼저 머지된 뒤** 그 위에서 고친다 | 07 |
 | FTP 링크 풀기 보정 | `provider/ftp/client/Client.kt:257-265` | 링크 대상 문자열을 링크 경로 자신이 아니라 링크의 부모에 붙여 푼다(지금 `path.resolve(targetString)`, 263). 절대 경로면 결과가 같다 | 04 |
-| 회귀 테스트 | `app/src/test/.../filejob/` | 깊이 계산: 링크 없는 깊은 폴더 통과, 링크 8겹 통과, 9겹 초과, 나올 때 되돌림, 링크 아닌 폴더는 깊이 불변 | 06 |
+| 회귀 테스트 | `app/src/test/.../filejob/` | 깊이 계산: 링크 없는 깊은 폴더 통과, 링크 8겹 통과, 9겹 초과, 나올 때 되돌림, 링크 아닌 폴더는 깊이 불변, **`SKIP_SUBTREE`로 끝난 폴더(초과·건너뛰기) 뒤 형제 폴더의 깊이가 부모와 같음** | 06 |
 
 **백엔드별 링크 따라가기(코드 읽기, 실서버 미확인).**
 | 원본 | 원본 속성(따라감) | 내용 읽기 | 폴더 목록 | 비고 |
@@ -103,19 +115,17 @@ A2는 A1의 옵션을 쓰므로 A1 뒤다.
 **나눔.**
 | 조각 | 파일 | 머지 뒤 상태 |
 |---|---|---|
-| B1 | `provider/ftp/client/Client.kt` | FTP 상대 링크가 바르게 풀린다(목록의 링크 대상 표시에도 적용). 다른 동작 변화 없음 |
+| B1 | `provider/ftp/client/Client.kt` | FTP 상대 링크가 바르게 풀린다. `listFile(follow)`를 쓰는 탐색 쪽(`ftp/FtpFileAttributeView.kt:23`, `ftp/FtpFileSystemProvider.kt:376`)도 함께 바뀐다 — 상대 링크의 종류·크기가 이제 링크 대상 기준으로 바르게 보인다. 복사 동작은 B2 전까지 그대로(복사는 아직 링크를 따라가지 않음) |
 | B2 | 링크 깊이 계산(신규), `FileJobs.kt`, `FileJobConflictDialogFragment.kt`, 테스트 | 네트워크 복사가 링크를 따라간다 |
 
 B2는 따라가기·깊이 제한·항목 단위 실패·충돌 판정을 **한 PR에 함께** 넣는다. 따라가기만 먼저 들어가면 SFTP 순환에서 집계·복사가 끝나지 않고, 충돌 판정이 따로 들어가면 창과 작업이 어긋난다. B1은 독립이라 B2 앞이 좋다(B2의 FTP 수동 시험이 바른 경로로 돈다).
 
 ### 2.4 조각 순서와 의존 (요약)
 ```
-C1 ─┐
-C2 ─┼─→ A1 → A2 ─→ B2   (B2는 #54 머지 뒤)
-    │              ↑
-B1 ─┴──────────────┘ (B1은 어느 때나, B2 앞)
+C1 → C2 → A1 → A2 → B2   (B2는 #54 머지 뒤)
+B1 ─────────────────→ B2   (B1은 어느 때나, B2 앞)
 ```
-C → A는 같은 파일(`ForeignCopyMove`, SFTP·SMB·FTP·WebDAV) 충돌을 피하려는 순서다. A1 → B2는 분류가 필요해서다.
+C1 → C2는 공용 함수 때문이다. C → A는 같은 파일(`ForeignCopyMove`, SFTP·SMB·FTP·WebDAV) 충돌을 피하려는 순서다. A1 → B2는 분류가 필요해서다.
 
 ## 3. 데이터 흐름·상태
 
@@ -168,10 +178,12 @@ C → A는 같은 파일(`ForeignCopyMove`, SFTP·SMB·FTP·WebDAV) 충돌을 �
 | D6. 깊이 초과는 `FileSystemLoopException`으로 알리고 새 문자열을 더하지 않는다 | 깊이 제한 전용 문자열 | 오류 창 본문은 예외 문자열을 보여 준다(`FileJobs.kt:1468-1482`의 `file_job_copy_error_message_format`과 `e.toString()`). 라이브러리 순환 감지와 같은 예외라 처리가 하나다. 예외 메시지에 깊이 8 초과임을 적는다(REQ-55-06). 번역 작업(#21 일시정지)을 늘리지 않는다 |
 | D7. 합치기 여부는 `FileJobs`가 정하고 충돌 창은 받아 쓴다 | 창이 같은 규칙으로 다시 계산 | 두 곳이 따로 계산하면 분류를 창에도 넘겨야 하고 어긋날 수 있다(REQ-55-07 "항상 같은 결과") |
 | D8. 집계는 실패·초과를 조용히 한 항목으로 센다 | 집계에서도 오류 창 | 같은 항목에 창이 두 번 뜨지 않게 한다. 복사 단계에서 한 번 묻는다 |
+| D10. 순회 쪽 오류 창에는 "다시 시도"가 없다 | 다시 시도 = 그 하위 트리를 새로 순회 | 라이브러리 순회기는 지나간 폴더로 되돌아갈 수 없다. 다시 순회를 짜면 깊이·집계 상태를 다시 맞춰야 해 복잡하다. 깊이 초과·순환은 다시 해도 결과가 같다. 지금 순회 실패는 작업 전체가 끝나므로(SRS 1.4) 건너뛰기만 생겨도 나아진다. 사용자에게 보이는 차이: 이 경우의 오류 창은 버튼이 둘(건너뛰기·취소) |
 | D9. 네트워크 충돌 판정은 대상도 따라간 속성으로 본다 | 원본만 따라감 | '네트워크에는 링크 개념이 없다'(오너 2026-11-04)에 맞춘다. 대상이 폴더를 가리키는 링크면 합치기가 되어 그 링크가 가리키는 폴더 안에 쓴다(6절) |
 
 ## 6. 위험과 미결 사항
 - **문서 제공자 확인의 틈(D4)**: 열어 보고 닫은 뒤 지우고 `copyDocument`가 다시 열 때까지 원본이 바뀌면 지운 뒤 실패할 수 있다. 드물다.
+- **클라우드 SAF의 '열어 보기' 비용(D4)**: 클라우드 제공자는 `openInputStream`에서 파일 전체를 내려받기 시작할 수 있다(제공자 구현에 따름, 미확인). 대상이 있고 '바꾸기'일 때만 생기는 비용이고, 같은 제공자 안 복사에서만이다. 실측이 문제면 LLD에서 열자마자 닫는다(읽지 않음).
 - **전송 도중 실패**: 원본을 연 뒤의 끊김으로 기존 대상을 잃는 위험은 남는다(오너 결정 #42, #54 경고).
 - **폴더마다 왕복 1회(D5)**: 폴더가 많은 NAS 트리 복사가 조금 느려진다. 실측은 미확인.
 - **FTP 연결 수**: 조각 C2로 '바꾸기' 때 원본 전송·지우기·쓰기가 동시에 연결 셋을 쓸 수 있다. 연결 수를 제한한 서버에서는 지우기 전에 실패하고 대상은 남는다(데이터 손실 없음). 지금도 복사는 연결 둘을 동시에 쓴다.
@@ -180,9 +192,10 @@ C → A는 같은 파일(`ForeignCopyMove`, SFTP·SMB·FTP·WebDAV) 충돌을 �
 - **대상이 폴더 링크인 합치기(D9)**: NAS 대상의 폴더 링크에 합치면 링크가 가리키는 폴더 안에 쓴다. 지금(폰→폰과 같음)은 대상 링크가 폴더가 아니어서 교체 창이 뜬다. 네트워크 복사에서만 바뀐다.
 - **#54와의 순서**: B2는 #54 머지 뒤. #54 문서의 "폴더 판정 = 링크 안 따름"은 네트워크 복사에서 달라진다(PM 전달 사항, SRS 5절). #54 파일은 이 작업에서 고치지 않는다.
 - **이동이 `copy`로 대체될 때**: 조각 C의 순서 변경이 이동의 복사 대체 경로에도 적용된다(1절). 성공 결과는 같고 실패 시 대상을 덜 지운다.
-- **수정 파일 수**: 조각마다 5개 이하(C1 5, C2 5, A1 5, A2 4, B1 1, B2 4).
+- **수정 파일 수**: 조각마다 5개 이하(C1 5, C2 5, A1 5 — 테스트 1개 포함, A2 4, B1 1, B2 4).
 
 ## 7. 변경 이력
 | 일자 | 버전 | 변경 | 사유 | 요청자 |
 |---|---|---|---|---|
 | 2026-11-19 | v1 | 최초 작성(조각 C·A·B) | SRS v1.3, 오너 결정 2026-11-19 | PM |
+| 2026-11-19 | v1.1 | H1 깊이 쌓기를 `CONTINUE`일 때만(SKIP 뒤 누수 방지)·테스트 추가, H2 C1 → C2 순서, h3 `CopyOptions.kt` 줄 정정, h4 대상 없는 링크 경로 정정, h5 순회 오류 창에 다시 시도 없음(D10), h6 A1 테스트 1개, h7 B1 탐색 영향, h8 REQ-55-09 확인 가능 표·클라우드 SAF 비용 | HLD 검수 1차 반려(H1-H2, h3-h8, PR #64 코멘트) | reviewer |
