@@ -4,7 +4,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 검수 통과 (v1.1) — [판단] L2·L4는 PM 판단 대기 |
+| 상태 | 검수 통과 (v1.1), PM 결정 반영 (v1.2) |
 | 근거 | SRS v1.4, HLD v1.3 (2.1 조각 C, 3.3, 4, 5 D3·D4, 6) |
 | 기준 코드 | `origin/develop` 0cd4358. `provider/`는 HLD 기준 0941fa7과 같다(`git diff --stat 0941fa7 0cd4358 -- app/src/main/java/me/zhanghai/android/files/provider` 비어 있음). 경로는 `app/src/main/java/me/zhanghai/android/files/` 기준 |
 | 추적 REQ | REQ-55-08, REQ-55-09 |
@@ -41,7 +41,7 @@
 | `app/src/test/java/me/zhanghai/android/files/provider/common/SourceCheckedReplaceTest.kt` | 신규 | 공용 함수 단위 테스트 (3.1) |
 | `app/src/test/java/me/zhanghai/android/files/provider/common/ForeignCopyMoveCleanupTest.kt` | 수정 | `ForeignCopyMove` 회귀 테스트(수정 전 실패·수정 후 통과)와 fake 확장 (3.2) |
 
-**파일 수 6**(운영 코드 4 + 테스트 2). HLD 2.1·6절은 C1을 5개(테스트 1)로 적었다. `ForeignCopyMove`는 JVM에서 시험할 수 있는 유일한 백엔드이고 그 fake(`FakeProvider`, 파일 안 `private`)가 이미 `ForeignCopyMoveCleanupTest.kt`에 있어, 수정 전 실패를 보이는 회귀 테스트를 그 파일에 더한다. 5개를 지키려면 (가) 회귀 테스트를 빼거나 (나) 공용 함수 테스트를 `ForeignCopyMoveCleanupTest.kt`에 함께 넣어야 한다 — 어느 쪽도 이 안보다 낫지 않아 6개로 하고 PM 판단을 받는다(PROCESS_ROLES 11-1 "5개 파일을 넘으면 착수 전에 범위를 알린다", 4절 F1).
+**파일 수 6**(운영 코드 4 + 테스트 2). HLD 2.1·6절은 C1을 5개(테스트 1)로 적었다. `ForeignCopyMove`는 JVM에서 시험할 수 있는 유일한 백엔드이고 그 fake(`FakeProvider`, 파일 안 `private`)가 이미 `ForeignCopyMoveCleanupTest.kt`에 있어, 수정 전 실패를 보이는 회귀 테스트를 그 파일에 더한다. 5개를 지키려면 (가) 회귀 테스트를 빼거나 (나) 공용 함수 테스트를 `ForeignCopyMoveCleanupTest.kt`에 함께 넣어야 한다 — 어느 쪽도 이 안보다 낫지 않아 6개로 한다. **PM이 6개를 승인했다(2026-11-19, 4절 F1)**.
 
 ### C2
 | 파일 | 신규/수정 | 요지 |
@@ -187,6 +187,7 @@ private fun checkSourceReadable(source: DocumentPath)
   ```
   MIME이 `null`이면 일반 파일로 본다(`DocumentResolver.copyManually`가 `MimeType.GENERIC`으로 보는 것과 같다, `document/resolver/DocumentResolver.kt:149-155`).
 - **기존 코드와의 관계**: `DocumentResolver.getMimeType(path)`(232), `queryChildren`(410), `openInputStream`(389), `file.MimeType`. 바로 닫으므로 HLD 6절의 클라우드 내려받기 비용은 열기 1회로 끝난다(제공자 구현에 따름, 미확인). 확인과 `copyDocument` 사이의 틈은 HLD 6절 그대로 남는다.
+- **알려진 한계 (PM 결정 2026-11-19, 검수 L2)**: 같은 제공자 복사(`copyApi24`의 `copyDocument`, `DocumentResolver.kt:85-90`)는 원본을 스트림으로 열지 않는다. 그래서 스트림으로는 열 수 없지만 `copyDocument`로는 복사되는 원본(가상 문서 등)은 대상이 있을 때의 '바꾸기'에서 이 확인 때문에 새로 실패한다(대상은 남는다). 대상이 없는 복사는 확인을 하지 않아 영향이 없다. 받아들인 동작이며 M-C4와 함께 미확인이다. `queryChildren`은 제공자가 로딩 중이면 기다린다(`DocumentResolver.kt:419-422`).
 
 ### 2.7 `SftpCopyMove.copy(source: SftpPath, target: SftpPath, copyOptions: CopyOptions)` (C2, 수정)
 - **추적**: HLD 2.1 "SFTP" / REQ-55-08
@@ -312,23 +313,24 @@ fake 확장: `FakeProvider`에 `inputStreamException`, `directoryStreamException
 | M-C1 로컬 읽기 권한 없는 원본 | C1 | 에뮬레이터, 디버그 빌드(디버그 가능 → `run-as`) | `adb shell run-as me.zhanghai.android.files sh -c 'mkdir -p files/src files/dst && echo new > files/src/a && chmod 000 files/src/a && echo keep > files/dst/a'` → 앱에서 `/data/user/0/me.zhanghai.android.files/files/src/a`를 `files/dst`로 복사 → 충돌 창 '바꾸기' | 오류 창(권한 거부), `run-as … cat files/dst/a` = `keep`. 수정 전 빌드에서는 `a`가 지워진다 |
 | M-C2 로컬 폴더 원본 | C1 | 같음 | `files/src/d`(폴더, `chmod 000`)를 일반 파일 `files/dst/d`가 있는 곳으로 복사 → '바꾸기' | 오류, `files/dst/d` 남음 |
 | M-C3 공급자 간 | C1 | 에뮬레이터 | Linux 경로의 읽기 권한 없는 원본(M-C1의 `a`)을 SAF로 연 폴더(같은 이름 `a` 있음)로 복사 → '바꾸기' | 오류, SAF의 `a` 남음. 준비가 안 되면 PR에 "미확인", U-C10–13이 같은 순서를 확인 |
-| M-C4 문서 제공자 | C1 | 에뮬레이터 | 같은 SAF 트리 안에서 원본을 읽을 수 없게 만들 방법이 없다(제공자가 권한을 정함) | **미확인**(코드 검사로 갈음). 정상 '바꾸기'가 지금처럼 되는지만 확인 |
+| M-C4 문서 제공자 | C1 | 에뮬레이터 | 같은 SAF 트리 안에서 원본을 읽을 수 없게 만들 방법이 없다(제공자가 권한을 정함) | **미확인**(코드 검사로 갈음). 2.6의 가상 문서 한계도 미확인으로 둔다(PM 결정). 정상 '바꾸기'가 지금처럼 되는지만 확인 |
 | M-C5 회귀 | C1 | 에뮬레이터 | 내부 저장소 파일·폴더의 정상 '바꾸기', 파일 링크 '바꾸기' | 지금과 같은 결과 |
 | M-C6 SFTP | C2 | SFTP 서버 | 서버에 `chmod 000 src/a`, `dst/a` 있음 → 앱에서 `src/a`를 `dst`로 '바꾸기'. 폴더(`chmod 000 src/d`, `dst/d`는 파일)도 | 오류, `dst/a`·`dst/d` 남음 |
 | M-C7 SMB | C2 | SMB 서버 | 읽기 거부 ACL 파일로 M-C6과 같게 | 같음 |
-| M-C8 FTP | C2 | FTP 서버 | M-C6과 같게. 링크 원본(서버 쪽 링크)을 같은 이름 대상 위로 '바꾸기' | 읽기 거부: 오류·대상 남음. 링크: "Cannot copy symbolic links"·**대상 남음**(#56, 지금은 지워짐) |
+| M-C8 FTP | C2 | FTP 서버 | (a) M-C6과 같게. (b) 링크 원본(서버 쪽 링크)을 같은 이름 대상 위로 '바꾸기'. (c) 대상 `dst/a`의 삭제(`DELE`)는 거부하고 덮어쓰기(`STOR`)는 허용하는 서버 설정에서 '바꾸기'. (d) 삭제·덮어쓰기를 모두 거부하는 설정에서 '바꾸기' | (a) 오류·대상 남음. (b) "Cannot copy symbolic links"·**대상 남음**(#56, 지금은 지워짐). (c) 550을 무시하고 `STOR`로 덮어써 '바꾸기' 성공(2.10). (d) `storeFile` 오류·대상 남음(지금은 삭제 단계의 550 오류). 서버 설정을 만들 수 없으면 (c)(d)는 미확인 |
 | M-C9 WebDAV | C2 | WebDAV 서버 | 403을 주는 원본(서버 권한 설정)으로 M-C6과 같게 | 같음 |
 
 서버가 없으면 M-C6–9는 PR에 "미확인"으로 적는다(SRS 6절). 오너 기기에는 설치하지 않는다(사전 승인 필요).
 
 ## 4. 설계 피드백
-- **F1 (PM 판단, 범위 알림)**: C1의 파일 수가 6개다(1절). HLD 2.1 나눔 표·6절 "C1 5"는 테스트 1개를 가정했다. 운영 코드 4개는 HLD와 같고 늘어난 것은 테스트 파일 하나다. PM이 5개를 요구하면 U-C01–09를 `ForeignCopyMoveCleanupTest.kt`에 함께 넣어 5개로 한다(파일 이름이 내용과 맞지 않게 된다). HLD 수정은 요청하지 않는다(설계 동작 변화 없음).
+- **F1 (PM 판단, 범위 알림)**: C1의 파일 수가 6개다(1절). HLD 2.1 나눔 표·6절 "C1 5"는 테스트 1개를 가정했다. 운영 코드 4개는 HLD와 같고 늘어난 것은 테스트 파일 하나다. **PM 결정(2026-11-19): 6개 승인.** HLD 수정은 요청하지 않는다(설계 동작 변화 없음).
 - **F2 (경미, 설계팀 참고)**: HLD 2.1 공용 함수 행의 "`provider/common/SymbolicLinkCopy.kt:271-297`"는 실제로 19-46이다(파일이 46줄). 내용(람다 주입 방식)은 맞아 LLD는 19-46을 쓴다. 다음 HLD 갱신 때 고치면 된다.
 - **F3 (LLD 결정, 기록)**: HLD는 SMB에 "지우기 함수를 받거나 '바꾸기' 여부를 받는다 — LLD"를 남겼다. 지우기 함수를 받는다(2.9): 예외 변환(`ClientException` → `FileSystemException`)이 `SmbCopyMove`에 그대로 남고 `Client`가 '바꾸기' 의미를 몰라도 된다.
-- **F4 (LLD 결정, 기록)**: FTP 550 모호성(2.10). 공용 함수의 '없음 무시'(HLD ③)를 FTP에도 그대로 쓴다. 덮어쓰기가 거부되면 대상이 남으므로 REQ-55-08을 해치지 않는다.
+- **F4 (LLD 결정, 기록)**: FTP 550 모호성(2.10). 공용 함수의 '없음 무시'(HLD ③)를 FTP에도 그대로 쓴다. 덮어쓰기가 거부되면 대상이 남으므로 REQ-55-08을 해치지 않는다. **PM 결정(2026-11-19, 검수 L4): 받아들인다.** 결과·오류 메시지 변화는 PR 강조점에 적고 M-C8 (c)(d)로 확인한다.
 
 ## 5. 변경 이력
 | 일자 | 버전 | 변경 | 사유 | 요청자 |
 |---|---|---|---|---|
 | 2026-11-19 | v1 | 최초 작성(조각 C1·C2) | PM LLD 요청(조각 C만) | PM |
 | 2026-11-19 | v1.1 | 0절·1절의 LLD 절 번호 참조 정정, 2.9 `copyFile`에 람다 예외 KDoc·`@Throws(IOException)` 추가 | LLD 검수 1차 조건부 통과 L1·L3 [기계] (PR #64 코멘트). L2·L4 [판단]은 PM 판단 대기 | reviewer |
+| 2026-11-19 | v1.2 | F1(C1 6파일) 승인 기록, 2.6에 가상 문서 한계(L2) 추가·M-C4에 포함, F4(L4) 승인 기록·M-C8에 삭제 거부 + STOR 허용/불허 두 경우 추가, 상태 행 | PM decision 2026-11-19 (PR #64 코멘트) | PM |
