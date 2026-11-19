@@ -4,7 +4,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 작성 중 |
+| 상태 | 검수 통과 |
 | 근거 | SRS v1.3, HLD v1.2 (오너 결정 후보 B, 2026-11-19) |
 
 ## 1. 변경 파일
@@ -150,7 +150,7 @@
 ## 4. 테스트 설계
 
 ### 4-1. `me.zhanghai.android.files.theme.SecondaryTextColorResourceTest` (JVM, JUnit 4)
-- **추적**: HLD C1~C3, D3 / REQ-27-05, 06, 07
+- **추적**: HLD C1~C3, D3 / REQ-27-05, 06 (오너가 고른 값 자체는 REQ-27-07로 HLD 4-1과 이슈 #27 코멘트를 대조해 확인한다. 이 테스트는 그 값이 자원에 들어갔는지만 고정한다)
 - **책임**: 자원 XML의 항목 값과 순서를 고정해, 색 결정이 바뀌거나 불변 항목이 실수로 바뀌면 빌드 테스트에서 드러나게 한다.
 - **입력·전제**: Gradle 단위 테스트의 작업 디렉터리는 모듈 디렉터리(`app/`)다. 파일은 `File("src/main/res/<폴더>/<이름>.xml")`로 읽는다(없으면 `assertTrue(file.exists())`로 실패시켜 경로 문제를 숨기지 않는다).
 - **도우미** `private fun items(path: String): List<Map<String, String>>`: `DocumentBuilderFactory`(`isNamespaceAware = true`)로 파싱해 `<selector>`의 `<item>` 자식마다 android 이름공간(`http://schemas.android.com/apk/res/android`) 속성을 `로컬이름 → 값` 맵으로, 문서 순서대로 돌려준다.
@@ -180,3 +180,4 @@
 | 일자 | 버전 | 변경 | 사유 | 요청자 |
 |---|---|---|---|---|
 | 2026-11-19 | v1.0 | 최초 작성 | SRS v1.3, HLD v1.2 | PM |
+| 2026-11-19 | v1.1 | 상태를 검수 통과로, 4-1 추적에서 REQ-27-07을 분리 | LLD 검수 1회차 조건부 통과(경미 [기계] 2건). [판단] 1건(C1·C2를 함께 쓰는 `textColorTertiary`·어두운 테마 `*Inverse` 부수 영향)은 PM 판단 대기 | 검수팀 |
