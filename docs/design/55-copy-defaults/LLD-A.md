@@ -4,7 +4,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 작성 중 (v1) |
+| 상태 | 검수 조건부 통과 (v1), 경미 m1·m2 반영 (v1.1) |
 | 근거 | SRS v1.4 (2절 Q1·Q3·Q5, REQ-55-01·03, 8절 D1), HLD v1.3 (1, 2.2 조각 A, 2.4, 3.1, 4, 5 D1·D2) |
 | 기준 코드 | `origin/develop` f899359(C1 머지 뒤, PR #66). 경로는 `app/src/main/java/me/zhanghai/android/files/` 기준. 줄 번호는 이 커밋 기준이다 — A2의 네 파일은 C2(`feature/55-replace-check-c2`, 구현 중)가 먼저 고치므로 **A2는 C2 머지 뒤 develop 위에서** 하고, 위치는 줄 번호가 아니라 이 문서에 적은 코드 앵커(주석·식)로 찾는다(2.7) |
 | 추적 REQ | REQ-55-01, REQ-55-03 (REQ-55-02의 속성 부분: 폰→폰은 지금 그대로) |
@@ -170,7 +170,7 @@ class CopyOptions(
 | `copyOrMove(...)` (1254-) | 인자 `skipAttributes: Boolean` 추가(`copyAttributes` 뒤). 옵션 조립(1353-1366)에서 `if (copyAttributes) { … }` 다음에 `if (skipAttributes) { this += SkipAttributesCopyOption }`. 그 밖(충돌·오류 처리, 다시 시도)은 그대로 — 다시 시도(`REPLACE_EXISTING`)에서도 같은 값으로 다시 조립된다 |
 | `copyForMove(...)` (1231-1237), `moveByCopy(...)` (1244-1252) | `copyOrMove(…, copyAttributes = true, skipAttributes = false, …)` — 위치 인자 `false` 하나를 더한다. 동작 변화 없음(SRS Q4) |
 | `open(...)` (1582-1610) | `copy(file, targetFile, isExtract, classifyCopy(file, cacheDirectory), transferInfo, actionAllInfo)`(1603). `cacheDirectory`는 Linux 경로라 원본이 폰이면 폰→폰, NAS·클라우드면 네트워크 |
-| `save(source, target)` (1793-1806) | `copy(source, target, false, classifyCopy(source, targetParent), transferInfo, actionAllInfo)`(1799). `targetParent`는 이미 있는 `val targetParent = target.parent`(1796) |
+| `save(source, target)` (1793-1806) | `copy(source, target, false, classifyCopy(source, targetParent ?: target), transferInfo, actionAllInfo)`(1799). `targetParent`는 이미 있는 `val targetParent = target.parent`(1796, Java 플랫폼 타입). 저장 대상은 고른 폴더 안의 파일이라 부모가 있지만, 루트 경로처럼 `null`이면 `target` 자신으로 판정한다 — 분류는 경로의 제공자·트리·압축 파일만 보므로(2.4) 부모와 같은 결과이고, `null`로 인한 NPE가 생기지 않는다 |
 
 - **입력·전제**: `copyOrMove`의 `useCopy == false`(이동) 경로에서는 언제나 `skipAttributes == false`다(위 표). 이 가정을 KDoc 한 줄로 적는다(`// Only copies may skip attributes; moves keep them (#55 Q4).`).
 - **출력·사후조건**: 네트워크 복사의 모든 `copyTo` 호출(첫 시도·'바꾸기' 다시 시도·이름 바꿔 다시 시도)에 `SkipAttributesCopyOption`이 있다. 폰→폰·이동의 옵션 배열은 지금과 같다(같은 순서, 같은 원소).
@@ -290,7 +290,7 @@ fake 확장: `FakeProvider`에 `val setTimesPaths = mutableListOf<Path>()`를 �
 서버가 없으면 M-A3·M-A4는 PR에 "미확인"으로 적는다(SRS 6절). 오너 기기에는 설치하지 않는다(사전 승인 필요).
 
 ## 4. 설계 피드백
-- **F1 (PM 판단, 범위 알림)**: A1의 파일 수가 6개다(1절). 운영 코드 4개는 HLD 2.2와 같고 늘어난 것은 `ForeignCopyMoveCleanupTest.kt` 하나다(LLD-C F1과 같은 이유). 5개를 지키려면 U-A07–09(수정 전 실패를 보이는 유일한 테스트)를 빼야 한다. **PM 판단 요청.** HLD 수정은 요청하지 않는다(설계 동작 변화 없음).
+- **F1 (PM 판단, 범위 알림)**: A1의 파일 수가 6개다(1절). 운영 코드 4개는 HLD 2.2와 같고 늘어난 것은 `ForeignCopyMoveCleanupTest.kt` 하나다(LLD-C F1과 같은 이유). 5개를 지키려면 U-A07·08(수정 전 실패를 보이는 유일한 테스트)과 회귀 테스트 U-A09를 빼야 한다. **PM 판단 요청.** HLD 수정은 요청하지 않는다(설계 동작 변화 없음).
 - **F2 (LLD 결정, 기록)**: MTP 판정은 `CopyClassification.kt`의 사설 상수 `"com.android.mtp.documents"`로 한다(2.2). `DocumentResolver.MTP_DOCUMENTS_PROVIDER_AUTHORITY`(44)는 `private`이고, 열면 A1이 7개 파일이 된다. 값은 Android 시스템 상수라 바뀔 일이 거의 없고, 이 파일의 KDoc에 출처를 적는다.
 - **F3 (LLD 결정, 기록)**: A2는 JVM 테스트를 두지 않는다. SFTP 생성 속성 식만 `internal` 함수로 떼어 시험하는 안을 검토했으나, 그 식은 세 줄 `if`이고 실제 동작(서버에 보내는 `OPEN`·`MKDIR`·`SETSTAT`)은 `object Client`의 실제 세션이 필요해 fake로 바꿀 수 없다 — 파일 하나를 늘려 얻는 것이 적다. 옵션 해석은 A1(U-A04–06)이, 결선은 코드 검사(3.3)가 맡는다.
 - **F4 (LLD 결정, 기록)**: `copyOrMove`에는 분류(`CopyKind`) 대신 효과(`skipAttributes: Boolean`)를 넘긴다(2.6). `copyOrMove`는 이동도 쓰므로 분류 값이 없는 호출자(이동)가 있다. 분류는 `copy`에서 효과로 바뀐다. 조각 B2가 링크 따라가기에 같은 분류가 필요하면 그때 `copy`에서 인자를 하나 더 만든다(B2 LLD).
@@ -300,3 +300,4 @@ fake 확장: `FakeProvider`에 `val setTimesPaths = mutableListOf<Path>()`를 �
 | 일자 | 버전 | 변경 | 사유 | 요청자 |
 |---|---|---|---|---|
 | 2026-11-19 | v1 | 최초 작성(조각 A1·A2) | PM LLD 요청(조각 A만, A2는 C2 위) | PM |
+| 2026-11-19 | v1.1 | F1 문구의 수정 전 실패 테스트를 U-A07·08로 정정(m1), 2.6 `save`의 `target.parent`가 `null`일 때 `target`으로 판정(m2) | LLD 검수 1차 조건부 통과 m1·m2 [기계] (PR #72 코멘트) | reviewer |
