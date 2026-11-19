@@ -2,7 +2,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 작성 중 |
+| 상태 | 검수 통과(v1, 경미 1건 v1.1 반영) |
 | 근거 | SRS v1.2, HLD v1.1 |
 | 기준 코드 | `origin/develop` 454206d. 줄 번호는 이 커밋 기준, 경로는 `app/src/main/java/me/zhanghai/android/files/` 기준(테스트는 `app/src/test/java/me/zhanghai/android/files/`) |
 
@@ -29,7 +29,7 @@ internal data class FileJobConflictNameRestore(
 ```
 - **추적**: HLD C2 / REQ-67-01, REQ-67-02
 - **책임**: 창을 만들 때 뷰에 넣을 값 묶음. `nameText` = `nameEdit` 초기 글자, `isNameLayoutVisible` = `nameLayout` 펼침(화살표 90°/0°도 이 값을 따름), `isRename` = 긍정 버튼 초기 글자가 `R.string.rename`인지, `isAllChecked`/`isAllEnabled` = `allCheck`의 체크·사용 가능.
-- **기존 코드와의 관계**: 같은 패키지의 `FileJobEndNotice`(`filejob/FileJobEndNotice.kt:25`)처럼 Android 타입 없는 data class로 둬 JVM 테스트에서 `assertEquals`로 비교한다. 문자열 리소스 ID는 담지 않는다(`isMerge`에 따른 교체/합치기 선택은 Fragment `:77`이 그대로 한다).
+- **기존 코드와의 관계**: 같은 패키지의 `FileJobEndNotice`(`filejob/FileJobEndNotice.kt:25`, public 제네릭 data class)처럼 Android 타입 없는 data class로 두되, 이 Fragment에서만 쓰므로 `internal`로 해 JVM 테스트에서 `assertEquals`로 비교한다. 문자열 리소스 ID는 담지 않는다(`isMerge`에 따른 교체/합치기 선택은 Fragment `:77`이 그대로 한다).
 
 ### `filejob.conflictNameRestoreOf(targetFileName: String, savedNewName: String?, savedIsNameLayoutVisible: Boolean, savedIsAllChecked: Boolean): FileJobConflictNameRestore` (신규, `internal`)
 - **추적**: HLD C2(3장 복원 규칙 표) / REQ-67-01, REQ-67-02
@@ -162,3 +162,4 @@ private class State(
 | 일자 | 버전 | 변경 | 사유 | 요청자 |
 |---|---|---|---|---|
 | 2026-11-19 | v1 | 최초 작성(R1 확인 포함) | SRS v1.2·HLD v1.1 검수 통과 | PM |
+| 2026-11-19 | v1.1 | `FileJobEndNotice` 인용에 public 제네릭임을 밝히고 `internal` 이유 추가, 상태 갱신 | LLD 검수 통과 경미 1건 | reviewer |
