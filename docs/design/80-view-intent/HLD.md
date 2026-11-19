@@ -2,7 +2,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | v1.2 수정(LLD 검수와 함께 재검수 대기), v1.1 검수 통과 |
+| 상태 | 검수 통과(v1.2) |
 | 근거 | SRS v1.3 (`docs/design/80-view-intent/SRS.md`), V0 기록(`_workspace/wo/80-view-intent/`) |
 
 ## 1. 구조 개요
@@ -37,6 +37,7 @@ flowchart LR
    - C3는 C4로 경로를 구해 Host 필드 `pendingIntentPath: Path?`에 둔다. 메인 스레드에서 입출력 없이 끝난다.
 2. **적용**
    - Host `onResume`에서 보류 값이 있으면 꺼내 비우고 `activePane.navigateTo(path)`를 부른다.
+   - 위 1·2의 보류 값은 경로 하나로 적었지만, LLD는 할 일과 경로를 함께 둔다(LLD 4장 F4 `pendingNewIntent: Pair<NewIntentAction, Path>?`). D4(선택 화면이 맨 위)의 새 작업 시작도 같은 보류 방식으로 `onResume` 때 한다.
    - `onResume`까지 미루는 이유가 있다. `FileListFragment.navigateTo`는 뷰에 묶인 `layoutManager`(`FileListFragment.kt:173`, `254`)를 쓴다. 시스템 복원 직후에는 창 뷰가 만들어지기 전에 `onNewIntent`가 올 수 있다고 가정했다. `onResume` 적용은 순서와 상관없이 안전하다.
    - V0(API 36 AVD, `singleTop` 시험 빌드)에서 본 순서: 떠 있을 때 onPause → onNewIntent → onResume, 백그라운드에서 onStart → onNewIntent → onResume, 프로세스 종료 뒤 onCreate(저장 상태 있음) → onStart → onNewIntent → onResume. 어느 경우든 `onNewIntent` 때 Host 수명주기는 STARTED(`isResumed == false`)이고 Host 뷰는 이미 있었다. 다른 버전은 미확인이라 `onResume` 적용을 유지한다.
    - 활성 창은 `viewModel.activePane` 그대로다. 다른 창에는 아무 호출도 없다(REQ-80-02).
@@ -90,3 +91,4 @@ flowchart LR
 | 2026-11-20 | v1 | 최초 작성 | SRS v1.2 | PM |
 | 2026-11-20 | v1.1 | HLD 검수 1회차 경미 반영: 2장 C3·C5 추적 열에 REQ-80-03·07, 3장·D2 수명주기 순서를 가정(미확인)으로, D4 시작 시점은 LLD로, 4장 표 미확인 표시와 V4·V5 연결 | HLD 검수 1회차(PR #85) | 검수팀 |
 | 2026-11-20 | v1.2 | C7 새 작업 Intent(`FLAG_ACTIVITY_PREVIOUS_IS_TOP`, "새 창에서 열기"·D4 공용) 추가, D7·R5 추가, 4장 "새 창에서 열기"·폴더 바로 가기·④ 행 정정, 3장 2·D2·R2에 V0 결과, D4를 C7로 | LLD V0에서 `singleTop` 때 "새 창에서 열기"가 보낸 화면 자신에게 넘겨지는 결함 발견(`newwin_S.txt`, `newwin_S2.txt`, `d4_fg.txt`, `d4_S2.txt`) | 개발팀 |
+| 2026-11-20 | v1.2 | 상태를 검수 통과로, 3장 2에 LLD F4의 보류 값(할 일+경로)과 D4 `onResume` 시작 한 줄 | HLD v1.2 검수 경미 H1·H2(PR #85) | 검수팀 |
