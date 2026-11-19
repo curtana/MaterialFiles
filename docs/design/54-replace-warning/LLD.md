@@ -4,7 +4,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 검수 통과(v1.2, LLD 검수 1회차 조건부 통과 경미 [기계] 반영) |
+| 상태 | 검수 통과(v1.2, LLD 검수 1회차 조건부 통과 경미 [기계] 반영). v1.3은 PM 결정으로 검증 범위 축소(3-1·3-3) |
 | 근거 | SRS v1.3, HLD v1.3 (SRS v1.3 bfe98a7, HLD v1.3 2f09bb5 — 설계 브랜치 `design/54-replace-warning`) |
 | 기준 코드 | `origin/develop` 0941fa7. 충돌 창·레이아웃·문자열 파일은 SRS·HLD 기준 커밋 7cf16b7과 같아 줄 번호가 그대로다. 백엔드 줄 번호는 #47 머지 뒤인 0941fa7 기준이다. 경로는 `app/src/main/` 기준이다 |
 
@@ -113,13 +113,11 @@
 
 | 테스트 | 대상 | 경우 | 기대 결과 |
 |---|---|---|---|
-| U-W01 `warning_definedInEnglishAndKorean` | 2-3 | 정상 | `values/strings.xml`·`values-ko/strings.xml`에 `file_job_replace_warning`이 각각 정확히 1개, 값이 2-3 문구와 같음 |
-| U-W02 `warning_hasNoFormatArgs` | 2-3 | 경계 | 두 값에 `%`가 없음(서식 인자 없음 — `getString` 인자 없이 써도 안전) |
-| U-W03 `warning_koreanUsesReplaceWord` | 2-3 | 정상 | 한국어 값이 `values-ko`의 `replace` 문자열 값("교체")을 포함(REQ-54-05) |
-| U-W04 `warning_notInOtherLocales` | 2-3 | 경계 | `src/main/res/values-*/strings.xml` 중 `values`·`values-ko` 밖의 어느 파일에도 `name="file_job_replace_warning"`이 없음(REQ-54-05) |
-| U-W05 `koreanReplaceMessage_namesFolder` | 2-4 | 정상 | 한국어 `file_job_replace_message_format` 값이 2-4 문구와 같고, `%1$s`가 정확히 1번, 영어 값도 `%1$s` 1번(인자 수 일치, REQ-54-07) |
+| U-W01 `warning_definedInEnglishAndKorean` | 2-3 | 정상·경계 | `values/strings.xml`·`values-ko/strings.xml`에 `file_job_replace_warning`이 각각 있고 값이 비어 있지 않으며 `%`가 없음(서식 인자 없음). 문구 전체 일치는 보지 않는다 |
+| U-W05 `koreanReplaceMessage_namesFolder` | 2-4 | 정상(#58 회귀 테스트 — 문구 전체 일치 유지) | 한국어 `file_job_replace_message_format` 값이 2-4 문구와 같고, `%1$s`가 정확히 1번, 영어 값도 `%1$s` 1번(인자 수 일치, REQ-54-07) |
 | U-W06 `layout_warningIsFirstAndHidden` | 2-1 | 정상 | `file_job_conflict_dialog_view.xml`에서 `@+id/replaceWarningText`가 `@+id/targetIconImage`보다 앞에 있고, 그 `TextView` 요소 안에 `android:visibility="gone"`·`style="?materialAlertDialogBodyTextStyle"`·`@string/file_job_replace_warning`이 있음 |
 
+- REQ-54-05의 "다른 로캘 파일 무변경"·한국어 "교체" 낱말은 테스트 대신 코드 검사 C-02와 2-3 문구로 본다(PM 결정 2026-11-19).
 - 회귀 확인: U-W01·U-W05·U-W06은 구현 전(develop)에서 실패하고 구현 뒤 통과해야 한다. 구현 PR에 두 실행 결과를 붙인다.
 - 실행: `JAVA_HOME="/c/Program Files/Android/Android Studio/jbr" ./gradlew testDebugUnitTest --tests "me.zhanghai.android.files.filejob.FileJobReplaceWarningResourcesTest" --console=plain` 뒤 전체 `testDebugUnitTest`와 `assembleDebug`.
 
@@ -146,7 +144,7 @@
 | M5 | 어두운 테마(en만) | M1과 같음 | 경고가 메시지와 같은 색으로 읽힘 | SRS 5장 Theme_Support |
 | M6 | Material Design 3(en만) | M1과 같음 | 경고가 메시지와 같은 글자 모양 | E2, D5 |
 
-- 필수 캡처: 모두 14장 — M1·M2 각 1장, M3·M4 각 2장을 en·ko로 12장, M5·M6 각 1장.
+- 필수 캡처(PM 결정 2026-11-19로 확정): M1·M2·M3·M4를 en·ko로(M3·M4는 각 2장) 12장 + M5(어두운)·M6(MD3) 2장 = 14장. 대비비 계산은 유지한다.
 - M1~M4 중 하나에서 "교체"를 실제로 눌러 한 번에 진행되고 별도 확인 창이 없음을 본다(REQ-54-03).
 - 압축 풀기 충돌은 같은 창·같은 조건(`!isMerge`)이라 캡처하지 않는다(REQ-54-01은 코드 검사로 충족).
 - 대비(HLD v1.3 6장 미확인 항목): 경고는 메시지와 같은 스타일이므로 메시지와 같은 대비다. M1(밝은)·M5(어두운)·M6(MD3) 캡처에서 ① 경고 글자 픽셀 색이 메시지 글자와 같은지 ② 글자 획 중심 픽셀 색과 창 배경 색으로 WCAG 대비비를 계산해 4.5:1 이상인지 본다(venv 파이썬 스크립트로 계산, 값을 PR 코멘트에 적는다). 미달이면 메시지 자체의 문제이므로 이 작업에서 색을 바꾸지 않고 별도 이슈(`분류대기`)로 올린다(새 색 금지 유지).
@@ -159,6 +157,7 @@
 ## 5. 변경 이력
 | 일자 | 버전 | 변경 | 사유 | 요청자 |
 |---|---|---|---|---|
+| 2026-11-19 | v1.3 | 3-1: U-W02·U-W03·U-W04 삭제, U-W01을 "키 존재·서식 인자 없음"으로 축소, U-W05(#58 정확한 문구)·U-W06 유지. 3-3: 캡처 목록(M1~M6)과 대비 계산 확정 | LLD 검수 1회차 [판단] 지적에 대한 PM 결정 2026-11-19(PROCESS_ROLES 12장: 형식적 검사 지양). 자체 확인 | PM |
 | 2026-11-19 | v1.2 | 머리표 상태·근거 커밋 정리, 3-3 캡처 수 "14장"으로 통일 | LLD 검수 1회차 경미 [기계] | 검수팀 |
 | 2026-11-19 | v1.1 | 근거를 HLD v1.3으로, F1 결과 기록, 라이브러리 근거 경로 추가, 3-3에 대비비 계산(4.5:1, 미달 시 별도 이슈) 추가 | 설계 문의 F1 결과(HLD v1.3) | 개발팀 |
 | 2026-11-19 | v1 | 최초 작성 | SRS v1.3·HLD v1.2 검수 통과 | PM |
