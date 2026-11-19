@@ -4,7 +4,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 검수 조건부 통과 (v1), 경미 m1·m2 반영 (v1.1), A2 줄 번호를 C2 머지 뒤 90f2c1e로 (v1.2) |
+| 상태 | 검수 조건부 통과 (v1), 경미 m1·m2 반영 (v1.1), A2 줄 번호를 C2 머지 뒤 90f2c1e로 (v1.2), m3·m4 반영 (v1.3) |
 | 근거 | SRS v1.4 (2절 Q1·Q3·Q5, REQ-55-01·03, 8절 D1), HLD v1.3 (1, 2.2 조각 A, 2.4, 3.1, 4, 5 D1·D2) |
 | 기준 코드 | A1(1·2.1–2.7절): `origin/develop` f899359(C1 머지 뒤, PR #66). A2(2.8–2.11절): `origin/develop` 90f2c1e(C2 머지 뒤, PR #71). A1 파일(`filejob/`, `provider/common/`)은 두 커밋 사이에 바뀌지 않았다(`git diff --stat f899359 90f2c1e -- app/src/main/java/me/zhanghai/android/files/filejob app/src/main/java/me/zhanghai/android/files/provider/common` 비어 있음). 경로는 `app/src/main/java/me/zhanghai/android/files/` 기준. 줄과 함께 코드 앵커(주석·식)도 적는다 |
 | 추적 REQ | REQ-55-01, REQ-55-03 (REQ-55-02의 속성 부분: 폰→폰은 지금 그대로) |
@@ -150,7 +150,7 @@ class CopyOptions(
 - **추적**: HLD 2.2 "속성 생략 옵션", D2 / REQ-55-03
 - **책임**: 속성 생략을 `CopyOption` 배열과 `CopyOptions` 사이에서 잃지 않고 옮긴다.
 - **입력·전제**:
-  - `skipAttributes`는 **마지막 인자, 기본값 `false`**. 지금 `CopyOptions(...)`를 위치 인자 7개로 만드는 곳(`ForeignCopyMove.kt:155`, `FtpCopyMove.kt:164`, `LinuxCopyMove.kt:293`, `SftpCopyMove.kt:280`, `SmbCopyMove.kt:217`, `WebDavCopyMove.kt:175` — 모두 `move`의 복사 대체)은 고치지 않고 `false`가 된다. 이동은 속성을 맞추는 것이 맞다(SRS Q4).
+  - `skipAttributes`는 **마지막 인자, 기본값 `false`**. 지금 `CopyOptions(...)`를 위치 인자 7개로 만드는 곳(`ForeignCopyMove.kt:155`, `LinuxCopyMove.kt:293`, 90f2c1e 기준 `FtpCopyMove.kt:188`, `SftpCopyMove.kt:293`, `SmbCopyMove.kt:222`, `WebDavCopyMove.kt:199` — 모두 `move`의 복사 대체)은 고치지 않고 `false`가 된다. 이동은 속성을 맞추는 것이 맞다(SRS Q4).
   - `Parcelable`(D2): 루트 원격 호출은 `ParcelableCopyOptions`(`provider/remote/ParcelableCopyOptions.kt:30-45`)로 옵션을 넘기며 `Parcelable`·`Serializable`이 아니면 `UnsupportedOperationException`이다. 루트 경로는 폰→폰이라 이 옵션이 넘어갈 일은 없지만 넘어가도 깨지지 않게 한다. 저장소에 `@Parcelize data object` 선례가 있다(`provider/webdav/client/Authentication.kt:25-26`).
 - **알고리즘**:
   - `toArray()`(21-43): 끝에 `if (skipAttributes) { options += SkipAttributesCopyOption }`.
@@ -209,7 +209,7 @@ class CopyOptions(
   2. `when` 블록이 끝난 뒤, 주석 `// We don't take error when copying attribute fatal, …`(90f2c1e 199) 앞에 `if (copyOptions.skipAttributes) { return }`. 그 뒤 `setstat` 블록(201-230)은 그대로.
 - **바뀌지 않는 것**: `if (!sourceAttributes.has(FileAttributes.Flag.MODE)) throw …`(39-43) — 원본 종류(`sourceAttributes.type`)를 알려면 모드가 필요하다. 원본 열기(`openByteChannel(source, READ, FileAttributes.EMPTY)`, 93-95)는 원래 빈 속성이다. 링크 분기(172-196)는 `symlink`에 속성을 넘기지 않는다.
 - **오류**: 없음. 서버가 `SSH_FXP_OPEN`/`MKDIR`의 빈 속성을 받으면 서버 기본 권한으로 만든다(SFTP v3 규약, 서버 동작은 미확인 — M-A4).
-- **기존 코드와의 관계**: `FileAttributes.EMPTY`는 sshj 상수로 이미 쓰고 있다(`SftpCopyMove.kt:88`, `sftp/client/Client.kt:40`). `Client.mkdir`·`openByteChannel`(`sftp/client/Client.kt:55-74`)은 받은 속성을 그대로 넘긴다.
+- **기존 코드와의 관계**: `FileAttributes.EMPTY`는 sshj 상수로 이미 쓰고 있다(`SftpCopyMove.kt:94`(90f2c1e), `sftp/client/Client.kt:40`). `Client.mkdir`·`openByteChannel`(`sftp/client/Client.kt:55-74`)은 받은 속성을 그대로 넘긴다.
 
 ### 2.9 `SmbCopyMove.copy(source: SmbPath, target: SmbPath, copyOptions: CopyOptions)` (A2, 수정, C2 위)
 - **추적**: HLD 2.2 "SMB 속성 단계" / REQ-55-03
@@ -302,3 +302,4 @@ fake 확장: `FakeProvider`에 `val setTimesPaths = mutableListOf<Path>()`를 �
 | 2026-11-19 | v1 | 최초 작성(조각 A1·A2) | PM LLD 요청(조각 A만, A2는 C2 위) | PM |
 | 2026-11-19 | v1.1 | F1 문구의 수정 전 실패 테스트를 U-A07·08로 정정(m1), 2.6 `save`의 `target.parent`가 `null`일 때 `target`으로 판정(m2) | LLD 검수 1차 조건부 통과 m1·m2 [기계] (PR #72 코멘트) | reviewer |
 | 2026-11-19 | v1.2 | A2(2.8–2.11) 줄 번호를 C2 머지 뒤 develop 90f2c1e 기준으로, 기준 코드 행·C2 관계 문단 갱신(동작 변화 없음) | C2 머지(PR #71) | PM |
+| 2026-11-19 | v1.3 | 2.8 `FileAttributes.EMPTY` 인용 줄(m3), 2.5 이동 쪽 `CopyOptions(...)` 호출 줄을 90f2c1e 기준으로(m4) | LLD v1.2 재확인 조건부 통과 m3·m4 [기계] (PR #72 코멘트) | reviewer |
