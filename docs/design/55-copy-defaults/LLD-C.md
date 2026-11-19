@@ -4,7 +4,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 작성 중 |
+| 상태 | 검수 조건부 통과(v1, [기계] 반영 v1.1) — [판단] L2·L4는 PM 판단 대기 |
 | 근거 | SRS v1.4, HLD v1.3 (2.1 조각 C, 3.3, 4, 5 D3·D4, 6) |
 | 기준 코드 | `origin/develop` 0cd4358. `provider/`는 HLD 기준 0941fa7과 같다(`git diff --stat 0941fa7 0cd4358 -- app/src/main/java/me/zhanghai/android/files/provider` 비어 있음). 경로는 `app/src/main/java/me/zhanghai/android/files/` 기준 |
 | 추적 REQ | REQ-55-08, REQ-55-09 |
@@ -16,7 +16,7 @@
 
 1. 원본 속성 읽기, 대상 확인, 같은 파일이면 끝, `REPLACE_EXISTING`이 없으면 `FileAlreadyExistsException` — **지금 코드 그대로**.
 2. 원본 확인
-   - 일반 파일: 원본을 **읽기로 연다**. 연 핸들로 그대로 복사한다(문서 제공자만 예외, 2.4).
+   - 일반 파일: 원본을 **읽기로 연다**. 연 핸들로 그대로 복사한다(문서 제공자만 예외, 2.5).
    - 폴더: 대상을 지울 때만 원본 폴더 목록을 **열어 보고 닫는다**.
    - 링크(`NOFOLLOW_LINKS`일 때): 바꾸지 않는다. 이미 `readlink` → `createSymbolicLinkForCopy`(`provider/common/SymbolicLinkCopy.kt:19-46`) 순서라 원본 확인이 먼저다.
    - FTP·WebDAV의 링크 원본: "Cannot copy symbolic links" 실패를 대상 지우기 **전**으로 옮긴다(#56).
@@ -34,10 +34,10 @@
 ### C1
 | 파일 | 신규/수정 | 요지 |
 |---|---|---|
-| `provider/common/SourceCheckedReplace.kt` | 신규 | 공용 함수 `replaceAfterOpeningSource`, `replaceAfterCheckingSource` (2.1) |
-| `provider/linux/LinuxCopyMove.kt` | 수정 | `copy`의 일반 파일(57-135)·폴더(136-152) 분기 (2.2) |
-| `provider/common/ForeignCopyMove.kt` | 수정 | `copy`의 일반 파일(42-85)·폴더(86-92) 분기 (2.3) |
-| `provider/document/DocumentCopyMove.kt` | 수정 | `copy`(32-51) + 비공개 `checkSourceReadable` (2.4) |
+| `provider/common/SourceCheckedReplace.kt` | 신규 | 공용 함수 `replaceAfterOpeningSource`, `replaceAfterCheckingSource` (2.1·2.2) |
+| `provider/linux/LinuxCopyMove.kt` | 수정 | `copy`의 일반 파일(57-135)·폴더(136-152) 분기 (2.3) |
+| `provider/common/ForeignCopyMove.kt` | 수정 | `copy`의 일반 파일(42-85)·폴더(86-92) 분기 (2.4) |
+| `provider/document/DocumentCopyMove.kt` | 수정 | `copy`(32-51) + 비공개 `checkSourceReadable` (2.5·2.6) |
 | `app/src/test/java/me/zhanghai/android/files/provider/common/SourceCheckedReplaceTest.kt` | 신규 | 공용 함수 단위 테스트 (3.1) |
 | `app/src/test/java/me/zhanghai/android/files/provider/common/ForeignCopyMoveCleanupTest.kt` | 수정 | `ForeignCopyMove` 회귀 테스트(수정 전 실패·수정 후 통과)와 fake 확장 (3.2) |
 
@@ -46,11 +46,11 @@
 ### C2
 | 파일 | 신규/수정 | 요지 |
 |---|---|---|
-| `provider/sftp/SftpCopyMove.kt` | 수정 | `copy`의 REGULAR(76-140)·DIRECTORY(141-158) 분기 (2.5) |
-| `provider/smb/SmbCopyMove.kt` | 수정 | `copy`의 일반 파일(74-95)·폴더(96-113) 분기 (2.6) |
-| `provider/smb/client/Client.kt` | 수정 | `copyFile`(318-426)에 지우기 람다 인자 (2.7) |
-| `provider/ftp/FtpCopyMove.kt` | 수정 | `copy`(33-103)의 지우기 위치 (2.8) |
-| `provider/webdav/WebDavCopyMove.kt` | 수정 | `copy`(38-114)의 지우기 위치 (2.9) |
+| `provider/sftp/SftpCopyMove.kt` | 수정 | `copy`의 REGULAR(76-140)·DIRECTORY(141-158) 분기 (2.7) |
+| `provider/smb/SmbCopyMove.kt` | 수정 | `copy`의 일반 파일(74-95)·폴더(96-113) 분기 (2.8) |
+| `provider/smb/client/Client.kt` | 수정 | `copyFile`(318-426)에 지우기 람다 인자 (2.9) |
+| `provider/ftp/FtpCopyMove.kt` | 수정 | `copy`(33-103)의 지우기 위치 (2.10) |
+| `provider/webdav/WebDavCopyMove.kt` | 수정 | `copy`(38-114)의 지우기 위치 (2.11) |
 
 파일 수 5. C2의 백엔드는 `object Client`가 실제 네트워크 연결을 만들어 JVM에서 시험할 수 없다(테스트 의존성은 JUnit뿐, `app/build.gradle:222`). 순서 규칙은 C1의 공용 함수 테스트가, 백엔드별 결선은 코드 검사와 서버 수동 시험(3.4)이 확인한다.
 
@@ -211,7 +211,14 @@ private fun checkSourceReadable(source: DocumentPath)
 
 ### 2.9 `smb.client.Client.copyFile(…, deleteExistingTarget: (() -> Unit)?)` (C2, 수정)
 ```kotlin
-@Throws(ClientException::class)
+/**
+ * ...(기존 설명)
+ *
+ * [deleteExistingTarget], if not null, is invoked after the source is opened and before the
+ * target is created. Exceptions it throws (already converted [java8.nio.file.FileSystemException],
+ * not [ClientException]) are propagated as is.
+ */
+@Throws(ClientException::class, IOException::class)
 fun copyFile(
     source: Path, target: Path, copyAttributes: Boolean, openReparsePoint: Boolean,
     intervalMillis: Long, listener: ((Long) -> Unit)?, cleanupFailureListener: (() -> Unit)?,
@@ -324,3 +331,4 @@ fake 확장: `FakeProvider`에 `inputStreamException`, `directoryStreamException
 | 일자 | 버전 | 변경 | 사유 | 요청자 |
 |---|---|---|---|---|
 | 2026-11-19 | v1 | 최초 작성(조각 C1·C2) | PM LLD 요청(조각 C만) | PM |
+| 2026-11-19 | v1.1 | 0절·1절의 LLD 절 번호 참조 정정, 2.9 `copyFile`에 람다 예외 KDoc·`@Throws(IOException)` 추가 | LLD 검수 1차 조건부 통과 L1·L3 [기계] (PR #64 코멘트). L2·L4 [판단]은 PM 판단 대기 | reviewer |
