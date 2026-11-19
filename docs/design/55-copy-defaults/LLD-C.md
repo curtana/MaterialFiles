@@ -4,7 +4,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 검수 조건부 통과(v1, [기계] 반영 v1.1) — [판단] L2·L4는 PM 판단 대기 |
+| 상태 | 검수 통과 (v1.1) — [판단] L2·L4는 PM 판단 대기 |
 | 근거 | SRS v1.4, HLD v1.3 (2.1 조각 C, 3.3, 4, 5 D3·D4, 6) |
 | 기준 코드 | `origin/develop` 0cd4358. `provider/`는 HLD 기준 0941fa7과 같다(`git diff --stat 0941fa7 0cd4358 -- app/src/main/java/me/zhanghai/android/files/provider` 비어 있음). 경로는 `app/src/main/java/me/zhanghai/android/files/` 기준 |
 | 추적 REQ | REQ-55-08, REQ-55-09 |
