@@ -2,7 +2,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 검수 통과(v1.1) |
+| 상태 | v1.2 수정(변경 절 재검수 대기) |
 | 근거 | SRS v1.3, HLD v1.2 (`docs/design/80-view-intent/`), V0 기록(`_workspace/wo/80-view-intent/`) |
 
 줄 번호는 develop `ac012e0` 기준이다.
@@ -71,7 +71,7 @@ API 36 AVD(`Medium_Phone_API_36_b`, emulator-5580). 고치기 전 빌드, 같은
 - **입력·전제**: `isPickScreen`은 받는 화면이 선택 모드 화면인지(`isPickAction(args.intent.action)`). `action`·`flags`는 받은 Intent의 값. `path`는 받은 Intent의 `resolvePanePath()` 결과.
 - **출력**(위에서부터 먼저 맞는 것):
   1. `isPickAction(action)` → `IGNORE`(C3 ①, REQ-80-05(a)).
-  2. `flags and FLAG_ACTIVITY_MULTIPLE_TASK != 0` → `IGNORE`. 새 작업을 바란 Intent(C7, "새 창에서 열기")가 어떤 버전에서 `PREVIOUS_IS_TOP`을 무시하고 자기에게 돌아와도(R5) 활성 창을 옮기거나 D4가 되풀이되지 않게 끊는다. 바깥에서 오는 경로 Intent는 이 플래그를 달지 않는다(4장 F2).
+  2. `flags and NEW_TASK_VIEW_INTENT_FLAGS == NEW_TASK_VIEW_INTENT_FLAGS`(C7의 세 비트 `NEW_DOCUMENT`·`MULTIPLE_TASK`·`PREVIOUS_IS_TOP`가 **모두** 켜짐) → `IGNORE`. 이 앱의 새 작업 Intent(C7, "새 창에서 열기"·D4)가 어떤 버전에서 `PREVIOUS_IS_TOP`을 무시하고 자기에게 돌아와도(R5) 활성 창을 옮기거나 D4가 되풀이되지 않게 끊는다. 세 비트를 모두 보므로 바깥 앱이 `MULTIPLE_TASK` 같은 일부 비트만 단 경로 Intent는 걸리지 않는다(4장 F2, PM 결정 L1).
   3. `path == null` → `IGNORE`(REQ-80-04, A4. `ACTION_MAIN`도 여기서 걸린다).
   4. `isPickScreen` → `OPEN_IN_NEW_TASK`(C3 ②, D4).
   5. 그 밖 → `OPEN_IN_ACTIVE_PANE`(C3 ③).
@@ -143,7 +143,7 @@ JVM 단위 시험(`PaneStartPathTest.kt`, `./gradlew testDebugUnitTest`). Androi
 **fail-before 확인 방법**(#69와 같음): 새 함수라 고치기 전은 컴파일되지 않는다. 구현 첫 WIP 커밋에 지금 동작을 흉내 낸 임시 구현을 두고 시험을 돌려 실패를 기록한 뒤, 다음 커밋에서 실제 구현으로 통과를 기록한다.
 - `isPickAction` 임시 = 지금 `isPickIntent` 본문 그대로 → 특성 시험이라 통과(동작 불변 확인용).
 - `resolveIntentPath` 임시 = `FileListFragment.kt:335-347` 그대로 → 통과(동작 불변).
-- `resolveNewIntentAction` 임시 = 늘 `IGNORE`(지금 떠 있는 화면은 받은 Intent를 쓰지 않음) → T-08·T-09·T-10 실패.
+- `resolveNewIntentAction` 임시 = 늘 `IGNORE`(지금 떠 있는 화면은 받은 Intent를 쓰지 않음) → T-08·T-09·T-10·T-13 실패.
 - `NEW_TASK_VIEW_INTENT_FLAGS` 임시 = `NEW_DOCUMENT or MULTIPLE_TASK`(지금 `openInNewTask` 플래그) → T-12 실패.
 
 | 테스트 | 대상 | 경우 | 기대 결과 | 임시 구현 |
@@ -160,6 +160,7 @@ JVM 단위 시험(`PaneStartPathTest.kt`, `./gradlew testDebugUnitTest`). Androi
 | T-10 `newIntent_pickScreen_path_opensInNewTask` | 〃 | `true`, `ACTION_VIEW`, `FLAG_ACTIVITY_NEW_TASK`, 경로 | `OPEN_IN_NEW_TASK` | **실패** |
 | T-11 `newIntent_ignored` | 〃 | ① 선택 동작 4종(두 화면 모두, 경로 있어도) ② `ACTION_MAIN`·경로 없는 VIEW(`path=null`, 둘러보기 화면·선택 화면 모두) ③ `NEW_TASK_VIEW_INTENT_FLAGS`를 단 VIEW(두 화면 모두) | 모두 `IGNORE` | 통과 |
 | T-12 `newTaskViewIntentFlags_includePreviousIsTop` | `NEW_TASK_VIEW_INTENT_FLAGS` | `PREVIOUS_IS_TOP`·`MULTIPLE_TASK`·`NEW_DOCUMENT` 비트 | 셋 다 켜짐 | **실패**(`PREVIOUS_IS_TOP` 없음) |
+| T-13 `newIntent_partialNewTaskFlags_notIgnored` | `resolveNewIntentAction` | 둘러보기 화면, `ACTION_VIEW`, 경로, 플래그 `FLAG_ACTIVITY_NEW_TASK or FLAG_ACTIVITY_MULTIPLE_TASK`와 `FLAG_ACTIVITY_NEW_DOCUMENT or FLAG_ACTIVITY_MULTIPLE_TASK`(세 비트 중 일부만) | `OPEN_IN_ACTIVE_PANE`(2번 규칙에 걸리지 않음, PM 결정 L1) | **실패** |
 
 REQ-80-08의 "같은 함수를 쓴다"는 코드 검사로 본다: `FileListFragment`와 `FileListHostFragment`가 둘 다 `Intent.resolvePanePath()`를 부르고, `isPickAction`이 Host 화면 판정과 `resolveNewIntentAction` 안에서 쓰인다.
 
@@ -172,13 +173,14 @@ emulator(로컬 AVD, `-s emulator-<port>`)에서 고친 빌드로 한다. 스크
 | V2 | 폰 세로: 창 표시줄로 창 2 활성 → V1 | 창 2가 B, 창 1 경로 그대로. 태블릿 가로 AVD가 없으면 두 창 모드는 오너 기기 확인 항목으로 남긴다(기기 설치는 오너 확인 뒤) |
 | V3 | `-t application/zip -d file:///…/t.zip`; 다운로드 바로 가기(`am start -a me.zhanghai.android.files.intent.action.VIEW_DOWNLOADS -n …`) 앞·홈 두 번 | 압축 루트·다운로드 폴더, 뒤로 가기는 압축 파일이 있는 폴더 쪽 |
 | V3b | 없는 폴더 URI, `-d` 없는 VIEW | 활성 창 오류 표시 / 화면 그대로 |
-| V4 | 설정 → 기본 폴더 고르기 화면을 띄운 채 V1(앞·홈) → 최근 앱에 작업 하나 더, 그 작업이 B; 원래 작업은 선택 화면 그대로(`Hist`: FileList(pick)·Settings·FileList). 선택 화면에서 폴더를 골라 결과가 설정에 반영. 메뉴 "New window" → 작업 하나 더(`result code=0`), 원래 창 경로 그대로. 임시 로그(커밋하지 않음)로 `FileListHostFragment.onNewIntent`가 받은 `intent.flags`를 찍어, 외부 `am start` VIEW에는 `FLAG_ACTIVITY_MULTIPLE_TASK`가 없고(`0x10000000` 계열) 플래그가 `onNewIntent`까지 그대로 오는지 확인(4장 F2). 실행기 아이콘 → 경로 그대로. `-f 0x10008000` VIEW → 새로 시작 | REQ-80-05·06, R1·R5(API 36) |
+| V4 | 설정 → 기본 폴더 고르기 화면을 띄운 채 V1(앞·홈) → 최근 앱에 작업 하나 더, 그 작업이 B; 원래 작업은 선택 화면 그대로(`Hist`: FileList(pick)·Settings·FileList). 선택 화면에서 폴더를 골라 결과가 설정에 반영. 메뉴 "New window" → 작업 하나 더(`result code=0`), 원래 창 경로 그대로. 임시 로그(커밋하지 않음)로 `FileListHostFragment.onNewIntent`가 받은 `intent.flags`를 찍어, 외부 `am start` VIEW(`0x10000000` 계열)는 세 비트가 모두 켜지지 않고, "New window" Intent의 플래그(`0x09080000`)가 되돌아올 경우 그대로 `onNewIntent`까지 오는지 확인(4장 F2). 되돌아오지 않으면(정상) 플래그 전달은 외부 VIEW로만 확인된다. 실행기 아이콘 → 경로 그대로. `-f 0x10008000` VIEW → 새로 시작 | REQ-80-05·06, R1·R5(API 36) |
 | V5 | V1 뒤 하위 폴더로 이동 → 홈 → `am kill` → 복귀 → 그 하위 폴더; 회전 → 유지 | REQ-80-07 |
 
 ## 4. 설계 피드백
 - **F0 (반영됨, HLD v1.2 `4a6f0b0`)**: V0에서 `singleTop`이면 "새 창에서 열기"가 새 작업 없이 보낸 화면 자신의 `onNewIntent`로 넘겨지는 것을 찾았다(`newwin_S.txt`). D4도 같은 이유로 선택 화면 자신에게 되돌아왔다(`d4_fg.txt`). `FLAG_ACTIVITY_PREVIOUS_IS_TOP`으로 해결되는 것을 확인해(`newwin_S2.txt`, `d4_S2.txt`) 설계팀에 문의했고, 설계팀이 C7·D7·R5를 더했다. SRS는 바뀌지 않았다(REQ-80-06 그대로).
 - **F1**: HLD C4 `resolveIntentPath` 시그니처에 시험용 주입 인자 `archiveRootPath`(기본값 = 지금 함수)를 더했고, `mimeType`은 문자열(`Intent.type`)로 받는다. 동작 변화는 없다.
-- **F2**: HLD R5가 LLD에 맡긴 "D4로 다시 받은 Intent 가려내기"는 `resolveNewIntentAction` 2번 규칙(`FLAG_ACTIVITY_MULTIPLE_TASK`가 있으면 무시)으로 정했다. 받은 Intent의 플래그가 `onNewIntent`에 그대로 오는지는 V4에서 로그로 확인한다. 바깥 앱이 경로 Intent에 `MULTIPLE_TASK`를 다는 경우는 지금도 새 작업이 생기는 경우(시스템이 기존 작업에 넘기지 않음)라 이 규칙에 걸릴 일이 없다고 본다(미확인).
+- **F2**: HLD R5가 LLD에 맡긴 "D4로 다시 받은 Intent 가려내기"는 `resolveNewIntentAction` 2번 규칙으로 정했다. v1.1은 `FLAG_ACTIVITY_MULTIPLE_TASK` 한 비트만 봤으나, 바깥 앱 Intent를 잘못 거를 여지를 없애려고 C7의 세 비트가 모두 켜졌을 때만 무시하도록 좁혔다(검수 1회차 L1, PM 결정 2026-11-20). 세 비트를 모두 단 바깥 Intent는 이 앱의 "새 창" Intent를 그대로 흉내 낸 경우뿐이라 무시해도 요구사항에 어긋나지 않는다. 받은 Intent의 플래그가 `onNewIntent`에 그대로 오는지는 V4에서 로그로 확인한다.
+- **F5 (남은 위험, 검수 1회차 L7, PM 결정)**: `PREVIOUS_IS_TOP`이 맨 위 넘기기를 막지 못하는 버전(HLD R5, API 23~35 미확인)에서는 "새 창에서 열기"와 D4의 새 작업 Intent가 자기 `onNewIntent`로 돌아와 2번 규칙에 걸려 **조용히 무시된다**(새 작업도, 활성 창 이동도 없음). 되풀이·경로 바뀜은 막지만 REQ-80-05(b)·06은 그 버전에서 충족되지 않는다. `PREVIOUS_IS_TOP`은 API 1부터 있는 공개 플래그라 가능성은 낮다고 보고, API 36 밖의 확인은 남은 위험으로 둔다.
 - **F4**: HLD 3장 1의 보류 필드 `pendingIntentPath: Path?`를 `pendingNewIntent: Pair<NewIntentAction, Path>?`로 바꿨다. 같은 보류 장치로 C3 ③(활성 창)과 D4(새 작업, resumed 때 시작)를 함께 미루려면 무엇을 할지도 함께 저장해야 해서다. 경로만 두는 HLD 동작은 `OPEN_IN_ACTIVE_PANE` 경우와 같다.
 - **F3**: HLD C3 ②의 선택 화면 판정 `viewModel.isDualPaneEnabled == false`를 같은 값의 원천인 `isPickAction(args.intent.action)`(`:115`)으로 쓴다. 결과는 같다.
 
@@ -187,3 +189,4 @@ emulator(로컬 AVD, `-s emulator-<port>`)에서 고친 빌드로 한다. 스크
 |---|---|---|---|---|
 | 2026-11-20 | v1 | 최초 작성(V0 결과 포함, R1·R3·D4 시점 해소) | SRS v1.3, HLD v1.2 | PM |
 | 2026-11-20 | v1.1 | 검수 1회차 경미 [기계] L2~L6 반영: V4 플래그 로그 절차, 선택 Intent는 경로 계산 전에 끝냄, T-06 화면 구분·V1 연속 Intent, F4(보류 필드), 3장 시험 번호 정렬. [판단] L1·L7은 PM 판단 대기 | LLD 검수 1회차(PR #85) | 검수팀 |
+| 2026-11-20 | v1.2 | 2번 규칙을 C7 세 비트 모두 일치로 좁힘(2장 `resolveNewIntentAction`, 3장 T-13·fail-before 목록, 3.1 V4, 4장 F2), 남은 위험 F5 추가 | 검수 1회차 [판단] L1·L7, PM 결정(PR #85) | PM |
