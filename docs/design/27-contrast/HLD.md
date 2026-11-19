@@ -42,7 +42,7 @@ flowchart LR
 1. 액티비티 생성 시 `CustomThemeHelper.apply`(`java/.../theme/custom/CustomThemeHelper.kt:40-45`)가 설정 `MATERIAL_DESIGN_3`이면 `Theme.MaterialFiles.Material3` 계열을 고른다(`:69-73`).
 2. 밝은 모드에서 그 부모 `Theme.Material3.DynamicColors.DayNight.NoActionBar`(`themes_material3.xml:10`)는 API 31+에서 `m3_dynamic_default_color_secondary_text`(C2), 그 아래에서 `m3_default_color_secondary_text`(C1)를 `android:textColorSecondary`로 쓴다. 앱 자원이 라이브러리 같은 이름 자원을 덮는다.
 3. 서랍 어댑터가 `itemSubtitleTextColor`(C3)를 읽어 부제목에 건다(`NavigationListAdapter.kt:114,198`). C3 기본 항목이 `?android:textColorSecondary`를 가리키면 그 테마 속성의 색 상태 목록의 기본색으로 풀린다(같은 방식의 선례: 비 Material 3 서랍 `res/color/navigation_item_subtitle_text_color.xml:11`).
-4. 테마 전환(밝음↔어두움, Material 3 켬↔끔)은 기존처럼 액티비티 재생성으로 반영된다(`CustomThemeHelper.kt:47-63`). 새 상태·스레드·수명주기 없음. 오류 전파 경로 없음(자원 해석 실패는 빌드 시 aapt 오류).
+4. 테마 전환(밝음↔어두움, Material 3 켬↔끔)은 기존처럼 액티비티 재생성으로 반영된다(`CustomThemeHelper.kt:47-64`). 새 상태·스레드·수명주기 없음. 오류 전파 경로 없음(자원 해석 실패는 빌드 시 aapt 오류).
 
 ### 3-1. C3 변경이 어두운 테마를 바꾸지 않는 근거 (REQ-27-05)
 - Material 3 어두운 테마에서 `?colorOutline` = `m3_sys_color_dark_outline`(정적) / `m3_sys_color_dynamic_dark_outline`(API 31+)이다(material 1.14.0).
@@ -114,4 +114,4 @@ flowchart LR
 | 일자 | 버전 | 변경 | 사유 | 요청자 |
 |---|---|---|---|---|
 | 2026-11-19 | v1.0 | 최초 작성 | SRS v1.2 | PM |
-| 2026-11-19 | v1.1 | 4-1 서랍 열을 미측정 보수 추정으로 표기(`elevationOverlayEnabled=false` 가능성), R1 완화, 4-2에 어두운 대화상자 측정(R4)과 톤 계산 근거(다른 배경화면) 추가, `CustomThemeHelper.kt:47-63` 정정 | HLD 검수 1회차 조건부 통과(경미 3) | 검수팀 |
+| 2026-11-19 | v1.1 | 4-1 서랍 열을 미측정 보수 추정으로 표기(`elevationOverlayEnabled=false` 가능성), R1 완화, 4-2에 어두운 대화상자 측정(R4)과 톤 계산 근거(다른 배경화면) 추가, `CustomThemeHelper.kt:47-64` 정정 | HLD 검수 1회차 조건부 통과(경미 3) | 검수팀 |
