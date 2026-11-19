@@ -2,7 +2,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 작성 중 (v1.1 — 오너 결정 반영, 바뀐 절 재검수 대기. v1.0은 HLD 검수 1회차 조건부 통과, 경미 3건) |
+| 상태 | 검수 통과 (v1.2 — v1.1 바뀐 절 재검수 조건부 통과, 경미 1건 반영. PR #60) |
 | 근거 | SRS v1.2 (오너 결정 issuecomment-6999035882 반영: Q1=A 현재 경로만, Q2=가 그 경로에서 기존 오류 표시, Q3=활성 창도 복원 → REQ-11-09) |
 | 기준 코드 | `origin/develop` 7cf16b7 (줄 번호 기준) |
 
@@ -81,7 +81,7 @@ flowchart LR
 | D4 접근 불가 경로는 **그 경로에서 기존 실패 표시** (Q2 가, 오너 결정 issuecomment-6999035882) | 나: 가까운 상위 / 다: 기본 디렉터리 + 알림 | 오너 결정. 새 구성요소 없음. 나·다의 추가 구성요소(v1.0 R4)는 만들지 않는다. |
 | D5 **현재 경로만** 저장 (Q1 A, 오너 결정 issuecomment-6999035882) | B: `trail` URI 목록 + `currentIndex` / C: B + 단계별 목록 상태 | 오너 결정. 나중에 B·C로 넓힌다면 K1의 저장 값이 문자열 목록 + 정수(+ C는 `Parcelable` 목록)가 되고 `TrailData`에 그 값으로 만드는 생성 함수가 필요하다(`TrailData.kt:13-17` 생성자는 비공개). D1·D2·D3는 그대로 유지돼 A에서 B·C로 넓힐 때 버리는 것이 없다. |
 | D6 접근 확인을 복원 판단에서 하지 않음 | 복원 때 `exists()` 등으로 확인 | 원격·루트 확인은 입출력이라 메인 스레드에서 할 수 없고(REQ-11-06), 확인 결과로 할 일이 Q2 가에서는 없다(목록 읽기가 같은 확인을 하고 실패를 알린다). |
-| D7 활성 창은 **호스트 Bundle**에 두고, 복원 때 뷰모델이 새것인지 가르지 않는다 | (a) `DualPaneViewModel`에 `SavedStateHandle` (b) "뷰모델 새로 생김" 표시를 두고 그때만 되돌림 | 호스트 뷰모델은 기본 팩토리(`FileListFragment.kt:146`이 `viewModels<DualPaneViewModel>`로 얻음)라 (a)도 가능하지만, 창 경로(D1)와 같은 저장 방식으로 맞추는 편이 읽기 쉽다. 구성 변경 때 저장 값 = 현재 값이고 `setActivePane`은 같은 값이면 아무것도 하지 않아(`DualPaneViewModel.kt:27-29`) (b)의 구분이 필요 없다. |
+| D7 활성 창은 **호스트 Bundle**에 두고, 복원 때 뷰모델이 새것인지 가르지 않는다 | (a) `DualPaneViewModel`에 `SavedStateHandle` (b) "뷰모델 새로 생김" 표시를 두고 그때만 되돌림 | 호스트 뷰모델도 사용자 지정 팩토리로 만들어져(`FileListHostFragment.kt:87` `viewModels { { DualPaneViewModel() } }`, `util/FragmentViewModelLazy.kt:15-31`이 extras를 버림) (a)는 D1과 같은 팩토리 변경이 필요하다. 창 경로(D1)와 같은 저장 방식으로 맞추는 편이 변경이 작고 읽기 쉽다. 구성 변경 때 저장 값 = 현재 값이고 `setActivePane`은 같은 값이면 아무것도 하지 않아(`DualPaneViewModel.kt:27-29`) (b)의 구분이 필요 없다. |
 
 ## 6. 위험과 미결 사항
 | ID | 내용 | 처리 |
@@ -98,3 +98,4 @@ flowchart LR
 |---|---|---|---|---|
 | 2026-11-19 | v1.0 | 처음 작성 (Q1 A·Q2 가 권고안 기준, K4는 Q3 조건부) | SRS v1.1 검수 통과 | PM |
 | 2026-11-19 | v1.1 | 오너 결정 반영(근거 SRS v1.2): D4·D5 확정, K4 무조건(REQ-11-09)·3.1 활성 창 행·D7 추가, R4·R5 닫음. HLD 검수 1회차 경미 3건 반영: K1 (a)에 복원 값을 `onCreate`에서 읽어 필드에 보관, K3 `decode`가 잡을 예외 명시, 3.3·R2에 ftp/smb/webdav `getPath` 근거와 루트 `getPath` 비도달 확인(R2 닫음) | 오너 결정 issuecomment-6999035882, HLD 검수 1회차(PR #60 PM 기록) | PM·검수팀 |
+| 2026-11-19 | v1.2 | D7 근거 인용 정정: 호스트 뷰모델은 사용자 지정 팩토리(`FileListHostFragment.kt:87`)라 `SavedStateHandle` 안도 팩토리 변경이 필요(결론 불변) | HLD 재검수 경미 1건(PR #60 issuecomment-6999126041) | 검수팀 |
