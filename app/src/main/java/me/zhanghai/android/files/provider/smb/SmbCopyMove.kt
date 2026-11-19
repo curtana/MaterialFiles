@@ -144,6 +144,9 @@ internal object SmbCopyMove {
         } else {
             throw AssertionError()
         }
+        if (copyOptions.skipAttributes) {
+            return
+        }
         // We don't take error when copying attribute fatal, so errors will only be logged from now
         // on.
         // TODO: Copy SecurityDescriptor.
