@@ -59,6 +59,7 @@ import me.zhanghai.android.files.provider.common.PosixPrincipal
 import me.zhanghai.android.files.provider.common.PosixUser
 import me.zhanghai.android.files.provider.common.ProgressCopyOption
 import me.zhanghai.android.files.provider.common.ReadOnlyFileSystemException
+import me.zhanghai.android.files.provider.common.SkipAttributesCopyOption
 import me.zhanghai.android.files.provider.common.UserActionRequiredException
 import me.zhanghai.android.files.provider.common.asByteStringListPath
 import me.zhanghai.android.files.provider.common.CleanupFailureCopyOption
@@ -820,7 +821,8 @@ class CopyFileJob(private val sources: List<Path>, private val targetDirectory: 
             } else {
                 targetDirectory.resolveForeign(getTargetFileName(source))
             }
-            copyRecursively(source, target, isExtract, transferInfo, actionAllInfo)
+            val copyKind = classifyCopy(source, targetDirectory)
+            copyRecursively(source, target, isExtract, copyKind, transferInfo, actionAllInfo)
             throwIfInterrupted()
         }
     }
@@ -830,6 +832,7 @@ class CopyFileJob(private val sources: List<Path>, private val targetDirectory: 
         source: Path,
         target: Path,
         isExtract: Boolean,
+        copyKind: CopyKind,
         transferInfo: TransferInfo,
         actionAllInfo: ActionAllInfo
     ) {
@@ -841,7 +844,7 @@ class CopyFileJob(private val sources: List<Path>, private val targetDirectory: 
             ): FileVisitResult {
                 val directoryInTarget = target.resolveForeign(source.relativize(directory))
                 val copied = copy(
-                    directory, directoryInTarget, isExtract, transferInfo, actionAllInfo
+                    directory, directoryInTarget, isExtract, copyKind, transferInfo, actionAllInfo
                 )
                 throwIfInterrupted()
                 return if (copied) FileVisitResult.CONTINUE else FileVisitResult.SKIP_SUBTREE
@@ -850,7 +853,7 @@ class CopyFileJob(private val sources: List<Path>, private val targetDirectory: 
             @Throws(IOException::class)
             override fun visitFile(file: Path, attributes: BasicFileAttributes): FileVisitResult {
                 val fileInTarget = target.resolveForeign(source.relativize(file))
-                copy(file, fileInTarget, isExtract, transferInfo, actionAllInfo)
+                copy(file, fileInTarget, isExtract, copyKind, transferInfo, actionAllInfo)
                 throwIfInterrupted()
                 return FileVisitResult.CONTINUE
             }
@@ -950,12 +953,13 @@ private fun FileJob.copy(
     source: Path,
     target: Path,
     isExtract: Boolean,
+    copyKind: CopyKind,
     transferInfo: TransferInfo,
     actionAllInfo: ActionAllInfo
 ): Boolean =
     copyOrMove(
         source, target, if (isExtract) CopyMoveType.EXTRACT else CopyMoveType.COPY, true, false,
-        transferInfo, actionAllInfo
+        copyKind == CopyKind.NETWORK, transferInfo, actionAllInfo
     )
 
 class CreateFileJob(private val path: Path, private val createDirectory: Boolean) : FileJob() {
@@ -1234,7 +1238,8 @@ private fun FileJob.copyForMove(
     target: Path,
     transferInfo: TransferInfo,
     actionAllInfo: ActionAllInfo
-): Boolean = copyOrMove(source, target, CopyMoveType.MOVE, true, true, transferInfo, actionAllInfo)
+): Boolean =
+    copyOrMove(source, target, CopyMoveType.MOVE, true, true, false, transferInfo, actionAllInfo)
 
 @Throws(IOException::class)
 private fun FileJob.moveAtomically(source: Path, target: Path) {
@@ -1248,7 +1253,7 @@ private fun FileJob.moveByCopy(
     transferInfo: TransferInfo,
     actionAllInfo: ActionAllInfo
 ): Boolean =
-    copyOrMove(source, target, CopyMoveType.MOVE, false, true, transferInfo, actionAllInfo)
+    copyOrMove(source, target, CopyMoveType.MOVE, false, true, false, transferInfo, actionAllInfo)
 
 // @see https://github.com/GNOME/nautilus/blob/master/src/nautilus-file-operations.c copy_move_file
 @Throws(IOException::class)
@@ -1258,6 +1263,7 @@ private fun FileJob.copyOrMove(
     type: CopyMoveType,
     useCopy: Boolean,
     copyAttributes: Boolean,
+    skipAttributes: Boolean,
     transferInfo: TransferInfo,
     actionAllInfo: ActionAllInfo
 ): Boolean {
@@ -1354,6 +1360,10 @@ private fun FileJob.copyOrMove(
             this += LinkOption.NOFOLLOW_LINKS
             if (copyAttributes) {
                 this += StandardCopyOption.COPY_ATTRIBUTES
+            }
+            // Only copies may skip attributes; moves keep them (#55 Q4).
+            if (skipAttributes) {
+                this += SkipAttributesCopyOption
             }
             if (replaceExisting) {
                 this += StandardCopyOption.REPLACE_EXISTING
@@ -1600,7 +1610,9 @@ private fun FileJob.open(
     val targetFile = cacheDirectory.resolveForeign(targetFileName)
     val transferInfo = TransferInfo(scanInfo, cacheDirectory)
     val actionAllInfo = ActionAllInfo(replace = true)
-    val copied = copy(file, targetFile, isExtract, transferInfo, actionAllInfo)
+    val copied = copy(
+        file, targetFile, isExtract, classifyCopy(file, cacheDirectory), transferInfo, actionAllInfo
+    )
     if (!copied) {
         return
     }
@@ -1796,7 +1808,10 @@ private fun FileJob.save(source: Path, target: Path) {
     val targetParent = target.parent
     val transferInfo = TransferInfo(scanInfo, targetParent)
     val actionAllInfo = ActionAllInfo(replace = true)
-    val copied = copy(source, target, false, transferInfo, actionAllInfo)
+    val copied = copy(
+        source, target, false, classifyCopy(source, targetParent ?: target), transferInfo,
+        actionAllInfo
+    )
     if (!copied) {
         return
     }
