@@ -81,7 +81,7 @@ private class TestFtpPath(private val path: LinkTestPath) : Client.Path {
     override fun resolve(other: String): Client.Path =
         TestFtpPath(path.resolve(other.toByteString()))
 
-    fun resolveSibling(other: String): Client.Path =
+    override fun resolveSibling(other: String): Client.Path =
         TestFtpPath(path.resolveSibling(other.toByteString()))
 }
 

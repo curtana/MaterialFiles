@@ -324,6 +324,7 @@ object Client {
         val authority: Authority
         val remotePath: String
         fun resolve(other: String): Path
+        fun resolveSibling(other: String): Path
     }
 
     private class CompletePendingCommandInputStream(
@@ -368,4 +369,4 @@ object Client {
 
 // A relative symbolic link target is relative to the directory containing the link (#55 B1).
 internal fun Client.Path.resolveSymbolicLinkTarget(target: String): Client.Path =
-    resolve(target)
+    resolveSibling(target)
