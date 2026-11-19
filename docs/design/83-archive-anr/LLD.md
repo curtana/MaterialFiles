@@ -2,7 +2,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 작성 중(v1) |
+| 상태 | 검수 통과(v1 PR #87 1회차 조건부, 경미 1건 v1.1 반영) |
 | 근거 | SRS v1.1, HLD v1.1 |
 | 기준 코드 | `origin/develop` ac012e0. 경로는 `app/src/main/java/me/zhanghai/android/files/` 기준, 테스트는 `app/src/test/java/me/zhanghai/android/files/` 기준. 줄 번호는 모두 이 커밋 기준이다 |
 
@@ -186,7 +186,7 @@ JVM 단위 시험 `provider/archive/ArchiveEntriesCacheTest.kt`(`./gradlew testD
 | T-83-05 `invalidate_beforeFirstGet_readsOnce` (HLD 3.1) | 〃 | 무효화 2회 → 조회 → 조회 | `"v1"`, `"v1"`, 읽기 1(읽기 전 무효화는 그 읽기에 포함) | 통과 |
 | T-83-06 `closed_invalidateAndGetThrow` (REQ-83-03) | `closeLocked`·`invalidate`·`getLocked`·`isOpen` | 조회 1회 뒤 `closeLocked()` 2회 → `invalidate()` → `getLocked` | 첫 `closeLocked` 참, 두 번째 거짓, `isOpen` 거짓, `invalidate`·`getLocked` 모두 `ClosedFileSystemException`(`assertThrows`), 닫힌 뒤 읽기 횟수 그대로 1 | 통과 |
 | T-83-07 `readThrows_propagatesAndNextGetRetries` (REQ-83-04) | `getLocked` | (a) 첫 읽기가 `IOException` 객체 `e` 던짐 → 조회가 던짐 → 다음 조회 성공. (b) 값 `"v…"`가 있는 상태에서 무효화 → 읽기가 던짐 → 조회가 던짐 → 다음 조회 | (a) 던진 예외가 `e`와 같은 객체(`assertSame`), 다음 조회가 값 반환, 읽기 2. (b) 실패 뒤 다음 조회가 다시 읽음(예전 값을 돌려주지 않음) | 통과 |
-| T-83-08 `lockedFunctions_withoutLock_throwIllegalState` (HLD H1 전제) | `getLocked`·`closeLocked` | `lock`을 잡지 않고 호출 | 둘 다 `IllegalStateException`, 읽기 0 | 통과 |
+| T-83-08 `lockedFunctions_withoutLock_throwIllegalState` (HLD H1 전제) | `getLocked`·`closeLocked` | `lock`을 잡지 않고 호출 | 둘 다 `IllegalStateException`이고 `ClosedFileSystemException`이 **아님**(`assertFalse(e is ClosedFileSystemException)` — JDK와 같다면 `ClosedFileSystemException`도 `IllegalStateException`의 하위 클래스라 닫힘과 구분하려고), 읽기 0 | 통과 |
 
 기존 `ArchivePathObservableTest`(REQ-83-05)와 나머지 단위 시험은 그대로 통과해야 한다. 실행: `JAVA_HOME="/c/Program Files/Android/Android Studio/jbr" timeout 1200 ./gradlew testDebugUnitTest --console=plain 2>&1 | tail -n 30`, 이어 `assembleDebug`.
 
@@ -217,3 +217,4 @@ V1·V2의 "메뉴 새로 고침"·"당겨서 새로 고침" 조작과 압축 여
 | 일자 | 버전 | 변경 | 사유 | 요청자 |
 |---|---|---|---|---|
 | 2026-11-20 | v1 | 최초 작성 | SRS v1.1, HLD v1.1 | PM |
+| 2026-11-20 | v1.1 | T-83-08에 "`ClosedFileSystemException`이 아님" 단언 추가 | LLD 1회차 검수 m1 (PR #87) | 검수팀 |
