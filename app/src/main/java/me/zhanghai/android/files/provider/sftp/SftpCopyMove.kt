@@ -16,6 +16,8 @@ import me.zhanghai.android.files.provider.common.copyTo
 import me.zhanghai.android.files.provider.common.createSymbolicLinkForCopy
 import me.zhanghai.android.files.provider.common.newInputStream
 import me.zhanghai.android.files.provider.common.newOutputStream
+import me.zhanghai.android.files.provider.common.replaceAfterCheckingSource
+import me.zhanghai.android.files.provider.common.replaceAfterOpeningSource
 import me.zhanghai.android.files.provider.sftp.client.Client
 import me.zhanghai.android.files.provider.sftp.client.ClientException
 import me.zhanghai.android.files.util.enumSetOf
@@ -72,24 +74,38 @@ internal object SftpCopyMove {
                 }
             }
             .build()
+        val deleteExisting: (() -> Unit)? = if (targetAttributes != null) {
+            {
+                try {
+                    Client.remove(target)
+                } catch (e: ClientException) {
+                    throw e.toFileSystemException(target.toString())
+                }
+            }
+        } else {
+            null
+        }
         when (sourceType) {
             FileMode.Type.REGULAR -> {
-                if (targetAttributes != null) {
-                    try {
-                        Client.remove(target)
-                    } catch (e: ClientException) {
-                        val exception = e.toFileSystemException(target.toString())
-                        if (exception !is NoSuchFileException) {
-                            throw exception
+                replaceAfterOpeningSource(
+                    openSource = {
+                        try {
+                            Client.openByteChannel(
+                                source, enumSetOf(OpenMode.READ), FileAttributes.EMPTY
+                            )
+                        } catch (e: ClientException) {
+                            throw e.toFileSystemException(source.toString())
+                        }.newInputStream()
+                    },
+                    closeSource = {
+                        try {
+                            it.close()
+                        } catch (e: IOException) {
+                            throw ClientException(e).toFileSystemException(source.toString())
                         }
-                    }
-                }
-                val sourceInputStream = try {
-                    Client.openByteChannel(source, enumSetOf(OpenMode.READ), FileAttributes.EMPTY)
-                } catch (e: ClientException) {
-                    throw e.toFileSystemException(source.toString())
-                }.newInputStream()
-                try {
+                    },
+                    deleteExisting = deleteExisting
+                ) { sourceInputStream ->
                     val targetFlags = enumSetOf(OpenMode.WRITE, OpenMode.TRUNC, OpenMode.CREAT)
                     if (!copyOptions.replaceExisting) {
                         targetFlags += OpenMode.EXCL
@@ -130,31 +146,28 @@ internal object SftpCopyMove {
                             }
                         }
                     }
-                } finally {
-                    try {
-                        sourceInputStream.close()
-                    } catch (e: IOException) {
-                        throw ClientException(e).toFileSystemException(source.toString())
-                    }
                 }
             }
             FileMode.Type.DIRECTORY -> {
-                if (targetAttributes != null) {
-                    try {
-                        Client.remove(target)
-                    } catch (e: ClientException) {
-                        val exception = e.toFileSystemException(target.toString())
-                        if (exception !is NoSuchFileException) {
-                            throw exception
+                replaceAfterCheckingSource(
+                    checkSource = {
+                        if (targetAttributes != null) {
+                            try {
+                                Client.scandir(source)
+                            } catch (e: ClientException) {
+                                throw e.toFileSystemException(source.toString())
+                            }
                         }
+                    },
+                    deleteExisting = deleteExisting
+                ) {
+                    try {
+                        Client.mkdir(target, sourceModeAttributes)
+                    } catch (e: ClientException) {
+                        throw e.toFileSystemException(target.toString())
                     }
+                    copyOptions.progressListener?.invoke(sourceSize)
                 }
-                try {
-                    Client.mkdir(target, sourceModeAttributes)
-                } catch (e: ClientException) {
-                    throw e.toFileSystemException(target.toString())
-                }
-                copyOptions.progressListener?.invoke(sourceSize)
             }
             FileMode.Type.SYMLINK -> {
                 val sourceTarget = try {
