@@ -49,34 +49,32 @@ internal class ArchiveFileSystem(
 
     private val lock = Any()
 
-    private var isOpen = true
+    private val entriesCache =
+        ArchiveEntriesCache<Pair<Map<Path, ReadArchive.Entry>, Map<Path, List<Path>>>>(lock)
 
     private var passwords = listOf<String>()
-
-    private var isRefreshNeeded = true
-
-    private var entries: Map<Path, ReadArchive.Entry>? = null
-
-    private var tree: Map<Path, List<Path>>? = null
 
     @Throws(IOException::class)
     fun getEntry(path: Path): ReadArchive.Entry =
         synchronized(lock) {
-            ensureEntriesLocked(path)
-            getEntryLocked(path)
+            val (entries, _) = ensureEntriesLocked(path)
+            getEntryLocked(entries, path)
         }
 
     @Throws(IOException::class)
-    private fun getEntryLocked(path: Path): ReadArchive.Entry =
+    private fun getEntryLocked(
+        entries: Map<Path, ReadArchive.Entry>,
+        path: Path
+    ): ReadArchive.Entry =
         synchronized(lock) {
-            entries!![path] ?: throw NoSuchFileException(path.toString())
+            entries[path] ?: throw NoSuchFileException(path.toString())
         }
 
     @Throws(IOException::class)
     fun newInputStream(file: Path): InputStream =
         synchronized(lock) {
-            ensureEntriesLocked(file)
-            val entry = getEntryLocked(file)
+            val (entries, _) = ensureEntriesLocked(file)
+            val entry = getEntryLocked(entries, file)
             if (entry.isDirectory) {
                 throw IsDirectoryException(file.toString())
             }
@@ -91,19 +89,19 @@ internal class ArchiveFileSystem(
     @Throws(IOException::class)
     fun getDirectoryChildren(directory: Path): List<Path> =
         synchronized(lock) {
-            ensureEntriesLocked(directory)
-            val entry = getEntryLocked(directory)
+            val (entries, tree) = ensureEntriesLocked(directory)
+            val entry = getEntryLocked(entries, directory)
             if (!entry.isDirectory) {
                 throw NotDirectoryException(directory.toString())
             }
-            tree!![directory]!!
+            tree[directory]!!
         }
 
     @Throws(IOException::class)
     fun readSymbolicLink(link: Path): String =
         synchronized(lock) {
-            ensureEntriesLocked(link)
-            val entry = getEntryLocked(link)
+            val (entries, _) = ensureEntriesLocked(link)
+            val entry = getEntryLocked(entries, link)
             if (!entry.isSymbolicLink) {
                 throw NotLinkException(link.toString())
             }
@@ -112,7 +110,7 @@ internal class ArchiveFileSystem(
 
     fun addPassword(password: String) {
         synchronized(lock) {
-            if (!isOpen) {
+            if (!entriesCache.isOpen) {
                 throw ClosedFileSystemException()
             }
             passwords += password
@@ -120,47 +118,34 @@ internal class ArchiveFileSystem(
     }
 
     fun refresh() {
-        synchronized(lock) {
-            if (!isOpen) {
-                throw ClosedFileSystemException()
-            }
-            isRefreshNeeded = true
-        }
+        entriesCache.invalidate()
     }
 
     @Throws(IOException::class)
-    private fun ensureEntriesLocked(file: Path) {
-        if (!isOpen) {
-            throw ClosedFileSystemException()
-        }
-        if (isRefreshNeeded) {
-            val entriesAndTree = try {
+    private fun ensureEntriesLocked(
+        file: Path
+    ): Pair<Map<Path, ReadArchive.Entry>, Map<Path, List<Path>>> =
+        entriesCache.getLocked {
+            try {
                 ArchiveReader.readEntries(archiveFile, passwords, rootDirectory)
             } catch (e: ArchiveException) {
                 throw e.toFileSystemOrInterruptedIOException(file)
             }
-            entries = entriesAndTree.first
-            tree = entriesAndTree.second
-            isRefreshNeeded = false
         }
-    }
 
     override fun provider(): FileSystemProvider = provider
 
     override fun close() {
         synchronized(lock) {
-            if (!isOpen) {
+            if (!entriesCache.isOpen) {
                 return
             }
             provider.removeFileSystem(this)
-            isRefreshNeeded = false
-            entries = null
-            tree = null
-            isOpen = false
+            entriesCache.closeLocked()
         }
     }
 
-    override fun isOpen(): Boolean = synchronized(lock) { isOpen }
+    override fun isOpen(): Boolean = synchronized(lock) { entriesCache.isOpen }
 
     override fun isReadOnly(): Boolean = true
 

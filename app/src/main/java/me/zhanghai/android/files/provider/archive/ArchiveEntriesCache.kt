@@ -6,27 +6,35 @@
 package me.zhanghai.android.files.provider.archive
 
 import java8.nio.file.ClosedFileSystemException
+import java.util.concurrent.atomic.AtomicLong
 
-// TEMPORARY: mimics the current locking of ArchiveFileSystem (refresh() takes the lock) to
-// show the tests failing before the real implementation.
+/**
+ * Cached archive entries guarded by the lock of the owning [ArchiveFileSystem].
+ *
+ * Invalidation doesn't take the lock and only bumps the requested generation, so it never waits
+ * for a read in progress. A lookup records the requested generation before reading, so an
+ * invalidation during the read makes the next lookup read again.
+ */
 internal class ArchiveEntriesCache<T : Any>(private val lock: Any) {
     @Volatile
     private var isClosed = false
 
-    private var isRefreshNeeded = true
+    private val requestedGeneration = AtomicLong()
 
+    // Guarded by lock, and only meaningful when value is not null.
+    private var loadedGeneration = 0L
+
+    // Guarded by lock.
     private var value: T? = null
 
     val isOpen: Boolean
         get() = !isClosed
 
     fun invalidate() {
-        synchronized(lock) {
-            if (isClosed) {
-                throw ClosedFileSystemException()
-            }
-            isRefreshNeeded = true
+        if (isClosed) {
+            throw ClosedFileSystemException()
         }
+        requestedGeneration.incrementAndGet()
     }
 
     fun getLocked(read: () -> T): T {
@@ -34,11 +42,16 @@ internal class ArchiveEntriesCache<T : Any>(private val lock: Any) {
         if (isClosed) {
             throw ClosedFileSystemException()
         }
-        if (isRefreshNeeded) {
-            value = read()
-            isRefreshNeeded = false
+        // Read the generation before reading, so that an invalidation during the read isn't lost.
+        val generation = requestedGeneration.get()
+        val currentValue = value
+        if (currentValue != null && loadedGeneration == generation) {
+            return currentValue
         }
-        return value!!
+        val newValue = read()
+        value = newValue
+        loadedGeneration = generation
+        return newValue
     }
 
     fun closeLocked(): Boolean {
@@ -46,7 +59,6 @@ internal class ArchiveEntriesCache<T : Any>(private val lock: Any) {
         if (isClosed) {
             return false
         }
-        isRefreshNeeded = false
         value = null
         isClosed = true
         return true
