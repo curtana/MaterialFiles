@@ -25,5 +25,9 @@ internal fun conflictNameRestoreOf(
     savedIsNameLayoutVisible: Boolean,
     savedIsAllChecked: Boolean
 ): FileJobConflictNameRestore =
-    // TODO(#67): Temporary body with the current behavior, to see the tests fail first.
-    FileJobConflictNameRestore(targetFileName, false, false, savedIsAllChecked, true)
+    if (!savedNewName.isNullOrEmpty() && savedNewName != targetFileName) {
+        FileJobConflictNameRestore(savedNewName, savedIsNameLayoutVisible, true, false, false)
+    } else {
+        // Without a new name the dialog stays as it was, even if the name was shown (#67 E3).
+        FileJobConflictNameRestore(targetFileName, false, false, savedIsAllChecked, true)
+    }

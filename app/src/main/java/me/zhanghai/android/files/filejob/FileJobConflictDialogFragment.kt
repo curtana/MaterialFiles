@@ -64,7 +64,13 @@ class FileJobConflictDialogFragment : AppCompatDialogFragment() {
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
 
-        outState.putState(State(binding.allCheck.isChecked))
+        outState.putState(
+            State(
+                binding.allCheck.isChecked,
+                if (hasNewName()) binding.nameEdit.text.toString() else null,
+                binding.nameLayout.isVisible
+            )
+        )
     }
 
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
@@ -75,6 +81,13 @@ class FileJobConflictDialogFragment : AppCompatDialogFragment() {
         val title = getTitle(targetFile, isMerge, requireContext())
         val message = getMessage(targetFile, args.type, isMerge, requireContext())
         val positiveButtonRes = if (isMerge) R.string.merge else R.string.replace
+        val targetFileName = targetFile.path.fileName.toString()
+        // The dialog content is added in onStart(), so it isn't restored automatically (#67).
+        val state = savedInstanceState?.getState<State>()
+        val restore = conflictNameRestoreOf(
+            targetFileName, state?.newName, state?.isNameLayoutVisible ?: false,
+            state?.isAllChecked ?: false
+        )
         return MaterialAlertDialogBuilder(requireContext(), theme)
             .setTitle(title)
             .setMessage(message)
@@ -118,8 +131,9 @@ class FileJobConflictDialogFragment : AppCompatDialogFragment() {
                         binding.nameEdit.showSoftInput()
                     }
                 }
-                val targetFileName = targetFile.path.fileName.toString()
-                binding.nameEdit.setTextWithSelection(targetFileName)
+                binding.nameEdit.setTextWithSelection(restore.nameText)
+                binding.nameLayout.isVisible = restore.isNameLayoutVisible
+                binding.showNameArrowImage.rotation = if (restore.isNameLayoutVisible) 90f else 0f
                 binding.nameEdit.doAfterTextChanged {
                     val hasNewName = hasNewName()
                     binding.allCheck.isEnabled = !hasNewName
@@ -133,11 +147,12 @@ class FileJobConflictDialogFragment : AppCompatDialogFragment() {
                 binding.nameLayout.setEndIconOnClickListener {
                     binding.nameEdit.setTextWithSelection(targetFileName)
                 }
-                if (savedInstanceState != null) {
-                    binding.allCheck.isChecked = savedInstanceState.getState<State>().isAllChecked
-                }
+                binding.allCheck.isChecked = restore.isAllChecked
+                binding.allCheck.isEnabled = restore.isAllEnabled
             }
-            .setPositiveButton(positiveButtonRes, ::onDialogButtonClick)
+            .setPositiveButton(
+                if (restore.isRename) R.string.rename else positiveButtonRes, ::onDialogButtonClick
+            )
             .setNegativeButton(R.string.skip, ::onDialogButtonClick)
             .setNeutralButton(android.R.string.cancel, ::onDialogButtonClick)
             .create()
@@ -350,6 +365,8 @@ class FileJobConflictDialogFragment : AppCompatDialogFragment() {
 
     @Parcelize
     private class State(
-        val isAllChecked: Boolean
+        val isAllChecked: Boolean,
+        val newName: String?,
+        val isNameLayoutVisible: Boolean
     ) : ParcelableState
 }
