@@ -13,6 +13,7 @@ import java8.nio.file.NoSuchFileException
 import java8.nio.file.StandardCopyOption
 import me.zhanghai.android.files.provider.common.CopyOptions
 import me.zhanghai.android.files.provider.common.copyTo
+import me.zhanghai.android.files.provider.common.createSymbolicLinkForCopy
 import me.zhanghai.android.files.provider.common.newInputStream
 import me.zhanghai.android.files.provider.common.newOutputStream
 import me.zhanghai.android.files.provider.sftp.client.Client
@@ -161,29 +162,23 @@ internal object SftpCopyMove {
                 } catch (e: ClientException) {
                     throw e.toFileSystemException(source.toString())
                 }
-                try {
-                    Client.symlink(target, sourceTarget)
-                } catch (e: ClientException) {
-                    val exception = e.toFileSystemException(target.toString())
-                    if (exception is FileAlreadyExistsException && copyOptions.replaceExisting) {
-                        try {
-                            Client.remove(target)
-                        } catch (e2: ClientException) {
-                            if (e2.toFileSystemException(target.toString())
-                                    !is NoSuchFileException) {
-                                e2.addSuppressed(exception)
-                                throw e2.toFileSystemException(target.toString())
-                            }
-                        }
+                createSymbolicLinkForCopy(
+                    copyOptions.replaceExisting,
+                    createLink = {
                         try {
                             Client.symlink(target, sourceTarget)
-                        } catch (e2: ClientException) {
-                            e2.addSuppressed(exception)
-                            throw e2.toFileSystemException(target.toString())
+                        } catch (e: ClientException) {
+                            throw e.toFileSystemException(target.toString())
+                        }
+                    },
+                    deleteExisting = {
+                        try {
+                            Client.remove(target)
+                        } catch (e: ClientException) {
+                            throw e.toFileSystemException(target.toString())
                         }
                     }
-                    throw e.toFileSystemException(target.toString())
-                }
+                )
                 copyOptions.progressListener?.invoke(sourceSize)
             }
             else -> throw FileSystemException(source.toString(), null, "type $sourceType")
