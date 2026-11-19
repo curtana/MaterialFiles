@@ -4,7 +4,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 작성 중 (v1.2) — 검수 1차 반려 지적 반영, 2차 검수 대기 |
+| 상태 | 검수 통과 (v1.3) — 1차 반려(M1, m1–m4) 반영 뒤 2차 통과 (PR #73 코멘트) |
 | 근거 | SRS v1.4 (2절 Q2, REQ-55-02·04·05·06·07, 6절, 7절), HLD v1.3 (2.3 조각 B, 2.4, 3.1, 3.3, 4, 5 D5–D10, 6) |
 | 기준 코드 | `origin/develop` c39a97e(A1 머지 뒤, PR #75). v1·v1.1은 55c521f 기준이었고 v1.2에서 `FileJobs.kt` 줄을 c39a97e로 옮겼다. 그 밖의 파일(`FileJobConflictDialogFragment.kt`, `ftp/client/Client.kt`, `FileItem.kt`, `provider/common/`)은 두 커밋 사이에 바뀌지 않았다(`git diff --stat 55c521f c39a97e`). 경로는 `app/src/main/java/me/zhanghai/android/files/` 기준. 줄과 함께 코드 앵커(식·주석)를 적는다. A2(네트워크 백엔드 속성 단계)는 B 파일과 겹치지 않는다 |
 | 추적 REQ | B1: REQ-55-04(FTP 원본). B2: REQ-55-02, 04, 05, 06, 07 |
@@ -150,11 +150,12 @@ internal class ExitedDirectory(val depth: Int, val visitedChildren: Set<Path>)
   internal fun LinkWalkState.enterIfResumedStart(
       directory: Path, start: Path, resume: ItemWalkFailure?
   ): Boolean {
-      val depth = resume?.enteredDepth ?: return false
+      val resumed = resume ?: return false
+      val depth = resumed.enteredDepth ?: return false
       if (directory != start) {
           return false
       }
-      enter(depth, resume.visitedChildren)
+      enter(depth, resumed.visitedChildren)
       return true
   }
   ```
@@ -565,3 +566,4 @@ internal class ExitedDirectory(val depth: Int, val visitedChildren: Set<Path>)
 | 2026-11-19 | v1 | 최초 작성(조각 B1·B2) | PM LLD 요청(조각 B, A1 위) | PM |
 | 2026-11-19 | v1.1 | 2.8·F3 상한 효과 문구 정정(m2), 2.12 방문자를 `private inner class`로(m3). M1·m1·m4([판단])는 PM 판단 대기 | LLD 검수 1차 반려 [기계] 항목 (PR #73 코멘트) | reviewer |
 | 2026-11-19 | v1.2 | 2.5a 신설(`startFailureBeforeEntering`·`enterIfResumedStart`, 재개 중 ②로 실패해도 재개 정보 유지 — M1·m4), 2.5 `isCountedOnSkip`·2.12 `askWalkError`가 ③ 건너뛰기에서 수를 빼지 않음, 2.8 건너뛰기에도 상한 불변식(m1), 2.6 `ask`가 `ItemWalkFailure`를 받음, U-B25–28, 3.3 검사 항목. 기준 코드를 A1 머지 뒤 c39a97e로 옮기고 `FileJobs.kt` 줄 번호 갱신, F7을 머지된 A1과 대조 | LLD 검수 1차 반려 M1·m1·m4([판단], PM 승인 — PR #73 결정 코멘트), A1 머지(PR #75) | PM, reviewer |
+| 2026-11-19 | v1.3 | 2.5a `enterIfResumedStart`를 스마트 캐스트에 기대지 않게 지역 변수로(동작 같음), 상태를 검수 통과로 | LLD 검수 2차 통과, 참고 [기계] (PR #73 코멘트) | reviewer |
