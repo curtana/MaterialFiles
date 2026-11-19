@@ -1476,62 +1476,62 @@ private fun FileJob.copyOrMove(
             throw e
         } catch (e: IOException) {
             e.printStackTrace()
-            if (actionAllInfo.skipCopyMoveError) {
-                transferInfo.skipFile(source)
-                postCopyMoveNotification(transferInfo, source, type)
-                return false
-            }
-            if (e is UserActionRequiredException) {
-                val result = showUserAction(e)
-                if (result) {
+            when (askCopyError(e, source, target, type, true, actionAllInfo)) {
+                CopyErrorDecision.RETRY -> {
                     retry = true
                     continue
                 }
-            }
-            val result = showErrorDialog(
-                getString(
-                    type.getResourceId(
-                        R.string.file_job_copy_error_title_format,
-                        R.string.file_job_extract_error_title_format,
-                        R.string.file_job_move_error_title_format
-                    ), getFileName(source)
-                ),
-                getString(
-                    type.getResourceId(
-                        R.string.file_job_copy_error_message_format,
-                        R.string.file_job_extract_error_message_format,
-                        R.string.file_job_move_error_message_format
-                    ), getFileName(targetParent), e.toString()
-                ),
-                getReadOnlyFileStore(target, e),
-                true,
-                getString(R.string.retry),
-                getString(R.string.skip),
-                getString(android.R.string.cancel)
-            )
-            return when (result.action) {
-                FileJobErrorAction.POSITIVE -> {
-                    retry = true
-                    continue
-                }
-                FileJobErrorAction.NEGATIVE -> {
-                    if (result.isAll) {
-                        actionAllInfo.skipCopyMoveError = true
-                    }
+                CopyErrorDecision.SKIP -> {
                     transferInfo.skipFile(source)
                     postCopyMoveNotification(transferInfo, source, type)
-                    false
+                    return false
                 }
-                FileJobErrorAction.CANCELED -> {
-                    transferInfo.skipFile(source)
-                    postCopyMoveNotification(transferInfo, source, type)
-                    false
-                }
-                FileJobErrorAction.NEUTRAL -> throw canceledByUser()
+                CopyErrorDecision.CANCEL -> throw canceledByUser()
             }
         }
     } while (retry)
     return true
+}
+
+/**
+ * Asks about a copy or walk error with the copy error dialog (#55 B2). Without [canRetry], the
+ * dialog has no retry button.
+ */
+@Throws(InterruptedIOException::class)
+private fun FileJob.askCopyError(
+    e: IOException,
+    source: Path,
+    target: Path,
+    type: CopyMoveType,
+    canRetry: Boolean,
+    actionAllInfo: ActionAllInfo
+): CopyErrorDecision {
+    val targetParent = target.parent
+    return decideCopyError(
+        actionAllInfo, canRetry, { e is UserActionRequiredException && showUserAction(e) }
+    ) {
+        showErrorDialog(
+            getString(
+                type.getResourceId(
+                    R.string.file_job_copy_error_title_format,
+                    R.string.file_job_extract_error_title_format,
+                    R.string.file_job_move_error_title_format
+                ), getFileName(source)
+            ),
+            getString(
+                type.getResourceId(
+                    R.string.file_job_copy_error_message_format,
+                    R.string.file_job_extract_error_message_format,
+                    R.string.file_job_move_error_message_format
+                ), getFileName(targetParent), e.toString()
+            ),
+            getReadOnlyFileStore(target, e),
+            true,
+            if (canRetry) getString(R.string.retry) else null,
+            getString(R.string.skip),
+            getString(android.R.string.cancel)
+        )
+    }
 }
 
 private fun FileJob.postCopyMoveNotification(
