@@ -8,7 +8,16 @@
 package me.zhanghai.android.files.filejob
 
 import java.io.IOException
+import java8.nio.file.FileSystemLoopException
 import java8.nio.file.Path
+
+internal const val MAX_LINK_DEPTH = 8
+
+/** Thrown for a directory link that would exceed [MAX_LINK_DEPTH] (#55 REQ-55-06). */
+internal class LinkDepthExceededException(file: String) : FileSystemLoopException(file) {
+    override val message: String
+        get() = "${super.message}: more than $MAX_LINK_DEPTH levels of symbolic links"
+}
 
 /**
  * The directories a following-links walk is in (#55 B2): their link depths and, for resuming a
@@ -64,7 +73,10 @@ internal class ItemWalkFailure(
  * The failure of a walk start that failed before being entered. A start being resumed (#55 ③)
  * keeps what the previous failure knew, so the next retry still doesn't copy it again.
  */
-internal fun startFailureBeforeEntering(error: IOException, resume: ItemWalkFailure?): ItemWalkFailure =
+internal fun startFailureBeforeEntering(
+    error: IOException,
+    resume: ItemWalkFailure?
+): ItemWalkFailure =
     ItemWalkFailure(error, resume?.enteredDepth, resume?.visitedChildren ?: emptySet())
 
 /** Enters [directory] without copying it again if it is a resumed start; false otherwise. */
@@ -82,4 +94,64 @@ internal fun LinkWalkState.enterIfResumedStart(
     return true
 }
 
-internal const val MAX_LINK_DEPTH = 8
+/**
+ * Asks about the walk failure of an item, and walks the item again while retried. A retry failing
+ * again at the item itself is asked about in this loop rather than recursively (#55 B2).
+ *
+ * @param ask returns true to retry, false to skip, or throws to cancel
+ * @param rewalk walks the item again after the previous failure, returning the new failure of the
+ * item itself or null if the item was walked
+ * @return true if the item was walked, false if it was skipped
+ */
+internal inline fun retryFailedWalk(
+    first: ItemWalkFailure,
+    ask: (ItemWalkFailure) -> Boolean,
+    rewalk: (ItemWalkFailure) -> ItemWalkFailure?
+): Boolean {
+    var failure = first
+    while (true) {
+        if (!ask(failure)) {
+            return false
+        }
+        failure = rewalk(failure) ?: return true
+    }
+}
+
+internal enum class CopyErrorDecision {
+    RETRY,
+    SKIP,
+    CANCEL
+}
+
+/**
+ * Decides on a copy or walk error the way copyOrMove() always has (#55 B2), with skip all shared
+ * by both through [ActionAllInfo.skipCopyMoveError].
+ */
+internal inline fun decideCopyError(
+    actionAllInfo: ActionAllInfo,
+    canRetry: Boolean,
+    tryUserAction: () -> Boolean,
+    showDialog: () -> ErrorResult
+): CopyErrorDecision {
+    if (actionAllInfo.skipCopyMoveError) {
+        return CopyErrorDecision.SKIP
+    }
+    if (canRetry && tryUserAction()) {
+        return CopyErrorDecision.RETRY
+    }
+    val result = showDialog()
+    return when (result.action) {
+        FileJobErrorAction.POSITIVE -> {
+            check(canRetry) { "No positive button without retry" }
+            CopyErrorDecision.RETRY
+        }
+        FileJobErrorAction.NEGATIVE -> {
+            if (result.isAll) {
+                actionAllInfo.skipCopyMoveError = true
+            }
+            CopyErrorDecision.SKIP
+        }
+        FileJobErrorAction.CANCELED -> CopyErrorDecision.SKIP
+        FileJobErrorAction.NEUTRAL -> CopyErrorDecision.CANCEL
+    }
+}
