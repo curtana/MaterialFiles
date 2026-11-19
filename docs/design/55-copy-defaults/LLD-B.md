@@ -4,7 +4,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 작성 중 (v1) |
+| 상태 | 작성 중 (v1.1) — 검수 1차 반려, [판단] M1·m1·m4 PM 판단 대기 |
 | 근거 | SRS v1.4 (2절 Q2, REQ-55-02·04·05·06·07, 6절, 7절), HLD v1.3 (2.3 조각 B, 2.4, 3.1, 3.3, 4, 5 D5–D10, 6) |
 | 기준 코드 | `origin/develop` 55c521f(C1·C2 머지 뒤, A1 머지 전). 경로는 `app/src/main/java/me/zhanghai/android/files/` 기준. B2는 **A1 머지 뒤** develop에서 분기한다 — A1이 `FileJobs.kt`의 같은 함수에 인자를 더하므로(LLD-A 2.6), 줄 번호는 55c521f 기준으로 적고 코드 앵커(식·주석)를 함께 적는다. B1 파일은 A·C가 고치지 않는다 |
 | 추적 REQ | B1: REQ-55-04(FTP 원본). B2: REQ-55-02, 04, 05, 06, 07 |
@@ -189,7 +189,7 @@ internal class ExitedDirectory(val depth: Int, val visitedChildren: Set<Path>)
   - `incrementTransferredFileCount()`(493-495)·`addTransferredFile(path)`(497-506)의 `++transferredFileCount` 뒤: `if (transferredFileCount > fileCount) { fileCount = transferredFileCount }`.
   - `addToTransferredSize(size)`(523-525)·`addTransferredFile`의 `transferredSize += …` 뒤: `if (transferredSize > this.size) { this.size = transferredSize }`.
   - 비공개 메서드 하나로 묶는다: `private fun growTotalsToTransferred()`.
-- **이유**: 집계는 순회 실패 항목을 한 항목(크기 0)으로 센다(2.10). 그 항목을 다시 시도로 복사하면 실제 항목이 더 많다. 지금도 집계 뒤 바뀐 폴더에서 같은 일이 생긴다(HLD 6절). 표시 쪽에는 이미 부분 상한이 있다 — `FileJobProgress.percent`의 `coerceIn(0, 100)`(`filejob/FileJobProgress.kt:23-38`, 앱 안 작업 목록), "N/M"의 `coerceAtMost(fileCount)`(`FileJobs.kt:414-415`, 469) — 하지만 알림 진행 막대(`postTransferSizeNotification` 383-436, `postNotification(…, max, progress, …)`)는 `progress > max`를 그대로 넘기고 그 처리를 프레임워크에 맡긴다. 전체를 늘리면 모든 표시가 한 곳에서 맞는다(막대는 100%에 머물지 않고 늘어난 전체를 기준으로 계속 움직인다). 폰→폰에도 적용되지만 지금 100%를 넘던 경우에만 결과가 달라진다(표시만).
+- **이유**: 집계는 순회 실패 항목을 한 항목(크기 0)으로 센다(2.10). 그 항목을 다시 시도로 복사하면 실제 항목이 더 많다. 지금도 집계 뒤 바뀐 폴더에서 같은 일이 생긴다(HLD 6절). 표시 쪽에는 이미 부분 상한이 있다 — `FileJobProgress.percent`의 `coerceIn(0, 100)`(`filejob/FileJobProgress.kt:23-38`, 앱 안 작업 목록), "N/M"의 `coerceAtMost(fileCount)`(`FileJobs.kt:414-415`, 469) — 하지만 알림 진행 막대(`postTransferSizeNotification` 383-436, `postNotification(…, max, progress, …)`)는 `progress > max`를 그대로 넘기고 그 처리를 프레임워크에 맡긴다. 전체를 늘리면 진행 값이 최대값을 넘는 일이 없어지고 모든 표시(알림 막대·"N/M"·앱 안 목록)가 한 곳의 값으로 맞는다. 초과 뒤에는 전체가 옮긴 수와 같아지므로 막대는 100%에 머문다 — 얻는 것은 최대값 초과 방지다. 폰→폰에도 적용되지만 지금 100%를 넘던 경우에만 결과가 달라진다(표시만).
 - **가시성**: JVM 시험을 위해 `ScanInfo`(351)·`TransferInfo`(481)를 `private class` → `internal class`. `TransferInfo` 생성자가 `ScanInfo`를 받으므로 둘 다 바꾼다. 필드·메서드 가시성은 그대로.
 - **오류**: 없음.
 
@@ -278,7 +278,7 @@ internal class ExitedDirectory(val depth: Int, val visitedChildren: Set<Path>)
   ```
   분류 호출 수·위치(`CopyFileJob.run`·`open`·`save` 세 곳, LLD-A 3.3)는 그대로이고 결과를 집계와 순회가 함께 쓴다(SRS D1).
 
-#### 2.12 `CopyFileJob.copyRecursively(...)` (829-863, A1 뒤) + 새 멤버 `copyRecursivelyFollowingLinks`, `walkFollowingLinks`, `retryWalk`, `askWalkError`, `inner class FollowingLinksCopyVisitor`, `private class CopyWalk`
+#### 2.12 `CopyFileJob.copyRecursively(...)` (829-863, A1 뒤) + 새 멤버 `copyRecursivelyFollowingLinks`, `walkFollowingLinks`, `retryWalk`, `askWalkError`, `private inner class FollowingLinksCopyVisitor`, `private class CopyWalk`
 - **추적**: HLD 2.3 "순회(복사)", "오류 처리" ①②③, 3.1 3단계 / REQ-55-04, 05, 06
 - **책임**: 네트워크면 링크를 따라가며 복사하고, 깊이 초과·순환·순회 실패를 그 항목만의 실패로 처리한다. 폰→폰은 지금 그대로.
 - **`copyRecursively`**: 맨 앞에
@@ -335,7 +335,7 @@ internal class ExitedDirectory(val depth: Int, val visitedChildren: Set<Path>)
   }
   ```
   `skipFileIgnoringSize`(519-521): 집계가 그 항목을 크기 0으로 셌으므로(2.10) 크기는 빼지 않는다.
-- **`inner class FollowingLinksCopyVisitor(walk, start, state, resume) : SimpleFileVisitor<Path>()`**: `var startFailure: ItemWalkFailure? = null; private set`.
+- **`private inner class FollowingLinksCopyVisitor(walk, start, state, resume) : SimpleFileVisitor<Path>()`**: (`private` — 비공개 `CopyWalk`를 받는다) `var startFailure: ItemWalkFailure? = null; private set`.
 
   | 메서드 | 알고리즘 |
   |---|---|
@@ -512,7 +512,7 @@ internal class ExitedDirectory(val depth: Int, val visitedChildren: Set<Path>)
 ## 4. 설계 피드백
 - **F1 (LLD 해석, 설계팀 확인함)**: 깊이는 **폴더 링크**만 센다(0절 3). SRS REQ-55-06 글자는 "링크 깊이가 8을 넘는 링크"지만, HLD 2.3·D5는 `preVisitDirectory`에서만 링크 여부를 읽고 파일에는 왕복을 더하지 않는다(SRS 6절 권장). 그래서 폴더 링크 8겹 안의 **파일 링크**(깊이로 치면 9)는 복사된다. 파일 링크는 순환을 만들 수 없어 REQ-55-06의 목적(순환 종료)에는 영향이 없다. 파일 링크까지 세려면 파일마다 링크 안 따른 속성 읽기 1회가 는다. **설계팀 답(2026-11-19)**: OK, SRS·HLD 변경 없음 — HLD 2.3·D5가 깊이를 폴더 링크로 좁혔고 SRS 6절이 파일 왕복을 더하지 않기를 권장하며, 파일 링크는 순환을 만들지 않는다.
 - **F2 (LLD 결정, 기록)**: ③(목록 도중 실패)의 다시 시도는 "이미 방문한 자식은 건너뛰고 이어서"로 한다(2.4 `markVisited`, 2.12 (a)(b)). 처음부터 다시 돌면 이미 복사한 자식마다 교체·합치기 창이 뜬다. 방문 집합은 열린 폴더 줄기에만 있다(메모리 = 그 폴더들의 목록 크기). 설계팀 확인: HLD 2.3 ③과 맞음(2026-11-19).
-- **F3 (LLD 결정, PM 지시 응답)**: 진행률 100% 초과는 `TransferInfo`가 전체를 늘려 막는다(2.8). 표시 쪽 상한만 더하는 안은 알림 막대가 100%에 멈춘 채 복사가 이어져 버렸다.
+- **F3 (LLD 결정, PM 지시 응답)**: 진행률 100% 초과는 `TransferInfo`가 전체를 늘려 막는다(2.8). 표시 쪽 상한만 더하는 안은 알림·"N/M"·앱 안 목록 세 곳에 따로 상한을 두어야 해서 버렸다. 어느 안이든 초과 뒤 막대는 100%에 머문다(검수 m2).
 - **F4 (LLD 결정, 기록)**: 순회 오류(①·②)의 '모두 건너뛰기'는 복사 오류와 같은 `skipCopyMoveError`를 쓴다(HLD 2.3 "같은 오류 처리", SRS REQ-55-06 "REQ-55-05와 같은 오류 처리"). 깊이 초과만 따로 모두 건너뛰기를 두는 안은 플래그가 늘고 사용자에게 차이가 보이지 않는다. 설계팀 확인: 이의 없음(2026-11-19).
 - **F5 (LLD 결정, 기록)**: 폴더의 링크 여부를 읽지 못하면 링크로 친다(2.10 `isSymbolicLinkForLinkDepth`). 따라간 속성은 읽혔는데 따르지 않은 속성만 실패하는 드문 경우다. 링크가 아닌 것으로 치면 그 경로로 깊이 제한을 벗어날 수 있다.
 - **F6 (LLD 결정, 기록)**: `getTitle`·`getMessage`에서 쓰지 않게 되는 `sourceFile` 인자를 뺀다(2.17). 호출자는 `showConflictDialog` 한 곳뿐이다(`FileJobs.kt:628-629`).
@@ -523,3 +523,4 @@ internal class ExitedDirectory(val depth: Int, val visitedChildren: Set<Path>)
 | 일자 | 버전 | 변경 | 사유 | 요청자 |
 |---|---|---|---|---|
 | 2026-11-19 | v1 | 최초 작성(조각 B1·B2) | PM LLD 요청(조각 B, A1 위) | PM |
+| 2026-11-19 | v1.1 | 2.8·F3 상한 효과 문구 정정(m2), 2.12 방문자를 `private inner class`로(m3). M1·m1·m4([판단])는 PM 판단 대기 | LLD 검수 1차 반려 [기계] 항목 (PR #73 코멘트) | reviewer |
