@@ -79,6 +79,7 @@ class FileJobConflictDialogFragment : AppCompatDialogFragment() {
             .setMessage(message)
             .apply {
                 binding = FileJobConflictDialogViewBinding.inflate(context.layoutInflater)
+                binding.replaceWarningText.isVisible = !isMerge
                 binding.targetNameText.setText(
                     if (isMerge) {
                         R.string.file_job_merge_target_name
