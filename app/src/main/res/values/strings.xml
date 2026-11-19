@@ -235,6 +235,7 @@
     <string name="file_job_replace_message_format">Another file with the same name already exists in “%1$s”.\nReplacing it will overwrite its content.</string>
     <string name="file_job_replace_target_name">Original file</string>
     <string name="file_job_replace_source_name">Replace with</string>
+    <string name="file_job_replace_warning">Replacing deletes the existing file first. If the operation is interrupted, the existing file may be lost.</string>
     <string name="file_job_merge_title_format">Merge folder “%1$s”?</string>
     <string name="file_job_merge_copy_message_format">Merging will ask for confirmation before replacing any files in the folder that conflict with the files being copied.</string>
     <string name="file_job_merge_extract_message_format">Merging will ask for confirmation before replacing any files in the folder that conflict with the files being extracted.</string>

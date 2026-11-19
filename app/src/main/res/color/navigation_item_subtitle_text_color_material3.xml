@@ -11,5 +11,5 @@
     tools:ignore="PrivateResource">
     <item android:alpha="@dimen/material_emphasis_disabled" android:color="?colorOutline" android:state_enabled="false" />
     <item android:color="?colorOnSecondaryContainer" android:state_checked="true" />
-    <item android:color="?colorOutline" />
+    <item android:color="?android:textColorSecondary" />
 </selector>
