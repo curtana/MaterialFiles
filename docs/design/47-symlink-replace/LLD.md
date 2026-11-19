@@ -53,7 +53,7 @@
   ```
 - **기존 코드와의 관계**: 세 백엔드의 같은 구조(`LinuxCopyMove.kt:158-179`, `SftpCopyMove.kt:163-186`, `SmbCopyMove.kt:118-141`)를 하나로 대체한다. 현행과 다른 점은 다음뿐이다.
   1. (수정) 다시 만들기 성공 뒤 첫 예외를 던지지 않고 정상 반환한다(현행 `LinuxCopyMove.kt:177-178`, `SftpCopyMove.kt:185`, `SmbCopyMove.kt:139-140`).
-  2. (부수) suppressed가 실제로 던지는 예외에 남는다. 현행은 백엔드 예외(`SyscallException`/`ClientException`)에 붙인 뒤 `toFileSystemException`으로 새 예외를 만들어 던지므로(`SyscallException.kt:58-69`, sftp `ClientException.kt:32-46`, smb `ClientException.kt:49-` 모두 원인·suppressed를 옮기지 않음) suppressed가 사라졌다. HLD D3("첫 실패를 suppressed로")에 맞는 쪽이다.
+  2. (부수) suppressed가 실제로 던지는 예외에 남는다. 현행은 백엔드 예외(`SyscallException`/`ClientException`)에 붙인 뒤 `toFileSystemException`으로 새 예외를 만들어 던지므로, suppressed는 던지는 예외에 직접 붙지 않고 그 cause(`initCause` — `SyscallException.kt:69`, sftp `ClientException.kt:47`, smb `ClientException.kt:75`)에 있었다(`getCause().suppressed`로만 도달). 새 코드는 던지는 예외에 직접 붙인다. HLD D3("suppressed는 현행 코드와 같다")와 위치만 한 단계 다르고, 사용자에게 보이는 결과는 같다.
 
 ### 2-2. `me.zhanghai.android.files.provider.linux.LinuxCopyMove.copy(source: ByteString, target: ByteString, copyOptions: CopyOptions)` — 링크 분기만 수정
 - **추적**: HLD 로컬 링크 분기 / REQ-47-01, 02
@@ -83,7 +83,7 @@
   )
   ```
 - **기존 코드와의 관계**:
-  - '이미 있음' 판정: 현행 `e.errno == OsConstants.EEXIST`(161) ↔ 변환 후 `FileAlreadyExistsException`. `SyscallException.toFileSystemException`(`SyscallException.kt:58-69`)에서 `FileAlreadyExistsException`이 되는 것은 `EEXIST`뿐이라 같다. '없음' 판정 `ENOENT`(166) ↔ `NoSuchFileException`도 `ENOENT`뿐(66행)이라 같다. 판정을 람다 안의 변환으로 넘기는 것이 HLD "판정은 인자로 받는다"의 구현이다.
+  - '이미 있음' 판정: 현행 `e.errno == OsConstants.EEXIST`(161) ↔ 변환 후 `FileAlreadyExistsException`. `SyscallException.toFileSystemException`(`SyscallException.kt:58-69`)에서 `FileAlreadyExistsException`이 되는 것은 `EEXIST`뿐이라 같다. '없음' 판정 `ENOENT`(165) ↔ `NoSuchFileException`도 `ENOENT`뿐(66행)이라 같다. 판정을 람다 안의 변환으로 넘기는 것이 HLD "판정은 인자로 받는다"의 구현이다.
   - `maybeThrowInvalidFileNameException`(`SyscallException.kt:43-48`, `EINVAL`일 때만)은 현행처럼 첫 만들기 실패에 적용된다. 다시 만들기 실패에도 적용되게 되지만, 첫 시도가 `EEXIST`였다면 이름은 유효하므로 실제 차이는 없다.
   - 일반 파일·폴더 분기, 51-53행 충돌 판정은 그대로.
 
@@ -140,7 +140,7 @@
       }
   )
   ```
-- **기존 코드와의 관계**: 판정은 현행(122행)과 같다 — smb `ClientException.kt:58-59`(`STATUS_OBJECT_NAME_COLLISION`만). `maybeThrowInvalidFileNameException`(`ClientException.kt:42-47`)은 2-2와 같은 이유로 다시 만들기 실패에도 적용되지만 실제 차이 없음. `Client.createSymbolicLink`/`Client.delete`는 `smb/client/Client.kt:177`/`266`.
+- **기존 코드와의 관계**: 판정은 현행(123행)과 같다 — smb `ClientException.kt:58-59`(`STATUS_OBJECT_NAME_COLLISION`만). `maybeThrowInvalidFileNameException`(`ClientException.kt:42-47`)은 2-2와 같은 이유로 다시 만들기 실패에도 적용되지만 실제 차이 없음. `Client.createSymbolicLink`/`Client.delete`는 `smb/client/Client.kt:177`/`266`.
 
 ## 3. 테스트 설계
 JUnit 4(`app/build.gradle:222`), 기존 `provider/common/*Test.kt`와 같은 형식. 가짜 람다가 호출 순서를 `MutableList<String>`에 기록하고, 미리 정한 예외 목록을 차례로 던진다(`java8.nio.file` 예외는 순수 JVM 클래스라 JVM에서 만들 수 있음). 실행: `./gradlew testDebugUnitTest --tests '*SymbolicLinkCopyTest'`.
@@ -154,19 +154,21 @@ JUnit 4(`app/build.gradle:222`), 기존 `provider/common/*Test.kt`와 같은 형
 | ④ `existing_noReplace_throwsOriginal` | 2-1 | 첫 만들기 `FileAlreadyExistsException`, 바꾸기 아님 | 그 예외(같은 객체), 호출 `[create]` | 01(전제), SRS 4절 |
 | ⑤ `existing_replace_deleteFails_throwsWithoutRecreate` | 2-1 | 지우기가 `AccessDeniedException` | 그 예외, `suppressed`에 첫 예외, 호출 `[create, delete]` | 02 |
 | ⑥ `otherFailure_replace_notDeleted` | 2-1 | 첫 만들기 일반 `FileSystemException`(SFTP v3 상황), 바꾸기 | 그 예외(같은 객체), 호출 `[create]` — 지우지 않음 | 03(D2) |
+| ⑦ `existing_replace_recreateAlreadyExists_throwsWithoutRetry` | 2-1 | ①에서 다시 만들기도 `FileAlreadyExistsException`(경쟁 조건, HLD 6절) | 두 번째 예외(같은 객체)가 던져짐, `suppressed`에 첫 예외, 호출 `[create, delete, create]` — 세 번째 시도 없음 | 02 |
 
-①~⑤는 HLD 4절의 ①~⑤와 같은 번호다. ⓪·⑥은 LLD에서 더했다(⑥은 D2의 "일반 실패면 지우지 않음"을 공용 함수 수준에서 고정한다. HLD v1.1의 'SFTP 판정 함수' 테스트와 달리 새 판정 함수를 두지 않는다).
+①~⑤는 HLD 4절의 ①~⑤와 같은 번호다. ⓪·⑥·⑦은 LLD에서 더했다(⑦은 HLD 6절 경쟁 조건에서 반복하지 않음을 고정한다. ⑥은 D2의 "일반 실패면 지우지 않음"을 공용 함수 수준에서 고정한다. HLD v1.1의 'SFTP 판정 함수' 테스트와 달리 새 판정 함수를 두지 않는다).
 
 ### 3-1. 수정 전 실패 증명 (두 커밋, REQ-47-05)
-1. **커밋 1** (`Refactor: Extract symlink copy into common function (#47)`): 2-1 함수를 **현행 동작 그대로** 만든다 — 2-1 알고리즘에서 `catch` 블록 끝(다시 만들기 성공 뒤)에 `throw e`를 둔다(현행 `LinuxCopyMove.kt:177-178`과 같음). 2-2~2-4의 호출부 교체와 3절 테스트 전부를 같은 커밋에 넣는다. 이 커밋에서 `testDebugUnitTest --tests '*SymbolicLinkCopyTest'`를 돌리면 **①·③이 실패**(정상 반환 대신 `FileAlreadyExistsException`)하고 ⓪·②·④·⑤·⑥은 통과해야 한다 — 이 테스트들은 바뀌지 않아야 할 동작을 고정한다. 출력을 PR에 붙인다.
-2. **커밋 2** (`Fix: Finish symlink replace after recreating the link (#47)`): 그 `throw e` 한 줄만 지운다(2-1 알고리즘대로). 같은 명령에서 7개 모두 통과, 출력을 PR에 붙인다.
+1. **커밋 1** (`Refactor: Extract symlink copy into common function (#47)`): 2-1 함수를 **현행 동작 그대로** 만든다 — 2-1 알고리즘에서 `catch` 블록 끝(다시 만들기 성공 뒤)에 `throw e`를 둔다(현행 `LinuxCopyMove.kt:177-178`과 같음). 2-2~2-4의 호출부 교체와 3절 테스트 전부를 같은 커밋에 넣는다. 이 커밋에서 `testDebugUnitTest --tests '*SymbolicLinkCopyTest'`를 돌리면 **①·③이 실패**(정상 반환 대신 `FileAlreadyExistsException`)하고 ⓪·②·④·⑤·⑥·⑦은 통과해야 한다 — 이 테스트들은 바뀌지 않아야 할 동작을 고정한다. 출력을 PR에 붙인다.
+2. **커밋 2** (`Fix: Finish symlink replace after recreating the link (#47)`): 그 `throw e` 한 줄만 지운다(2-1 알고리즘대로). 같은 명령에서 8개 모두 통과, 출력을 PR에 붙인다.
 - 커밋 1은 의도적으로 테스트가 실패하는 중간 커밋이다. PR은 두 커밋을 squash하지 않고 머지한다(PM 판단).
 
 ### 3-2. 에뮬레이터 재현·확인 계획 (REQ-47-01, 05)
 - 환경: 로컬 AVD `Medium_Phone_API_36`(google_apis_playstore, x86_64 — `adb root` 불가). 오너 기기에는 설치하지 않는다(사전 승인 필요). 디버그 빌드는 debuggable이라 `run-as`로 앱 전용 폴더에 링크를 만들 수 있다(외부 저장소 `/sdcard`는 심볼릭 링크를 지원하지 않음).
 - 준비(매 실행 전 초기화):
   ```
-  adb shell run-as me.zhanghai.android.files sh -c 'rm -rf files/t47 && mkdir -p files/t47/src files/t47/dst && ln -s /system/etc/hosts files/t47/src/a && ln -s /system/bin/sh files/t47/src/b && echo old > files/t47/dst/a && echo old > files/t47/dst/b'
+  # Git Bash 기준. 바깥을 큰따옴표로 감싸 기기 셸에 한 덩어리로 넘긴다(adb가 인자를 합쳐 다시 해석하므로).
+  adb shell "run-as me.zhanghai.android.files sh -c 'rm -rf files/t47 && mkdir -p files/t47/src files/t47/dst && ln -s /system/etc/hosts files/t47/src/a && ln -s /system/bin/sh files/t47/src/b && echo old > files/t47/dst/a && echo old > files/t47/dst/b'"
   ```
 - 절차: 앱에서 경로 `/data/user/0/me.zhanghai.android.files/files/t47/src`로 이동 → `a`,`b` 선택 → 복사 → `t47/dst`에서 붙여넣기 → 충돌 창에서 '모두 적용' 체크 + '바꾸기'.
 - **수정 전**(develop 빌드, 구현 착수 전): 충돌 창이 다시 뜨거나 작업이 끝나지 않는 것을 화면 캡처·`adb shell run-as ... ls -l files/t47/dst`로 기록하고 취소한다. 증상이 SRS와 다르면(예: 한 번에 끝남) 구현하지 말고 PM에 보고한다(SRS 4절 가정, PROCESS_ROLES 11-1).
@@ -180,9 +182,10 @@ JUnit 4(`app/build.gradle:222`), 기존 `provider/common/*Test.kt`와 같은 형
 
 ## 4. 설계 피드백
 - SRS·HLD와 어긋나는 것 없음. 설계팀 문의 없음.
-- 참고(설계 변경 아님): ① HLD의 "판정을 인자로 받는다"는 판정 함수 인자가 아니라 **람다 안에서 백엔드 예외를 `FileSystemException`으로 바꾸는 것**으로 구현한다 — 변환 규칙상 `FileAlreadyExistsException`/`NoSuchFileException`이 되는 경우가 현행 판정(`EEXIST`/`ENOENT`, `FILE_ALREADY_EXISTS`, `STATUS_OBJECT_NAME_COLLISION`)과 정확히 같아서 동작이 같다(2-2~2-4). ② 커밋 1에서 실패하는 테스트는 ①·③뿐이다(HLD 4절 "①이 실패함" 기준. ③도 다시 만들기 성공 경로라 함께 실패한다). ②·④·⑤·⑥은 수정 전후 모두 통과해야 하는 테스트다. ③ suppressed가 실제 던지는 예외에 남게 되는 부수 변화(2-1 끝).
+- 참고(설계 변경 아님): ① HLD의 "판정을 인자로 받는다"는 판정 함수 인자가 아니라 **람다 안에서 백엔드 예외를 `FileSystemException`으로 바꾸는 것**으로 구현한다 — 변환 규칙상 `FileAlreadyExistsException`/`NoSuchFileException`이 되는 경우가 현행 판정(`EEXIST`/`ENOENT`, `FILE_ALREADY_EXISTS`, `STATUS_OBJECT_NAME_COLLISION`)과 정확히 같아서 동작이 같다(2-2~2-4). ② 커밋 1에서 실패하는 테스트는 ①·③뿐이다(HLD 4절 "①이 실패함" 기준. ③도 다시 만들기 성공 경로라 함께 실패한다). ⓪·②·④·⑤·⑥·⑦은 수정 전후 모두 통과해야 하는 테스트다. ③ suppressed 위치가 cause에서 던지는 예외로 한 단계 옮겨지는 부수 변화(2-1 끝). HLD D3의 "suppressed는 현행 코드와 같다"와 위치만 다르고 의미(첫 실패를 함께 남김)는 같아서 설계 문의는 하지 않았다. ④ 커밋 1은 공용 함수 수준에서만 "현행 그대로"다(suppressed 위치·`maybeThrowInvalidFileNameException` 범위는 이미 새 형태). 실제 백엔드가 수정 전에 실패한다는 증명은 3-2 에뮬레이터 재현이 맡는다.
 
 ## 5. 변경 이력
 | 일자 | 버전 | 변경 | 사유 | 요청자 |
 |---|---|---|---|---|
 | 2026-11-19 | v1 | 최초 작성 | SRS v1.2, HLD v1.2 | PM |
+| 2026-11-19 | v1.1 | 2-1 suppressed 현행 설명 정정, 줄 번호 2곳(165·123), 3-2 adb 따옴표, 테스트 ⑦ 추가, 4절 ③④ | LLD 검수 1차(경미 4, 조건부) | reviewer |
