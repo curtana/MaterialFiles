@@ -2,7 +2,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 작성 중(v2.0, 오너 요구 재정의 반영. v1.x는 검수 통과였으나 요구가 바뀌어 다시 검수) |
+| 상태 | 검수 조건부 통과(v2.1, 경미 지적 반영) |
 | 근거 | 요구사항 정리 v1(이슈 #95) + 오너 결정 2026-11-20 3건(#95 코멘트): "네 개 모두", "둘 다 (가)"(Q1·Q3), **rename/MOVE 구분**(Q4 대체, 아래 인용) + PM 결정(Q2) + #55 원칙(원인을 모르면 지우지 않는다) |
 | 기준 코드 | `origin/develop` 9374221. 줄 번호는 이 커밋 기준, 경로는 `app/src/main/java/me/zhanghai/android/files/` 기준 |
 | 관련 | #55(복사 원본 확인 뒤 대상 삭제, C1/C2), #54(바꾸기 경고), #47, #42 |
@@ -36,7 +36,7 @@ FTP·SFTP·SMB·WebDAV에서 두 동작을 구분한다.
 
 | 백엔드 | 대상이 있으면 | rename 실패 시(원자) | 대체 코드 앞의 차단 |
 |---|---|---|---|
-| FTP | `FtpCopyMove.kt:163-165` `FileAlreadyExistsException`(바꾸기가 아니라 선삭제 없음) | `:177-179` 변환해 던짐 | `:186-188` `AssertionError` |
+| FTP | `FtpCopyMove.kt:163-165` `FileAlreadyExistsException`(이름 바꾸기는 `REPLACE_EXISTING`을 붙이지 않으므로 여기서 끝나고, 선삭제 블록 `:166-170`에 닿지 않음) | `:177-179` 변환해 던짐 | `:186-188` `AssertionError` |
 | SFTP | `SftpCopyMove.kt:272-274` 같음 | `:286-288` | `:295-297` |
 | SMB | `SmbCopyMove.kt:195-197` 같음 | `:209-213`(`maybeThrowAtomicMoveNotSupportedException`·`maybeThrowInvalidFileNameException` 포함) | `:220-222` |
 | WebDAV | `WebDavCopyMove.kt:174-176` 같음 | `:188-190` | `:197-199` |
@@ -58,7 +58,7 @@ FTP·SFTP·SMB·WebDAV에서 두 동작을 구분한다.
 | 백엔드 | 원본 | 대상 | 비고 |
 |---|---|---|---|
 | FTP | `FtpCopyMove.kt:82` `Client.retrieveFile` → `ftp/client/Client.kt:222-232` `retrieveFileStream`(데이터 연결 스트림) | `FtpCopyMove.kt:97` `Client.storeFile` → `Client.kt:309-322` `storeFileStream` | 같은 서버라도 연결 풀(`Client.kt:41`, `acquireClient` `:46-67`)에서 연결을 따로 얻어 동시에 연다. 루프 `FtpCopyMove.kt:103-106` |
-| SFTP | `SftpCopyMove.kt:97-99` `Client.openByteChannel(READ)` → `newInputStream()` | `:115-119` `openByteChannel(WRITE·TRUNC·CREAT)` → `newOutputStream()` | 루프 `:122-125` |
+| SFTP | `SftpCopyMove.kt:97-102` `Client.openByteChannel(READ)` → `newInputStream()` | `:118-121` `openByteChannel(WRITE·TRUNC·CREAT)` → `newOutputStream()` | 루프 `:122-125` |
 | SMB | `smb/client/Client.kt:326-` `copyFile` | 같음 | 같은 세션이면 `sourceFile.serverCopy(…)`(`:409`) — **서버 안 복사, 폰을 거치지 않음**. 다른 세션이면 `FileByteChannel` 스트림 루프(`:413-418`) |
 | WebDAV | `WebDavCopyMove.kt:87` `Client.get` → `webdav/client/DavResourceCompat.kt:34-35` `body.byteStream()` | `WebDavCopyMove.kt:102` `Client.put` → `DavResourceCompat.kt:64-` `putCompat`(okio `Pipe` `:70`, one-shot `RequestBody`) | 쓰는 쪽이 파이프로 업로드 요청 본문에 바로 흘러간다. 루프 `WebDavCopyMove.kt:108-111` |
 
@@ -95,7 +95,7 @@ FTP·SFTP·SMB·WebDAV에서 두 동작을 구분한다.
 | 질문 | 결정 | 출처 |
 |---|---|---|
 | 적용 백엔드 | FTP·SFTP·SMB·WebDAV 넷 | 오너 2026-11-20 "네 개 모두" |
-| Q1 바꾸기 이동의 기존 대상 | (가) 서버 덮어쓰기 rename, 앱은 먼저 지우지 않음. 실패하면 대체 복사는 #55 순서 | 오너 "둘 다 (가)", rename/MOVE 구분 코멘트 |
+| Q1 바꾸기 이동의 기존 대상 | (가) 서버 덮어쓰기 rename, 앱은 먼저 지우지 않음. 실패하면 대체 복사는 #55 순서. 예외: 대체 복사가 성공한 뒤 원본 삭제가 실패하는 경우는 지금 동작(대상 복사본 정리)이 남아 기존 대상이 사라질 수 있다(5장, 바꾸지 않음) | 오너 "둘 다 (가)", rename/MOVE 구분 코멘트 |
 | Q2 WebDAV 다른 서버 결함 | 범위 안 | PM |
 | Q3 오류 단위 | (가) 항목 단위, 기존 오류 창, 새 문구 없음 | 오너 "둘 다 (가)" |
 | Q4 같은 서버 구조상 rename 불가 | 해당 없음 — 이동은 항상 대체 | 오너 rename/MOVE 구분 코멘트 |
@@ -135,3 +135,4 @@ FTP·SFTP·SMB·WebDAV에서 두 동작을 구분한다.
 | 2026-11-20 | 1.2 | 3장에 결정 기록(Q1 (가), Q3 (가), Q2 범위 안), REQ-95-06 우선순위 칸 갱신 | 오너 결정 "둘 다 (가)"(#95 코멘트), PM Q2 | PM(오너 결정 전달) |
 | 2026-11-20 | 1.3 | REQ-95-06 본문의 조건문을 확정 문장으로, 1.3의 "Q1 결정에 따라"를 Q3 결정으로 | HLD 검수 지적 3(PR #96) | 검수팀 |
 | 2026-11-20 | 2.0 | 요구 재정의: 이름 바꾸기(대체 없음, 확인만)와 이동(대체 유지, 같은 서버 포함)을 구분. "같은 서버 이동은 대체 없음" 철회. REQ 재번호(01 이름 바꾸기, 02 이동 대체 유지, 03~05 바꾸기 이동, 06 WebDAV, 07 오류 단위, 08 불변). 1.4-1 원자 경로 확인표, 1.5 스트리밍 확인표 추가, 3장을 결정 기록표로 정리 | 오너 2026-11-20: "MOVE와 rename을 구분했으면 하는데 … rename의 경우는 시도해서 실패하면 끝이지만 MOVE는 파일을 다운 받으면서 대상 폴더에 동시에 기록해야 하는 것이 너무 당연한 거야"(#95 코멘트, Q4 대체) | PM(오너 결정 전달) |
+| 2026-11-20 | 2.1 | 1.5 SFTP 줄 범위 정정, 1.4-1 FTP 칸 표현 명확화, 3장 Q1 행에 원본 삭제 실패 예외 명시 | v2.0 검수 조건부 통과 경미 1·3·4(PR #96) | 검수팀 |

@@ -2,8 +2,8 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 작성 중(v2.0, SRS v2.0 기준으로 다시 씀) |
-| 근거 | SRS v2.0(오너 rename/MOVE 구분 결정 2026-11-20 반영) |
+| 상태 | 검수 조건부 통과(v2.1, 경미 지적 반영) |
+| 근거 | SRS v2.1(오너 rename/MOVE 구분 결정 2026-11-20 반영) |
 | 기준 코드 | `origin/develop` 9374221. 경로는 `app/src/main/java/me/zhanghai/android/files/` 기준 |
 
 ## 1. 구조 개요
@@ -26,7 +26,7 @@ flowchart LR
 
 | 구성요소 | 위치(패키지·파일) | 책임 | 추적 REQ |
 |---|---|---|---|
-| C1 제공자 `move()` 4개 | `provider/ftp/FtpCopyMove.kt:146`, `provider/sftp/SftpCopyMove.kt:241`, `provider/smb/SmbCopyMove.kt:169`, `provider/webdav/WebDavCopyMove.kt:157` | (1) 바꾸기일 때 rename 앞에서 대상을 지우는 블록을 없앤다(FTP `:166-170`, SFTP `:275-279`, SMB `:198-202`, WebDAV `:177-181`). (2) rename에 `overwrite = 대상 있음 && copyOptions.replaceExisting`을 넘긴다. (3) 나머지 — 원자면 실패를 던짐, 비원자면 실패를 무시하고 기존 대체 꼬리(옵션 보정 → `copy()` → 원본 삭제, 실패 시 대상 정리) — 는 그대로 | REQ-95-01, 02, 03, 04, 05, 08 |
+| C1 제공자 `move()` 4개 | `provider/ftp/FtpCopyMove.kt:146`, `provider/sftp/SftpCopyMove.kt:241`, `provider/smb/SmbCopyMove.kt:169`, `provider/webdav/WebDavCopyMove.kt:157` | (1) 바꾸기일 때 rename 앞에서 대상을 지우는 블록을 없앤다(FTP `:166-170`, SFTP `:275-279`, SMB `:198-202`, WebDAV `:177-181`). (2) rename에 `overwrite = 대상 있음 && copyOptions.replaceExisting`을 넘긴다. (3) 나머지 — 원자면 실패를 던짐, 비원자면 실패를 무시하고 기존 대체 꼬리(옵션 보정 → `copy()` → 원본 삭제, 실패 시 대상 정리) — 는 그대로 | REQ-95-01, 02, 03, 04, 05, 07, 08 |
 | C2 클라이언트 rename | `provider/sftp/client/Client.kt:98`, `provider/smb/client/Client.kt:445`, `provider/webdav/client/Client.kt:113` | `overwrite: Boolean` 인수 추가. SFTP: `true`면 `SFTPClient.rename(old, new, setOf(RenameFlags.OVERWRITE))`, 아니면 지금 2인수 호출. SMB: `DiskEntry.rename(path, overwrite)`(지금 상수 `true`, `:469`). WebDAV: `DavResource.move(url, overwrite)`(지금 상수 `false`, `:118`). FTP `Client.renameFile`(`ftp/client/Client.kt:206`)은 그대로 — RNTO에는 덮어쓰기 지정 수단이 없어, 바꾸기 이동이면 기존 파일 위로 그냥 RNTO한다 | REQ-95-04 |
 | C3 WebDAV 다른 서버 예외형 | `provider/webdav/client/Client.kt:114-116` | 다른 `Authority`일 때의 `IOException`을 `DavException`형(`IOException.toDavException()`, `webdav/client/DavIOException.kt:16`)으로 던져 `WebDavCopyMove.move`의 `catch (e: DavException)`(`:187`)에 걸리게 한다. 그러면 비원자 이동은 대체로, 원자 시도는 변환된 오류로 간다 — 다른 세 백엔드와 같다 | REQ-95-06 |
 | C4 검증 코드 | `app/src/test/java/me/zhanghai/android/files/...`(JVM) | 6.1 표 | 전부 |
@@ -86,6 +86,7 @@ flowchart LR
 - **R2 SMB 일반 이동의 동작 변화**: ReplaceIfExists를 일반 이동에서 끄면, 확인과 rename 사이에 대상이 생긴 드문 경우 덮어쓰던 것이 충돌 창으로 바뀐다(3.2 마지막 줄). 의도된 변화(D3).
 - **R3 대체 뒤 원본 삭제 실패(기존 동작)**: 대체 복사로 대상을 바꾼 뒤 원본 삭제가 실패하면 기존 코드가 대상 복사본을 지운다(예: `FtpCopyMove.kt:197-208`). 바꾸기 이동이면 기존 대상은 이때 이미 사라진 뒤다. 지금과 같고 #54 경고 범위다. 바꾸지 않는다(SRS 5장).
 - **R4 FTP 바꾸기 이동의 서버 의존**: 덮어쓰기를 하는 FTP 서버는 RNTO로 끝나고, 거절하는 서버는 대체 복사로 간다. 어느 서버가 어느 쪽인지 미리 알 수 없지만 결과는 둘 다 이동 성공(대체가 되면)이다.
+- **R5 WebDAV 업로드 본문(기존 동작)**: 대체 복사의 업로드는 길이 없는 one-shot 본문(`DavResourceCompat.kt:64-`, okio `Pipe`)이라 일부 서버가 거절할 수 있다. 그러면 대체 복사가 실패하고 오류 창으로 간다(REQ-95-07). 지금과 같고 이 작업에서 바꾸지 않는다(미확인).
 - 미결 없음(SRS 3장).
 
 ### 6.1 검증 계획
@@ -107,3 +108,4 @@ flowchart LR
 | 2026-11-20 | 1.1 | R6·Q4(구조상 rename 불가 경우) 추가, C3 추적에 REQ-95-02, 6.1에 메시지 보존 시험, 내장 FTP 서버 호출자 명시, 근거 행 정정 | HLD 검수 반려(중요 1, 경미 4, PR #96) | 검수팀 |
 | 2026-11-20 | 1.1 | 상태 행 갱신 | 2회차 검수 경미 1 | 검수팀 |
 | 2026-11-20 | 2.0 | SRS v2.0에 맞춰 다시 씀: 이동 대체 유지로 `ServerRenameScope`·`FileJobs` 폴더 처리 변경·Q4 삭제. 구성요소를 C1 `move()` 선삭제 제거와 overwrite 인수, C2 클라이언트 인수, C3 WebDAV 예외형, C4 시험으로 정리 | 오너 2026-11-20 rename/MOVE 구분(#95 코멘트) | PM(오너 결정 전달) |
+| 2026-11-20 | 2.1 | C1 추적에 REQ-95-07(남는 오류가 기존 오류 창으로 감), R5 WebDAV 업로드 본문 위험 추가 | v2.0 검수 조건부 통과 경미 2·참고(PR #96) | 검수팀 |
