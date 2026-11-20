@@ -2,7 +2,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 작성 중(v1) |
+| 상태 | 검수 통과(v1.1, PR #96 1회차 조건부 통과 반영) |
 | 근거 | SRS v2.4, HLD v2.5(PR #96 검수 통과) |
 | 기준 코드 | `origin/develop` 9374221. 경로는 `app/src/main/java/me/zhanghai/android/files/` 기준, 테스트는 `app/src/test/java/me/zhanghai/android/files/` 기준. 줄 번호는 모두 이 커밋 기준이다 |
 
@@ -33,9 +33,9 @@
 | P2 | `provider/webdav/WebDavCopyMove.kt` | 수정 | 2.7: 선삭제 `:177-181` 제거, `:183-219`를 2.1 호출로 |
 | P2 | `provider/webdav/client/Client.kt` | 수정 | 2.8: `move(source, target, overwrite)`, `:118` 상수 `false` → `overwrite`, `:114-116` 예외를 `toDavException()`으로(C3) |
 | P2 | `provider/webdav/client/ClientMoveAuthorityTest.kt`(test) | 신규 | 3장 U-95-10~11 |
-| P3 | `provider/common/ForeignCopyMove.kt` | 수정 | 2.9: `move()` `:164-185`의 두 `catch` 제거 → `source.delete()`만 |
+| P3 | `provider/common/ForeignCopyMove.kt` | 수정 | 2.9: `move()` `:164-186`의 두 `catch` 제거 → `source.delete()`만 |
 | P3 | `provider/linux/LinuxCopyMove.kt` | 수정 | 2.10: `move()` `:299-310`의 되돌리기 `:302-308` 제거 |
-| P3 | `provider/document/resolver/DocumentResolver.kt` | 수정 | 2.11: `moveByCopy()`(`:359-385`)의 `:370-383` 되돌리기 `:375-382` 제거 |
+| P3 | `provider/document/resolver/DocumentResolver.kt` | 수정 | 2.11: `moveByCopy()`(`:359-386`)의 `:370-384` 되돌리기 `:375-382` 제거 |
 | P3 | `provider/common/ForeignCopyMoveCleanupTest.kt`(test) | 수정 | 3장 U-95-12~14 추가(기존 가짜 `FakeProvider` 재사용) |
 
 바꾸지 않는 곳(HLD 2장 그대로): `filejob/FileJobs.kt` 전체, 네 `copy()`, `provider/common/SourceCheckedReplace.kt`, `ftp/client/Client.kt`(`renameFile` 인수 없음 — RNTO에 덮어쓰기 지정 수단이 없다), C5 경로의 바꾸기 선삭제(`LinuxCopyMove.kt:266-270`, `DocumentCopyMove.kt:94-103`), 루트 제공자(`root/RootableFileSystemProvider.kt:104-106` → 루트 프로세스에서 같은 `LinuxCopyMove.move`를 쓰므로 2.10으로 함께 바뀐다), 문자열·권한·설정. 쓰지 않게 된 import(예: `FtpCopyMove`의 `NoSuchFileException`이 다른 곳에서 안 쓰이면)는 구현 때 정리한다.
@@ -265,7 +265,7 @@ internal fun moveByRenameOrCopy(
 
 ### 2.9 `provider.common.ForeignCopyMove.move(source: Path, target: Path, vararg options: CopyOption)` (P3, 수정)
 - **추적**: HLD C5 / REQ-95-07·08·09
-- **알고리즘**: `:146-163` 그대로(원자 거부, 옵션 보정, `copy`). `:164-185`의
+- **알고리즘**: `:146-163` 그대로(원자 거부, 옵션 보정, `copy`). `:164-186`의
   ```kotlin
   try { source.delete() } catch (e: IOException) { …target.delete()… throw e } catch (e: UnsupportedOperationException) { …target.delete()… throw e }
   ```
@@ -297,7 +297,7 @@ internal fun moveByRenameOrCopy(
 
 ### 2.11 `provider.document.resolver.DocumentResolver.moveByCopy(sourcePath, targetPath, intervalMillis, listener, cleanupFailureListener): Uri` (P3, 수정, `private`)
 - **추적**: HLD C5 / REQ-95-07·08·09
-- **알고리즘**: `:370-383`의 `try { …remove(sourceUri, sourceParentUri) } catch (e: ResolverException) { if (…!is NoSuchFileException) { …remove(targetUri, targetParentUri)… }; throw e }`를 되돌리기 없이:
+- **알고리즘**: `:370-384`의 `try { …remove(sourceUri, sourceParentUri) } catch (e: ResolverException) { if (…!is NoSuchFileException) { …remove(targetUri, targetParentUri)… }; throw e }`를 되돌리기 없이:
   ```kotlin
   // Keep the copy if deleting the source fails (#95).
   val sourceUri = getDocumentUri(sourcePath)
@@ -323,7 +323,7 @@ JVM 단위 테스트(`./gradlew testDebugUnitTest`, JUnit 4). "수정 전 실패
 | U-95-07 | P1 | 2.1 | 비원자, rename 실패, `copy` 성공, `deleteSource`가 `AccessDeniedException` | 같은 예외 객체, suppressed 0개, 기록 `[rename, copy, deleteSource]`로 끝(대상 삭제 람다 자체가 없음 — 사본 유지, REQ-95-09). `NoSuchFileException`도 같은 결과(같은 시험 안 두 번째 경우) | 신규 |
 | U-95-08 | P1 | 2.1 | 비원자, rename 실패, `copy`가 `IOException` | 같은 예외, `deleteSource` 안 부름 | 신규 |
 | U-95-09 | P1 | 2.1 | 비원자, rename이 `FileSystemException`이 아닌 `IOException` | 잡지 않고 같은 예외를 던짐, `copy` 안 부름(2.1 오류 둘째 항 — 백엔드 예외형 범위 유지) | 신규 |
-| U-95-10 | P2 | 2.8 | 다른 authority(같은 `Protocol.DAVS`, 호스트 `a.example`·`b.example`)의 가짜 `Client.Path` 둘로 `Client.move(a, b, false)` | `DavException`(`DavIOException`)을 던짐, 메시지 "Paths aren't on the same authority" | **실패**: 지금은 `IOException`이고 `DavException`이 아니다(SRS 1.4-4) |
+| U-95-10 | P2 | 2.8 | 다른 authority(같은 `Protocol.DAVS`, 호스트 `a.example`·`b.example`)의 가짜 `Client.Path` 둘로 `Client.move(a, b, false)` | `assertThrows(DavException::class.java)` — `DavIOException`, 메시지 "Paths aren't on the same authority". `DavException`은 `IOException`이 아니므로(dav4jvm) 형을 정확히 이것으로 쓴다 | **실패**: 수정 전 확인은 2인수 `Client.move(a, b)`로 먼저 돌려 `IOException`(DavException 아님)으로 실패함을 본 뒤, 2.8에서 셋째 인수를 더하고 시험을 3인수로 바꾼다(3인수를 바로 쓰면 수정 전은 컴파일 실패 red일 뿐이다). 검수 1회차에 수정 전 코드에서 `IOException` 실측됨 |
 | U-95-11 | P2 | 2.8 → 2.7 변환 | U-95-10의 예외에 `toFileSystemException("a", "b")` | `FileSystemException`, 메시지 보존, `cause`가 원래 `IOException` | 실패(U-95-10과 함께) |
 | U-95-12 | P3 | 2.9 | `deleteException = IOException()`, `ForeignCopyMove.move(source, target, option)` | 같은 예외 객체, `deletedPaths == [source]`(대상 삭제 없음), suppressed 0개 | **실패**: 지금은 `[source, target]` |
 | U-95-13 | P3 | 2.9 | `deleteException = UnsupportedOperationException()` | 같은 예외 객체, `deletedPaths == [source]` | **실패**: 지금 `[source, target]` |
@@ -351,3 +351,4 @@ JVM 단위 테스트(`./gradlew testDebugUnitTest`, JUnit 4). "수정 전 실패
 | 일자 | 버전 | 변경 | 사유 | 요청자 |
 |---|---|---|---|---|
 | 2026-11-20 | 1 | 최초 작성(조각 P1~P3, 함수 2.1~2.11, 시험 U-95-01~14) | SRS v2.4·HLD v2.5 검수 통과 | PM |
+| 2026-11-20 | 1.1 | U-95-10 수정 전 확인 순서(2인수로 먼저 실패 확인 → 3인수)와 `assertThrows(DavException)` 명시, 줄 번호 정정(`ForeignCopyMove.kt:164-186`, `DocumentResolver.kt:359-386`·`:370-384`), 4장 1항 설계팀 확인 기록, 상태 행 | PR #96 LLD 1회차 조건부 통과 경미 2건([기계]) | 검수팀 |
