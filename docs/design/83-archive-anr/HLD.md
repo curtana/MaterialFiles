@@ -42,7 +42,8 @@ flowchart LR
 | 명시 새로 고침 `refresh()` | 주 스레드(`FileListViewModel.kt:81-87`) | 없음(이번 변경) |
 | 감시 무효화 `refresh()` | 풀 작업 스레드(#69 D6, `ArchivePathObservable.kt:27-36`) | 없음(이번 변경) |
 | 조회·항목 읽기 | 풀 작업 스레드(`FileListLiveData.kt:25-28`) | `lock`(지금과 같음) |
-| `addPassword()` | 주 스레드(`ArchivePasswordDialogFragment.kt:108`) | `lock`(지금과 같음, #86 범위) |
+| `addPassword()` | 주 스레드(`ArchivePasswordDialogFragment.kt:108`) | `lock`(지금과 같음, #86 범위). **#86 뒤**: 없음(비밀번호 목록을 원자적 참조로 갱신, #86 HLD H1) |
+| `close()`·`isOpen()` | 앱에서 부르는 곳 없음(#86 SRS 1.3) | `lock`(변경 없음) |
 
 - 명시 새로 고침 뒤 `_fileListLiveData.reload()`(`FileListViewModel.kt:86`)가 시작한 다시 읽기는 풀 스레드에서 `lock`을 기다리다가, 앞선 읽기가 끝나면 세대가 달라 다시 읽는다. 주 스레드는 기다리지 않고 로딩 표시가 그동안 이어진다(SRS 3장 보이는 차이).
 - 무효화는 여러 스레드(주·풀)에서 동시에 올 수 있어 요청 세대는 원자적으로 올린다(`AtomicLong`). 값·읽은 세대는 `lock` 안에서만 다뤄 가시성이 `synchronized`로 보장된다.
@@ -86,3 +87,4 @@ flowchart LR
 |---|---|---|---|---|
 | 2026-11-20 | v1 | 최초 작성. #69 HLD 3.3·D6 서술 갱신(H3) | SRS v1.1 검수 통과 | PM |
 | 2026-11-20 | v1.1 | H2에 `entries!!`·`tree!!` 읽던 곳이 H1 값을 쓴다고 명시, 6.1 시험 2에 "진행 중 읽기 없는 무효화" 경우 추가, H3에 #69 HLD R6·6.1 코드 검사 주석 포함 | HLD 1회차 검수 m1·m2·m3 (PR #87) | 검수팀 |
+| 2026-11-20 | v1.2 | 3.2 표에 "#86 뒤" 주석: `addPassword()`가 `lock`을 잡지 않음, `close()`·`isOpen()` 행 추가(부르는 곳 없음). #83 설계·코드 변경 없음 | #86 HLD H3 (PR #90) | 설계팀 |
