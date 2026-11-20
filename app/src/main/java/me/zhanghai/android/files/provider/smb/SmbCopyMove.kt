@@ -15,6 +15,7 @@ import java8.nio.file.NoSuchFileException
 import java8.nio.file.StandardCopyOption
 import me.zhanghai.android.files.provider.common.CopyOptions
 import me.zhanghai.android.files.provider.common.createSymbolicLinkForCopy
+import me.zhanghai.android.files.provider.common.moveByRenameOrCopy
 import me.zhanghai.android.files.provider.common.replaceAfterCheckingSource
 import me.zhanghai.android.files.provider.smb.client.Client
 import me.zhanghai.android.files.provider.smb.client.ClientException
@@ -195,50 +196,26 @@ internal object SmbCopyMove {
             if (!copyOptions.replaceExisting) {
                 throw FileAlreadyExistsException(source.toString(), target.toString(), null)
             }
-            try {
-                Client.delete(target)
-            } catch (e: ClientException) {
-                throw e.toFileSystemException(target.toString())
-            }
         }
-        var renameSuccessful = false
-        try {
-            Client.rename(source, target)
-            renameSuccessful = true
-        } catch (e: ClientException) {
-            if (copyOptions.atomicMove) {
-                e.maybeThrowAtomicMoveNotSupportedException(source.toString(), target.toString())
-                e.maybeThrowInvalidFileNameException(target.toString())
-                throw e.toFileSystemException(source.toString(), target.toString())
-            }
-            // Ignored.
-        }
-        if (renameSuccessful) {
-            copyOptions.progressListener?.invoke(sourceInformation.endOfFile)
-            return
-        }
-        if (copyOptions.atomicMove) {
-            throw AssertionError()
-        }
-        var copyOptions = copyOptions
-        if (!copyOptions.copyAttributes || !copyOptions.noFollowLinks) {
-            copyOptions = CopyOptions(
-                copyOptions.replaceExisting, true, false, true, copyOptions.progressIntervalMillis,
-                copyOptions.progressListener, copyOptions.cleanupFailureListener
-            )
-        }
-        copy(source, target, copyOptions)
-        try {
-            Client.delete(source)
-        } catch (e: ClientException) {
-            if (e.toFileSystemException(source.toString()) !is NoSuchFileException) {
+        moveByRenameOrCopy(
+            copyOptions, targetInformation != null, sourceInformation.endOfFile,
+            rename = { overwrite ->
                 try {
-                    Client.delete(target)
-                } catch (e2: ClientException) {
-                    e.addSuppressed(e2.toFileSystemException(target.toString()))
+                    Client.rename(source, target, overwrite)
+                } catch (e: ClientException) {
+                    e.maybeThrowAtomicMoveNotSupportedException(source.toString(), target.toString())
+                    e.maybeThrowInvalidFileNameException(target.toString())
+                    throw e.toFileSystemException(source.toString(), target.toString())
+                }
+            },
+            copy = { copy(source, target, it) },
+            deleteSource = {
+                try {
+                    Client.delete(source)
+                } catch (e: ClientException) {
+                    throw e.toFileSystemException(source.toString())
                 }
             }
-            throw e.toFileSystemException(source.toString())
-        }
+        )
     }
 }

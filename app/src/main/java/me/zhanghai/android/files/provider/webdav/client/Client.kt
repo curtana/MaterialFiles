@@ -110,12 +110,12 @@ object Client {
     }
 
     @Throws(DavException::class)
-    fun move(source: Path, target: Path) {
+    fun move(source: Path, target: Path, overwrite: Boolean) {
         if (source.authority != target.authority) {
-            throw IOException("Paths aren't on the same authority")
+            throw IOException("Paths aren't on the same authority").toDavException()
         }
         try {
-            DavResource(getClient(source.authority), source.url).move(target.url, false) {}
+            DavResource(getClient(source.authority), source.url).move(target.url, overwrite) {}
         } catch (e: IOException) {
             throw e.toDavException()
         }

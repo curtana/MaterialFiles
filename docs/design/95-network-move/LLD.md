@@ -2,7 +2,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 검수 통과(v1.1, PR #96 1회차 조건부 통과 반영) |
+| 상태 | v1.2(P2 구현 중 2.12 추가 — 재검수 대상: 1장 표 2.12 행, 2.12, 4장 4항, 5장 v1.2) |
 | 근거 | SRS v2.4, HLD v2.5(PR #96 검수 통과) |
 | 기준 코드 | `origin/develop` 9374221. 경로는 `app/src/main/java/me/zhanghai/android/files/` 기준, 테스트는 `app/src/test/java/me/zhanghai/android/files/` 기준. 줄 번호는 모두 이 커밋 기준이다 |
 
@@ -33,6 +33,7 @@
 | P2 | `provider/webdav/WebDavCopyMove.kt` | 수정 | 2.7: 선삭제 `:177-181` 제거, `:183-219`를 2.1 호출로 |
 | P2 | `provider/webdav/client/Client.kt` | 수정 | 2.8: `move(source, target, overwrite)`, `:118` 상수 `false` → `overwrite`, `:114-116` 예외를 `toDavException()`으로(C3) |
 | P2 | `provider/webdav/client/ClientMoveAuthorityTest.kt`(test) | 신규 | 3장 U-95-10~11 |
+| P2 | `provider/webdav/DavExceptionExtensions.kt` | 수정 | 2.12: `DavIOException` 분기의 `initCause(cause)`를 `initCause(this@toFileSystemException.cause)`로(원인 보존, v1.2) |
 | P3 | `provider/common/ForeignCopyMove.kt` | 수정 | 2.9: `move()` `:164-186`의 두 `catch` 제거 → `source.delete()`만 |
 | P3 | `provider/linux/LinuxCopyMove.kt` | 수정 | 2.10: `move()` `:299-310`의 되돌리기 `:302-308` 제거 |
 | P3 | `provider/document/resolver/DocumentResolver.kt` | 수정 | 2.11: `moveByCopy()`(`:359-386`)의 `:370-384` 되돌리기 `:375-382` 제거 |
@@ -308,6 +309,13 @@ internal fun moveByRenameOrCopy(
   `catch`가 `throw e`(같은 객체)였으므로 결과 예외가 같다. 호출자(`:298`, `:330`) 그대로.
 - **오류**: `ResolverException` 그대로 나간다. 대상 문서는 남는다.
 
+### 2.12 `provider.webdav.toFileSystemException` (`DavException.toFileSystemException(file, other)`) (P2, 수정, v1.2)
+- **추적**: HLD C3 / REQ-95-06, 3장 U-95-11
+- **발견 경위**: P2 구현 중 U-95-11이 실패 — `cause`가 `null`. 원인: `DavIOException` 분기(`webdav/DavExceptionExtensions.kt:20`)의 `FileSystemException(...).apply { initCause(cause) }`에서 `cause`가 `apply`의 수신 객체(새 `FileSystemException`, 원인 없음)의 `cause`로 묶여 `initCause(null)`이 된다. 바깥 `.apply { initCause(this@toFileSystemException) }`는 분기의 `return` 때문에 닿지 않는다. 임시 로그로 확인: `cause=null`, `DavIOException.cause=IOException("Paths aren't on the same authority")`. 상위 저장소 코드 그대로의 기존 결함(`git log`: 4cd7710 이후 변경 없음).
+- **알고리즘**: `initCause(cause)` → `initCause(this@toFileSystemException.cause)`. 다른 분기·메시지는 그대로.
+- **출력·사후조건**: `DavIOException`을 바꾼 `FileSystemException`의 `cause`가 원래 `IOException`(지금은 `null`). 메시지·`file`·`otherFile` 변화 없음.
+- **동작 변화**: 원인 사슬만 생긴다(로그·스택 추적). 예외형·메시지·분기 결과는 같으므로 호출자 동작 변화 없음.
+
 ## 3. 테스트 설계
 
 JVM 단위 테스트(`./gradlew testDebugUnitTest`, JUnit 4). "수정 전 실패"는 PROCESS_ROLES 11-1-5대로 실제로 확인한다. 2.1은 신규 함수라 수정 전 코드에 대상이 없다 — 시험을 먼저 쓰고 컴파일 실패(red)를 확인한 뒤 구현한다.
@@ -346,9 +354,11 @@ JVM 단위 테스트(`./gradlew testDebugUnitTest`, JUnit 4). "수정 전 실패
 1. **공통 함수 신설(2.1)** — HLD C1은 네 `move()`를 제자리에서 고치는 것으로 적었고 1장에 "새 모듈·새 인터페이스 없음"이라 했다. LLD는 네 곳의 같은 꼬리를 `provider/common/RenameOrCopyMove.kt`의 함수 하나로 모은다. 새 모듈·인터페이스가 아니라 같은 패키지 `SourceCheckedReplace.kt`와 같은 형태의 함수이고, 그래야 REQ-95-03·04·05·09를 JVM으로 시험할 수 있다(HLD 6.1 "흐름 결정을 순수 함수로 떼면"). 동작은 HLD 3.1과 같다. → 설계팀 확인(2026-11-20): HLD와 일치 — 1장 "새 모듈·새 인터페이스 없음"은 모듈·공개 인터페이스 경계를 뜻하고, 6.1이 순수 함수 분리를 LLD 판단으로 열어 두었다. HLD 변경 없음.
 2. **예외 범위(2.1 오류 둘째 항)** — 공통 함수는 `FileSystemException`만 rename 실패로 본다. 람다가 각 백엔드의 기존 `catch` 형만 바꾸므로 지금 범위와 같다. 그래서 WebDAV 다른 서버 결함은 P1이 아니라 P2(C3)에서 고쳐진다 — HLD와 어긋남 없음, 조각 순서만의 결과.
 3. 그 밖의 SRS·HLD 불일치 없음.
+4. **원인 보존(2.12, v1.2)** — U-95-11의 기대 "`cause`가 원래 `IOException`"이 기존 `toFileSystemException`의 결함(원인을 잃음)과 어긋났다. SRS·HLD는 메시지 보존만 요구하므로 SRS·HLD와의 불일치는 아니다. 시험 기대값을 낮추지 않고 1줄 수정(2.12)으로 맞췄다. 지시서 v1 범위 밖 파일이므로 PM에게 보고했다.
 
 ## 5. 변경 이력
 | 일자 | 버전 | 변경 | 사유 | 요청자 |
 |---|---|---|---|---|
 | 2026-11-20 | 1 | 최초 작성(조각 P1~P3, 함수 2.1~2.11, 시험 U-95-01~14) | SRS v2.4·HLD v2.5 검수 통과 | PM |
 | 2026-11-20 | 1.1 | U-95-10 수정 전 확인 순서(2인수로 먼저 실패 확인 → 3인수)와 `assertThrows(DavException)` 명시, 줄 번호 정정(`ForeignCopyMove.kt:164-186`, `DocumentResolver.kt:359-386`·`:370-384`), 4장 1항 설계팀 확인 기록, 상태 행 | PR #96 LLD 1회차 조건부 통과 경미 2건([기계]) | 검수팀 |
+| 2026-11-20 | 1.2 | 2.12 추가(`DavExceptionExtensions.kt` 원인 보존 1줄), 1장 표 행, 4장 4항 | P2 구현 중 U-95-11 실패로 기존 결함 발견 | 개발팀 |
