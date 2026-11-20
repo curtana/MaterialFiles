@@ -4,7 +4,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 검수 통과 (v1.1), PM 결정 반영 (v1.2) |
+| 상태 | 검수 통과 (v1.1), PM 결정 반영 (v1.2), 구현됨(C1 PR #66, C2 PR #71, v1.7.5-beta.2) |
 | 근거 | SRS v1.4, HLD v1.3 (2.1 조각 C, 3.3, 4, 5 D3·D4, 6) |
 | 기준 코드 | `origin/develop` 0cd4358. `provider/`는 HLD 기준 0941fa7과 같다(`git diff --stat 0941fa7 0cd4358 -- app/src/main/java/me/zhanghai/android/files/provider` 비어 있음). 경로는 `app/src/main/java/me/zhanghai/android/files/` 기준 |
 | 추적 REQ | REQ-55-08, REQ-55-09 |
@@ -334,3 +334,4 @@ fake 확장: `FakeProvider`에 `inputStreamException`, `directoryStreamException
 | 2026-11-19 | v1 | 최초 작성(조각 C1·C2) | PM LLD 요청(조각 C만) | PM |
 | 2026-11-19 | v1.1 | 0절·1절의 LLD 절 번호 참조 정정, 2.9 `copyFile`에 람다 예외 KDoc·`@Throws(IOException)` 추가 | LLD 검수 1차 조건부 통과 L1·L3 [기계] (PR #64 코멘트). L2·L4 [판단]은 PM 판단 대기 | reviewer |
 | 2026-11-19 | v1.2 | F1(C1 6파일) 승인 기록, 2.6에 가상 문서 한계(L2) 추가·M-C4에 포함, F4(L4) 승인 기록·M-C8에 삭제 거부 + STOR 허용/불허 두 경우 추가, 상태 행 | PM decision 2026-11-19 (PR #64 코멘트) | PM |
+| 2026-11-20 | v1.2.1 | 머리표 상태에 구현됨(C1 PR #66, C2 PR #71) 표시. 내용 변경 없음 | 릴리스 v1.7.5-beta.2 문서 동기화 | 설계팀 |

@@ -2,7 +2,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 검수 통과(v1.1, PR #90 1회차 조건부 통과 반영) |
+| 상태 | 검수 통과(v1.1, PR #90 1회차 조건부 통과 반영), 구현됨(PR #91, v1.7.5-beta.2) |
 | 근거 | SRS v1.1, HLD v1 |
 | 기준 코드 | `origin/develop` 0096406. 경로는 `app/src/main/java/me/zhanghai/android/files/` 기준, 테스트는 `app/src/test/java/me/zhanghai/android/files/` 기준. 줄 번호는 모두 이 커밋 기준이다 |
 
@@ -148,3 +148,4 @@ JVM 단위 시험 `provider/archive/ArchivePasswordListTest.kt`(`./gradlew testD
 |---|---|---|---|---|
 | 2026-11-20 | v1 | 최초 작성 | SRS v1.1, HLD v1 | PM |
 | 2026-11-20 | v1.1 | 3.1 `scenB.sh:2` 줄 번호 정정, V2가 스크립트 없는 손 절차임을 명시 | LLD 1회차 검수 경미 2건 [기계] (PR #90) | 검수팀 |
+| 2026-11-20 | v1.1.1 | 머리표 상태에 구현됨(PR #91) 표시. 내용 변경 없음 | 릴리스 v1.7.5-beta.2 문서 동기화 | 설계팀 |

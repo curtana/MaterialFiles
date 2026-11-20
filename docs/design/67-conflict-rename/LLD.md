@@ -2,7 +2,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 검수 통과(v1, 경미 1건 v1.1 반영) |
+| 상태 | 검수 통과(v1, 경미 1건 v1.1 반영), 구현됨(PR #82, v1.7.5-beta.2) |
 | 근거 | SRS v1.2, HLD v1.1 |
 | 기준 코드 | `origin/develop` 454206d. 줄 번호는 이 커밋 기준, 경로는 `app/src/main/java/me/zhanghai/android/files/` 기준(테스트는 `app/src/test/java/me/zhanghai/android/files/`) |
 
@@ -163,3 +163,4 @@ private class State(
 |---|---|---|---|---|
 | 2026-11-19 | v1 | 최초 작성(R1 확인 포함) | SRS v1.2·HLD v1.1 검수 통과 | PM |
 | 2026-11-19 | v1.1 | `FileJobEndNotice` 인용에 public 제네릭임을 밝히고 `internal` 이유 추가, 상태 갱신 | LLD 검수 통과 경미 1건 | reviewer |
+| 2026-11-20 | v1.1.1 | 머리표 상태에 구현됨(PR #82) 표시. 내용 변경 없음 | 릴리스 v1.7.5-beta.2 문서 동기화 | 설계팀 |
