@@ -214,6 +214,46 @@ class ForeignCopyMoveCleanupTest {
         ForeignCopyMove.copy(source, target)
         assertEquals(listOf<Path>(target), provider.setTimesPaths)
     }
+
+    // U-95-12
+    @Test
+    fun move_sourceDeleteFails_keepsCopyAndException() {
+        val deleteException = IOException()
+        provider.deleteException = deleteException
+        val exception = assertThrows(IOException::class.java) {
+            ForeignCopyMove.move(source, target, option)
+        }
+        assertSame(deleteException, exception)
+        assertEquals(0, exception.suppressed.size)
+        assertEquals(listOf<Path>(source), provider.deletedPaths)
+    }
+
+    // U-95-13
+    @Test
+    fun move_sourceDeleteUnsupported_keepsCopyAndException() {
+        val deleteException = UnsupportedOperationException()
+        provider.deleteException = deleteException
+        val exception = assertThrows(UnsupportedOperationException::class.java) {
+            ForeignCopyMove.move(source, target, option)
+        }
+        assertSame(deleteException, exception)
+        assertEquals(0, exception.suppressed.size)
+        assertEquals(listOf<Path>(source), provider.deletedPaths)
+    }
+
+    // U-95-14
+    @Test
+    fun move_sourceMissing_keepsCopyAndException() {
+        val deleteException = NoSuchFileException(source.toString())
+        provider.deleteException = deleteException
+        assertSame(
+            deleteException,
+            assertThrows(NoSuchFileException::class.java) {
+                ForeignCopyMove.move(source, target, option)
+            }
+        )
+        assertEquals(listOf<Path>(source), provider.deletedPaths)
+    }
 }
 
 private class FakeProvider(private val fileSystem: FileSystem) : FileSystemProvider() {

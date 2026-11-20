@@ -296,16 +296,10 @@ internal object LinuxCopyMove {
             )
         }
         copy(source, target, copyOptions)
+        // Keep the copy if deleting the source fails (#95).
         try {
             Syscall.remove(source)
         } catch (e: SyscallException) {
-            if (e.errno != OsConstants.ENOENT) {
-                try {
-                    Syscall.remove(target)
-                } catch (e2: SyscallException) {
-                    e.addSuppressed(e2.toFileSystemException(target.toString()))
-                }
-            }
             throw e.toFileSystemException(source.toString())
         }
     }
