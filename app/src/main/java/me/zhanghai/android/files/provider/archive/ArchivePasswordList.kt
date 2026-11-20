@@ -6,26 +6,35 @@
 package me.zhanghai.android.files.provider.archive
 
 import java8.nio.file.ClosedFileSystemException
+import java.util.concurrent.atomic.AtomicReference
 
-// TEMPORARY: mimics the current locking of ArchiveFileSystem.addPassword() (adding takes the lock)
-// to show the tests failing before the real implementation.
+/**
+ * Archive passwords of the owning [ArchiveFileSystem], as an immutable list behind an atomic
+ * reference.
+ *
+ * Adding doesn't take the lock of the file system, so it never waits for an entry read in progress.
+ * Readers get the list once under that lock and use it for the whole read.
+ */
 internal class ArchivePasswordList(
     private val lock: Any,
     private val isOpen: () -> Boolean
 ) {
-    private var passwords = listOf<String>()
+    private val passwords = AtomicReference(listOf<String>())
 
     fun add(password: String) {
-        synchronized(lock) {
+        while (true) {
             if (!isOpen()) {
                 throw ClosedFileSystemException()
             }
-            passwords += password
+            val currentPasswords = passwords.get()
+            if (passwords.compareAndSet(currentPasswords, currentPasswords + password)) {
+                return
+            }
         }
     }
 
     fun getLocked(): List<String> {
         check(Thread.holdsLock(lock))
-        return passwords
+        return passwords.get()
     }
 }

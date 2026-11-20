@@ -7,7 +7,6 @@ package me.zhanghai.android.files.provider.archive
 
 import android.os.Parcel
 import android.os.Parcelable
-import java8.nio.file.ClosedFileSystemException
 import java8.nio.file.FileStore
 import java8.nio.file.FileSystem
 import java8.nio.file.NoSuchFileException
@@ -52,7 +51,7 @@ internal class ArchiveFileSystem(
     private val entriesCache =
         ArchiveEntriesCache<Pair<Map<Path, ReadArchive.Entry>, Map<Path, List<Path>>>>(lock)
 
-    private var passwords = listOf<String>()
+    private val passwords = ArchivePasswordList(lock) { entriesCache.isOpen }
 
     @Throws(IOException::class)
     fun getEntry(path: Path): ReadArchive.Entry =
@@ -79,7 +78,7 @@ internal class ArchiveFileSystem(
                 throw IsDirectoryException(file.toString())
             }
             val inputStream = try {
-                ArchiveReader.newInputStream(archiveFile, passwords, entry)
+                ArchiveReader.newInputStream(archiveFile, passwords.getLocked(), entry)
             } catch (e: ArchiveException) {
                 throw e.toFileSystemOrInterruptedIOException(file)
             } ?: throw NoSuchFileException(file.toString())
@@ -109,12 +108,7 @@ internal class ArchiveFileSystem(
         }
 
     fun addPassword(password: String) {
-        synchronized(lock) {
-            if (!entriesCache.isOpen) {
-                throw ClosedFileSystemException()
-            }
-            passwords += password
-        }
+        passwords.add(password)
     }
 
     fun refresh() {
@@ -127,7 +121,7 @@ internal class ArchiveFileSystem(
     ): Pair<Map<Path, ReadArchive.Entry>, Map<Path, List<Path>>> =
         entriesCache.getLocked {
             try {
-                ArchiveReader.readEntries(archiveFile, passwords, rootDirectory)
+                ArchiveReader.readEntries(archiveFile, passwords.getLocked(), rootDirectory)
             } catch (e: ArchiveException) {
                 throw e.toFileSystemOrInterruptedIOException(file)
             }
