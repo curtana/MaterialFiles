@@ -65,7 +65,7 @@
 - The text editor's save menu comes back after a save is canceled or fails (#44, #46).
 
 ### Known issues
-- "Replace" still deletes the existing file first, so an interrupted copy can lose it (#42). The temporary-name replace in #42 was dropped. v1.7.5-beta.2 warns about this in the replace dialog instead (#54).
+- "Replace" still deletes the existing file first, so an interrupted copy can lose it (#42, planned before 1.7.5).
 - Root and Shizuku copy paths were not run on a device. A stuck root copy can only be cancelled (#43).
 - New strings are English and Korean only. Other locales fall back to English (#21).
 - SMB was not exercised for the job list. FTP, WebDAV and SAF had no test server either.
