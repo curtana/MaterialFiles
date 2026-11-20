@@ -2,7 +2,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 작성 중(v1) |
+| 상태 | 검수 통과(v1.1, PR #90 1회차 조건부 통과 반영) |
 | 근거 | SRS v1.1, HLD v1 |
 | 기준 코드 | `origin/develop` 0096406. 경로는 `app/src/main/java/me/zhanghai/android/files/` 기준, 테스트는 `app/src/test/java/me/zhanghai/android/files/` 기준. 줄 번호는 모두 이 커밋 기준이다 |
 
@@ -126,14 +126,14 @@ JVM 단위 시험 `provider/archive/ArchivePasswordListTest.kt`(`./gradlew testD
 ### 3.1 AVD 확인 (SRS 4장 V1·V2)
 **로컬 AVD만**(재현 때 `Medium_Phone_API_36`, `-no-snapshot`, 포트 5562). 모든 `adb`에 `-s emulator-<port>`(먼저 `adb devices`로 확인). **실기기 R54N102PRWV에는 설치·명령하지 않는다.** 수정 뒤 빌드(feature 브랜치 `assembleDebug`)만 설치한다 — 수정 전은 재현 증거 `_workspace/wo/86-archive-password/anr_B2_trace.txt`·`anr_B3_trace.txt`(develop 0096406, ANR 2/2)로 갈음한다.
 
-준비: 재현 스크립트 `$MAIN_REPO/_workspace/wo/86-archive-password/{lib.sh,scenB.sh,uifind.py,make_enc_zip.py}`. `lib.sh`의 `H`와 `scenB.sh` 첫 줄의 `. …/lib.sh`가 지워진 임시 폴더(`G:/tmp/MeterialFiles/86-archive-password`)를 가리키므로, 임시 폴더를 다시 만들어 `lib.sh`·`uifind.py`를 복사하거나 경로를 고친 사본을 쓴다(원본 `_workspace` 파일은 그대로 둔다). `lib.sh`의 포트(`emulator-5562`)는 실제 AVD 포트에 맞춘다. 압축 생성: venv 파이썬 `make_enc_zip.py <tmp>/deep.zip 200000 pw deep`(넷째 인자가 있으면 깊은 경로), 같은 파일을 `deep2.zip`으로도 두고 둘 다 `/sdcard/Download/`에 push. 각 시나리오 전 `logcat -c`, 끝나면 `logcat -d`·`dumpsys dropbox --print data_app_anr`을 `_workspace/wo/86-archive-password/avd_<V>_after.txt`로 저장한다.
+준비: 재현 스크립트 `$MAIN_REPO/_workspace/wo/86-archive-password/{lib.sh,scenB.sh,uifind.py,make_enc_zip.py}`. `lib.sh`의 `H`와 `scenB.sh:2`의 `. …/lib.sh`가 지워진 임시 폴더(`G:/tmp/MeterialFiles/86-archive-password`)를 가리키므로, 임시 폴더를 다시 만들어 `lib.sh`·`uifind.py`를 복사하거나 경로를 고친 사본을 쓴다(원본 `_workspace` 파일은 그대로 둔다). `lib.sh`의 포트(`emulator-5562`)는 실제 AVD 포트에 맞춘다. 압축 생성: venv 파이썬 `make_enc_zip.py <tmp>/deep.zip 200000 pw deep`(넷째 인자가 있으면 깊은 경로), 같은 파일을 `deep2.zip`으로도 두고 둘 다 `/sdcard/Download/`에 push. 각 시나리오 전 `logcat -c`, 끝나면 `logcat -d`·`dumpsys dropbox --print data_app_anr`을 `_workspace/wo/86-archive-password/avd_<V>_after.txt`로 저장한다.
 
 판정(공통): 시나리오 뒤 새 `data_app_anr` 항목 없음(`anr_after == anr_before`), logcat에 `ANR in me.zhanghai.android.files` 없음, `Skipped N frames`에서 N ≥ 300(약 5초) 없음, 입력 지연 프로브(`scenB.sh`의 `probe1~5`)가 모두 1000 ms 미만.
 
 | V | 절차 | 수정 뒤 기대 | 수정 전(증거) |
 |---|---|---|---|
 | V1 (SRS V1) | `Z=deep bash scenB.sh <out> 1`: `deep.zip` 열기 → 목록에서 `z_last.txt` 탭 → 비밀번호 창 → `pw` 입력 → `deep2.zip`을 `deep.zip`에 덮어써 #69 감시의 다시 읽기 시작 → 1초 뒤 OK. 2회 반복 | 판정 통과. 창은 곧 닫히고, 다시 읽기가 끝난 뒤 `z_last.txt`가 맞는 비밀번호로 열림(logcat의 `ActivityTaskManager: START` 텍스트 보기 또는 `uiautomator dump`/스크린샷에 내용 표시) | ANR 2/2(`anr_B2_trace.txt:78-81` main `addPassword:112` 대기) |
-| V2 (SRS V2) | `deep.zip`이 아닌 작은 암호 zip(`make_enc_zip.py <tmp>/small.zip 10 pw`)을 열어 `z_last.txt` 탭 → `bad` 입력 OK → 창이 다시 뜸을 확인(`uiautomator dump`에 `OK`) → `pw` 입력 OK. 이어 암호 없는 zip(예: venv `zipfile`로 만든 `plain.zip`, 파일 2개·폴더 1개) 열기·폴더 들어갔다 나오기 | 틀린 비밀번호 뒤 창이 다시 뜸(REQ-86-05), 맞는 비밀번호 뒤 파일이 열림. 암호 없는 zip 목록·이동 정상. 판정 통과 | 수정 전과 같음(동작 불변 확인) |
+| V2 (SRS V2) | 스크립트 없음(`scenB.sh`는 시나리오 B 전용) — `lib.sh`의 `open_zip`·`ui`를 `Z=small`로 써서 손 절차로 한다. `deep.zip`이 아닌 작은 암호 zip(`make_enc_zip.py <tmp>/small.zip 10 pw`)을 열어 `z_last.txt` 탭 → `bad` 입력 OK → 창이 다시 뜸을 확인(`uiautomator dump`에 `OK`) → `pw` 입력 OK. 이어 암호 없는 zip(예: venv `zipfile`로 만든 `plain.zip`, 파일 2개·폴더 1개) 열기·폴더 들어갔다 나오기 | 틀린 비밀번호 뒤 창이 다시 뜸(REQ-86-05), 맞는 비밀번호 뒤 파일이 열림. 암호 없는 zip 목록·이동 정상. 판정 통과 | 수정 전과 같음(동작 불변 확인) |
 
 끝나면 앱 제거·push한 파일 삭제·애니메이션 설정 복원(바꿨다면)·에뮬레이터 종료(`adb -s emulator-<port> emu kill`)·임시 폴더 삭제.
 
@@ -147,3 +147,4 @@ JVM 단위 시험 `provider/archive/ArchivePasswordListTest.kt`(`./gradlew testD
 | 일자 | 버전 | 변경 | 사유 | 요청자 |
 |---|---|---|---|---|
 | 2026-11-20 | v1 | 최초 작성 | SRS v1.1, HLD v1 | PM |
+| 2026-11-20 | v1.1 | 3.1 `scenB.sh:2` 줄 번호 정정, V2가 스크립트 없는 손 절차임을 명시 | LLD 1회차 검수 경미 2건 [기계] (PR #90) | 검수팀 |
