@@ -367,21 +367,10 @@ object DocumentResolver {
         val targetUri = copy(
             sourcePath, targetPath, intervalMillis, listener, cleanupFailureListener
         )
-        try {
-            val sourceUri = getDocumentUri(sourcePath)
-            val sourceParentUri = getDocumentUri(sourcePath.requireParent())
-            remove(sourceUri, sourceParentUri)
-        } catch (e: ResolverException) {
-            if (e.toFileSystemException(sourcePath.toString()) !is NoSuchFileException) {
-                try {
-                    val targetParentUri = getDocumentUri(targetPath.requireParent())
-                    remove(targetUri, targetParentUri)
-                } catch (e2: ResolverException) {
-                    e.addSuppressed(e2)
-                }
-            }
-            throw e
-        }
+        // Keep the copy if deleting the source fails (#95).
+        val sourceUri = getDocumentUri(sourcePath)
+        val sourceParentUri = getDocumentUri(sourcePath.requireParent())
+        remove(sourceUri, sourceParentUri)
         return targetUri
     }
 
