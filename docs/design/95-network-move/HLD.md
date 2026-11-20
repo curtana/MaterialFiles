@@ -3,7 +3,7 @@
 | 항목 | 내용 |
 |---|---|
 | 상태 | 작성 중(v1.0) |
-| 근거 | SRS v1.2(검수 통과, 오너 결정 Q1 (가)·Q3 (가), PM Q2 범위 안) |
+| 근거 | SRS v1.3(v1.1 검수 통과, v1.2·v1.3 결정 기록은 이번 검수에서 함께 확인. 오너 결정 Q1 (가)·Q3 (가), PM Q2 범위 안) |
 | 기준 코드 | `origin/develop` 9374221. 경로는 `app/src/main/java/me/zhanghai/android/files/` 기준 |
 
 ## 1. 구조 개요
@@ -33,13 +33,13 @@ flowchart LR
 |---|---|---|---|
 | C1 `ServerRenameScope` | `provider/common/ServerRenameScope.kt`(신규) | `fun isInSameRenameScope(other: Path): Boolean` 하나. "서버 rename이 원리상 가능한 같은 서버"인지(SRS 1.6). 그리고 판정 헬퍼 `Path.isInSameRenameScope(other)`(구현하지 않은 경로는 `false`) | REQ-95-01, 02, 05, 07 |
 | C2 경로 구현 | `provider/ftp/FtpPath.kt:29`, `provider/sftp/SftpPath.kt:27`, `provider/smb/SmbPath.kt:26`, `provider/webdav/WebDavPath.kt:28` | C1 구현: 같은 경로 클래스이고 `authority`가 같으면 `true`. SMB는 추가로 `sharePath?.name`이 같아야 한다(`smb/client/Client.kt:449-456`과 같은 기준). FTP의 `authority`는 protocol·mode·encoding까지 포함(`ftp/client/Authority.kt:16-21`) — 지금 `renameFile`의 기준(`ftp/client/Client.kt:207`)과 같다 | REQ-95-01, 05 |
-| C3 제공자 `move()` 4개 | `provider/ftp/FtpCopyMove.kt:146`, `provider/sftp/SftpCopyMove.kt:241`, `provider/smb/SmbCopyMove.kt:169`, `provider/webdav/WebDavCopyMove.kt:157` | 3.1의 흐름으로 다시 짠다: 같은 서버면 rename만(실패 시 변환된 오류를 원자·비원자 모두 던짐), 다른 서버면 rename 없이 `copy()`+원본 삭제(원자 이동이면 `AtomicMoveNotSupportedException`). rename 전 대상 선삭제 제거 | REQ-95-01, 03, 05, 06, 08 |
+| C3 제공자 `move()` 4개 | `provider/ftp/FtpCopyMove.kt:146`, `provider/sftp/SftpCopyMove.kt:241`, `provider/smb/SmbCopyMove.kt:169`, `provider/webdav/WebDavCopyMove.kt:157` | 3.1의 흐름으로 다시 짠다: 같은 서버면 rename만(실패 시 변환된 오류를 원자·비원자 모두 던짐), 다른 서버면 rename 없이 `copy()`+원본 삭제(원자 이동이면 `AtomicMoveNotSupportedException`). rename 전 대상 선삭제 제거 | REQ-95-01, 02, 03, 05, 06, 08 |
 | C4 클라이언트 rename | `provider/sftp/client/Client.kt:98`, `provider/smb/client/Client.kt:445`, `provider/webdav/client/Client.kt:113`, `provider/ftp/client/Client.kt:206` | 덮어쓰기 여부 인수 `overwrite: Boolean`를 받는다. SFTP: `true`면 `SFTPClient.rename(old, new, setOf(RenameFlags.OVERWRITE))`, 아니면 지금 2인수 호출. SMB: `DiskEntry.rename(path, overwrite)` — 지금 상수 `true`(`:469`)를 인수로 바꿈. WebDAV: `DavResource.move(url, overwrite)` — 지금 상수 `false`(`:118`). FTP: 인수 없음(RNTO는 덮어쓰기 지정 수단이 없다, SRS 1.5) | REQ-95-06 |
 | C5 WebDAV 다른 서버 예외 | `provider/webdav/client/Client.kt:114-116` | C3이 다른 서버면 `Client.move`를 부르지 않으므로 결함 경로가 없어진다. 남는 방어로 이 `IOException`을 `DavException`형(`toDavException()`, `webdav/client/DavIOException.kt:16`)으로 던져 `WebDavCopyMove`의 `catch`에 걸리게 한다 | REQ-95-05 |
 | C6 작업 단계 폴더 처리 | `filejob/FileJobs.kt:1457-1474` `moveRecursively.preVisitDirectory` | 3.2: 같은 서버 폴더의 rename 실패(대상 있음 제외)는 `askCopyError`(재시도·건너뛰기·취소)로. 건너뛰면 `SKIP_SUBTREE`. 대상 있음이면 지금처럼 `copyForMove`(충돌 창·합치기) | REQ-95-02, 03, 04, 08 |
 | C7 검증 코드 | `app/src/test/java/me/zhanghai/android/files/...`(JVM) | 5장 표 | 전부 |
 
-바꾸지 않는 곳: `MoveFileJob.run`(`FileJobs.kt:1423-1446`), `moveRecursively.visitFile`(`:1477-1491`)·`postVisitDirectory`(`:1500-1510`), `copyOrMove`(`:1545-`), `ForeignCopyMove`, 로컬·루트·SAF·압축 제공자, 충돌·오류 창과 문자열.
+바꾸지 않는 곳: `MoveFileJob.run`(`FileJobs.kt:1423-1446`), `moveRecursively.visitFile`(`:1477-1491`)·`postVisitDirectory`(`:1500-1510`), `copyOrMove`(`:1545-`), `ForeignCopyMove`, 로컬·루트·SAF·압축 제공자, 충돌·오류 창과 문자열. 의 또 다른 호출자인 앱 내장 FTP 서버(, 실패를 로 돌려줌)도 코드는 바꾸지 않는다 — 공유 대상이 네트워크 경로일 때 같은 서버 대체가 없어지는 영향만 받는다(실패 시 FTP 클라이언트에 거절 응답).
 
 ## 3. 데이터 흐름·상태
 
@@ -105,13 +105,27 @@ flowchart LR
 - **R3 폴더 거절 전 스캔**: 같은 서버 폴더 rename이 거절되면 오류 창 전에 `scan`이 그 폴더 트리를 끝까지 읽는다(지금도 같은 스캔을 한다). 큰 폴더면 오류가 늦게 보인다. 범위 밖으로 둔다(D5).
 - **R4 rename 두 번**: 같은 서버 파일 거절 시 rename 요청이 두 번 간다(원자 시도 + 비원자 `move()`). 서버 상태를 바꾸지 않는 실패 요청이라 무해하다. 서버 로그에 실패가 두 번 남는다.
 - **R5 SFTP OVERWRITE의 v5+ 서버**: sshj는 v5 이상이면 플래그를 그대로 보낸다. 그런 서버의 덮어쓰기 의미는 서버 구현(미확인). 결과는 R1과 같다.
-- 미결 없음(SRS 3장 결정 완료).
+- **R6 같은 서버 안의 "구조상 rename 불가"도 대체가 없어진다(검수 지적 1, 오너 확인 필요)**: 권한 거절이 아니라 서버 구조 때문에 rename이 안 되는 경우다.
+  - SMB: 같은 공유 안이라도 서버 쪽에서 장치·마운트를 넘으면 가 온다. 지금은 대체로 복사+삭제되어 성공하고(), 원자 경로에서만 으로 바꾼다(). 3.1-4대로면 오류가 된다.
+  - SFTP: 서버에서 파일시스템을 넘는 rename을 일반 로 거절하는 경우. 원인을 응답으로 가려낼 수 없다.
+  - FTP·WebDAV: 같은 종류의 경우가 있을 수 있으나 응답으로 가려낼 수 없다(미확인).
+  - 바꾸기 이동이 덮어쓰기 rename을 지원하지 않는 서버(FTP 일부, posix-rename 없는 SFTP v3)에서 오류가 되는 것은 오너 Q1 (가) 결정문("If the server refuses, it is an error")에 포함되어 R6에서 제외한다.
+
+### 6.0 미결 — Q4 (오너 확인, R6)
+| 선택지 | 뜻 | 사용자에게 |
+|---|---|---|
+| (가) 예외 없음 | 같은 서버면 원인과 관계없이 rename 하나만. 실패면 오류 | 서버 안에서 디스크를 넘는 이동이 오류가 된다. 사용자는 복사 뒤 원본 삭제를 직접 해야 한다 |
+| (나) **원인이 응답에 명시된 경우만 복사+삭제 [추천]** | SMB (=)처럼 서버가 "이 이동은 구조상 안 된다"고 분명히 말할 때만 지금의 복사+삭제로 간다. 권한·잠금·일반 실패는 오류 | SMB에서 디스크를 넘는 이동은 지금처럼 된다. SFTP 등 원인을 알 수 없는 실패는 오류 |
+| (다) 지금처럼 모든 실패 대체 | 이번 작업의 요구사항 1과 충돌 | — |
+
+추천 이유: (나)는 짐작이 아니라 서버가 명시한 원인에 따른 분기라 #55 원칙("원인을 모르면 지우지 않는다")과 오너 #95 판단(거절한 서버에 우회는 무의미)에 모두 맞는다. 구현 영향은 C3 SMB 의 한 갈래(이면 3.1-5로)와 C6의 판정(같은 예외면 로)이다. (가)를 고르면 지금 HLD 그대로다. **Q4 결정 전까지 HLD는 (가) 기준으로 쓰여 있고, (나)로 정해지면 3.1-4·3.2·C3·C6를 고친다.**
 
 ### 6.1 검증 계획
 | 대상 | 방법 | REQ |
 |---|---|---|
 | C1·C2 판정 | JVM 단위 테스트: 판정 규칙(같은 클래스·같은 `authority`, SMB 같은 공유)을 경로 객체 생성이 가능한 범위에서. 생성이 무거우면 판정을 `Authority`·공유 이름을 받는 순수 함수로 떼어 그 함수를 시험(LLD에서 정함). 구현 안 한 `TestPath`(`app/src/test/.../filejob/TestPaths.kt`)는 `false` | REQ-95-01, 05, 07 |
 | C3 흐름 | 코드 검사: 네 `move()`에서 같은 서버 실패 뒤 `copy(`·삭제 호출 없음, rename 전 대상 삭제 없음, 다른 서버면 rename 호출 없음. 클라이언트가 `object`라 가짜를 꽂기 어려우면 흐름 결정(같은 서버/다른 서버, 덮어쓰기 여부)을 순수 함수로 떼어 JVM 시험(LLD에서 정함) | REQ-95-01, 03, 05, 06 |
+| 오류 메시지 보존 | JVM 단위 테스트: C3 흐름 결정을 순수 함수로 뗄 때, rename 실패 예외가 감싸이지 않고 그대로 나가는지(메시지·예외형 보존) 시험 | REQ-95-03 |
 | C4 플래그 | 코드 검사: `overwrite`가 `replaceExisting && 대상 있음`일 때만 `true`. SFTP 2인수/3인수 호출, SMB·WebDAV 인수 전달 | REQ-95-06 |
 | C5 | 코드 검사: `Client.move`의 다른 서버 예외가 `DavException`형 | REQ-95-05 |
 | C6 | JVM 단위 테스트(가능하면): 폴더 처리 결정을 순수 함수(예외·같은 서버 여부 → 복사로/오류 창으로)로 떼어 시험. 코드 검사: `SKIP_SUBTREE`, 취소·중단 재던지기 | REQ-95-02, 04, 08 |
@@ -122,3 +136,4 @@ flowchart LR
 | 일자 | 버전 | 변경 | 사유 | 요청자 |
 |---|---|---|---|---|
 | 2026-11-20 | 1.0 | 최초 작성 | SRS v1.2 검수 통과·오너 결정 | PM |
+| 2026-11-20 | 1.1 | R6·Q4(구조상 rename 불가 경우) 추가, C3 추적에 REQ-95-02, 6.1에 메시지 보존 시험, 내장 FTP 서버 호출자 명시, 근거 행 정정 | HLD 검수 반려(중요 1, 경미 4, PR #96) | 검수팀 |
