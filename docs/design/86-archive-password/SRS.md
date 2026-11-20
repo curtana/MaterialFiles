@@ -2,7 +2,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 작성 중 |
+| 상태 | 검수 통과(v1.1, PR #90 1회차 조건부 통과 반영) |
 | 근거 | 요구사항 정리 v1 (이슈 #86), 재현 결과(같은 이슈, PM 요약), PM 결정 |
 | 기준 코드 | `origin/develop` 0096406. 줄 번호는 모두 이 커밋 기준이다 |
 | 증거 | `_workspace/wo/86-archive-password/`(ANR 트레이스 `anr_B2_trace.txt`·`anr_B3_trace.txt`, logcat `avd_B2.logcat.txt`·`avd_B3.logcat.txt`, 암호 zip 생성기 `make_enc_zip.py`, 시나리오 `scenB.sh`, `progress.md`) |
@@ -13,7 +13,7 @@
 ### 1.1 목적
 압축 비밀번호 창에서 OK를 누르면 주 스레드가 `ArchivePasswordDialogFragment.onOk()`(`fileaction/ArchivePasswordDialogFragment.kt:108`) → `Path.archiveAddPassword()`(`provider/archive/PathArchiveExtensions.kt:11-14`) → `ArchiveFileSystem.addPassword()`(`provider/archive/ArchiveFileSystem.kt:111-118`)를 부른다. `addPassword()`는 목록에 문자열 하나를 붙이려고 `synchronized(lock)`을 잡는데, 이 `lock`은 작업 스레드가 압축 전체 항목을 읽는 동안(`ensureEntriesLocked`, `:125-134`, 조회 함수가 `synchronized(lock)` 안에서 부른다 — `:58-62`, `:90-98` 등) 계속 잡혀 있다.
 
-AVD 재현(20만 항목·깊은 경로의 암호 zip `deep.zip`, 시나리오 B: 비밀번호 창이 떠 있는 동안 원본 압축이 바뀌어 #69 감시가 목록을 다시 읽게 함)에서 ANR 2/2. 두 트레이스 모두 주 스레드는 `ArchiveFileSystem.addPassword(ArchiveFileSystem.kt:112)`에서 `waiting to lock … held by thread 35`, 쥔 쪽은 `getDirectoryChildren(:92)` → `ensureEntriesLocked` → `ArchiveReader.readEntries`다(`anr_B2_trace.txt:78-81`). 대기 최대 7.8초, "Input dispatching timed out". 창이 뜰 때는 잠금이 비어 있다(비밀번호 오류는 잠금 밖의 데이터 읽기에서 난다). #83(PR #88)은 `refresh()`만 고쳤다.
+AVD 재현(암호 zip `deep.zip` 20만 항목, 시나리오 B: 창이 떠 있는 동안 원본이 바뀌어 #69 감시가 목록을 다시 읽음)에서 ANR 2/2 — 주 스레드는 `addPassword(ArchiveFileSystem.kt:112)`에서 `waiting to lock`, 쥔 쪽은 `getDirectoryChildren(:92)` → `ensureEntriesLocked` → `readEntries`(`anr_B2_trace.txt:78-81`), 대기 최대 7.8초. #83(PR #88)은 `refresh()`만 고쳤다.
 
 ### 1.2 범위
 - `ArchiveFileSystem.addPassword()`가 진행 중인 항목 읽기를 기다리지 않게 한다(PM 결정: 비밀번호 목록을 큰 잠금 밖에서 원자적으로 갱신하고, 닫힘 확인은 이미 휘발성인 `entriesCache.isOpen`(`provider/archive/ArchiveEntriesCache.kt:19-31`)으로 한다. 읽는 쪽은 지금처럼 잠금 안에서 목록을 한 번 읽는다).
@@ -47,7 +47,7 @@ AVD 재현(20만 항목·깊은 경로의 암호 zip `deep.zip`, 시나리오 B:
 - 시험 가능성: 비밀번호 목록과 그 추가 규칙은 안드로이드·libarchive 의존 없이 JVM에서 시험할 수 있는 작은 내부 클래스로 둔다(PM 결정).
 
 ## 4. 제약과 가정
-- **C-1**: `ArchiveFileSystem`은 상위(upstream) 코드다. 바꾸는 범위는 `passwords` 필드와 `addPassword()`, 그리고 `passwords`를 읽는 두 곳(`:82`, `:130`)으로 한정한다.
+- **C-1**: `ArchiveFileSystem`은 상위(upstream) 코드다. 바꾸는 범위는 `passwords` 필드와 `addPassword()`, `passwords`를 읽는 두 곳(`:82`, `:130`), 그리고 3장의 시험 가능한 새 내부 클래스(이 저장소 코드, 운영 파일 1개 — 이름은 HLD·LLD에서 정함)로 한정한다.
 - **A-1**: 비밀번호 추가와 `close()`가 동시에 일어나면 어느 쪽이 먼저인지는 정하지 않는다. `close()`가 끝난 뒤 시작한 추가는 반드시 `ClosedFileSystemException`(REQ-86-03)이다 — 닫힘 값이 휘발성이므로 보장된다(`ArchiveEntriesCache.kt:19-20`, #83 SRS A-1과 같음). 겹친 추가가 예외 없이 끝나도 닫힌 파일 시스템의 조회는 `ClosedFileSystemException`이라 해가 없다(`ArchiveEntriesCache.kt:42-44`).
 - **A-2**: 지금 `ArchiveFileSystem.close()`를 부르는 곳이 없으므로(1.3) A-1의 경합은 실제로 일어나지 않는다. 그래도 계약으로 고정한다.
 - **V(AVD 확인)**: 로컬 AVD에서만 한다. 실기기(R54N102PRWV)에는 설치하지 않는다.
@@ -61,3 +61,4 @@ AVD 재현(20만 항목·깊은 경로의 암호 zip `deep.zip`, 시나리오 B:
 | 일자 | 버전 | 변경 | 사유 | 요청자 |
 |---|---|---|---|---|
 | 2026-11-20 | v1 | 최초 작성 | 이슈 #86 요구사항 정리 v1, PM 결정 | PM |
+| 2026-11-20 | v1.1 | C-1에 새 내부 클래스 포함, 1.1 축약 | SRS 1회차 검수 경미 2건 (PR #90) | 검수팀 |
