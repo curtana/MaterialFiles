@@ -77,7 +77,7 @@ class FileListLiveData(private val path: Path) : CloseableLiveData<Stateful<List
                 Success(fileList as List<FileItem>)
             }
         } catch (e: Exception) {
-            Failure(valueCompat.value, e)
+            Failure(failureValue(valueCompat.value, e), e)
         }
 
     private fun onChangeObserved() {

@@ -64,21 +64,36 @@ class FileJobConflictDialogFragment : AppCompatDialogFragment() {
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
 
-        outState.putState(State(binding.allCheck.isChecked))
+        outState.putState(
+            State(
+                binding.allCheck.isChecked,
+                if (hasNewName()) binding.nameEdit.text.toString() else null,
+                binding.nameLayout.isVisible
+            )
+        )
     }
 
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
         val sourceFile = args.sourceFile
         val targetFile = args.targetFile
-        val title = getTitle(sourceFile, targetFile, requireContext())
-        val message = getMessage(sourceFile, targetFile, args.type, requireContext())
-        val isMerge = isMerge(sourceFile, targetFile)
+        // The job decides whether it merges, which may follow links (#55 D7).
+        val isMerge = args.isMerge
+        val title = getTitle(targetFile, isMerge, requireContext())
+        val message = getMessage(targetFile, args.type, isMerge, requireContext())
         val positiveButtonRes = if (isMerge) R.string.merge else R.string.replace
+        val targetFileName = targetFile.path.fileName.toString()
+        // The dialog content is added in onStart(), so it isn't restored automatically (#67).
+        val state = savedInstanceState?.getState<State>()
+        val restore = conflictNameRestoreOf(
+            targetFileName, state?.newName, state?.isNameLayoutVisible ?: false,
+            state?.isAllChecked ?: false
+        )
         return MaterialAlertDialogBuilder(requireContext(), theme)
             .setTitle(title)
             .setMessage(message)
             .apply {
                 binding = FileJobConflictDialogViewBinding.inflate(context.layoutInflater)
+                binding.replaceWarningText.isVisible = !isMerge
                 binding.targetNameText.setText(
                     if (isMerge) {
                         R.string.file_job_merge_target_name
@@ -116,8 +131,9 @@ class FileJobConflictDialogFragment : AppCompatDialogFragment() {
                         binding.nameEdit.showSoftInput()
                     }
                 }
-                val targetFileName = targetFile.path.fileName.toString()
-                binding.nameEdit.setTextWithSelection(targetFileName)
+                binding.nameEdit.setTextWithSelection(restore.nameText)
+                binding.nameLayout.isVisible = restore.isNameLayoutVisible
+                binding.showNameArrowImage.rotation = if (restore.isNameLayoutVisible) 90f else 0f
                 binding.nameEdit.doAfterTextChanged {
                     val hasNewName = hasNewName()
                     binding.allCheck.isEnabled = !hasNewName
@@ -131,11 +147,12 @@ class FileJobConflictDialogFragment : AppCompatDialogFragment() {
                 binding.nameLayout.setEndIconOnClickListener {
                     binding.nameEdit.setTextWithSelection(targetFileName)
                 }
-                if (savedInstanceState != null) {
-                    binding.allCheck.isChecked = savedInstanceState.getState<State>().isAllChecked
-                }
+                binding.allCheck.isChecked = restore.isAllChecked
+                binding.allCheck.isEnabled = restore.isAllEnabled
             }
-            .setPositiveButton(positiveButtonRes, ::onDialogButtonClick)
+            .setPositiveButton(
+                if (restore.isRename) R.string.rename else positiveButtonRes, ::onDialogButtonClick
+            )
             .setNegativeButton(R.string.skip, ::onDialogButtonClick)
             .setNeutralButton(android.R.string.cancel, ::onDialogButtonClick)
             .create()
@@ -280,8 +297,8 @@ class FileJobConflictDialogFragment : AppCompatDialogFragment() {
     }
 
     companion object {
-        fun getTitle(sourceFile: FileItem, targetFile: FileItem, context: Context): String {
-            val titleRes = if (isMerge(sourceFile, targetFile)) {
+        fun getTitle(targetFile: FileItem, isMerge: Boolean, context: Context): String {
+            val titleRes = if (isMerge) {
                 R.string.file_job_merge_title_format
             } else {
                 R.string.file_job_replace_title_format
@@ -290,12 +307,12 @@ class FileJobConflictDialogFragment : AppCompatDialogFragment() {
         }
 
         fun getMessage(
-            sourceFile: FileItem,
             targetFile: FileItem,
             type: CopyMoveType,
+            isMerge: Boolean,
             context: Context
         ): String {
-            val messageRes = if (isMerge(sourceFile, targetFile)) {
+            val messageRes = if (isMerge) {
                 type.getResourceId(
                     R.string.file_job_merge_copy_message_format,
                     R.string.file_job_merge_extract_message_format,
@@ -306,12 +323,6 @@ class FileJobConflictDialogFragment : AppCompatDialogFragment() {
             }
             return context.getString(messageRes, targetFile.path.parent.fileName)
         }
-
-        private fun isMerge(sourceFile: FileItem, targetFile: FileItem): Boolean {
-            val sourceIsDirectory = sourceFile.attributesNoFollowLinks.isDirectory
-            val targetIsDirectory = targetFile.attributesNoFollowLinks.isDirectory
-            return sourceIsDirectory && targetIsDirectory
-        }
     }
 
     @Parcelize
@@ -319,6 +330,7 @@ class FileJobConflictDialogFragment : AppCompatDialogFragment() {
         val sourceFile: FileItem,
         val targetFile: FileItem,
         val type: CopyMoveType,
+        val isMerge: Boolean,
         val listener: @WriteWith<ListenerParceler>()
         (FileJobConflictAction, String?, Boolean) -> Unit
     ) : ParcelableArgs {
@@ -353,6 +365,8 @@ class FileJobConflictDialogFragment : AppCompatDialogFragment() {
 
     @Parcelize
     private class State(
-        val isAllChecked: Boolean
+        val isAllChecked: Boolean,
+        val newName: String?,
+        val isNameLayoutVisible: Boolean
     ) : ParcelableState
 }

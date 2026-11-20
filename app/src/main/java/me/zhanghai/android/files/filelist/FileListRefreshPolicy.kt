@@ -5,6 +5,7 @@
 
 package me.zhanghai.android.files.filelist
 
+import java8.nio.file.NoSuchFileException
 import me.zhanghai.android.files.util.Failure
 import me.zhanghai.android.files.util.Stateful
 
@@ -41,3 +42,10 @@ internal fun shouldNotifyFailure(
     }
     return isExplicitLoadResult || previous !is Failure
 }
+
+/**
+ * The value a failed load should keep. A failure because the path no longer exists drops the list
+ * shown so that the error is shown instead of stale files; other failures keep it.
+ */
+internal fun <T> failureValue(previous: T?, e: Exception): T? =
+    if (e is NoSuchFileException) null else previous

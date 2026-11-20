@@ -13,8 +13,11 @@ import java8.nio.file.NoSuchFileException
 import java8.nio.file.StandardCopyOption
 import me.zhanghai.android.files.provider.common.CopyOptions
 import me.zhanghai.android.files.provider.common.copyTo
+import me.zhanghai.android.files.provider.common.createSymbolicLinkForCopy
 import me.zhanghai.android.files.provider.common.newInputStream
 import me.zhanghai.android.files.provider.common.newOutputStream
+import me.zhanghai.android.files.provider.common.replaceAfterCheckingSource
+import me.zhanghai.android.files.provider.common.replaceAfterOpeningSource
 import me.zhanghai.android.files.provider.sftp.client.Client
 import me.zhanghai.android.files.provider.sftp.client.ClientException
 import me.zhanghai.android.files.util.enumSetOf
@@ -64,31 +67,49 @@ internal object SftpCopyMove {
             // Symbolic links may not be supported so we cannot simply delete the target here.
         }
         val sourceType = sourceAttributes.type
-        val sourceModeAttributes = FileAttributes.Builder()
-            .apply {
-                if (sourceAttributes.has(FileAttributes.Flag.MODE)) {
-                    withPermissions(sourceAttributes.mode.mask)
-                }
-            }
-            .build()
-        when (sourceType) {
-            FileMode.Type.REGULAR -> {
-                if (targetAttributes != null) {
-                    try {
-                        Client.remove(target)
-                    } catch (e: ClientException) {
-                        val exception = e.toFileSystemException(target.toString())
-                        if (exception !is NoSuchFileException) {
-                            throw exception
-                        }
+        val sourceModeAttributes = if (copyOptions.skipAttributes) {
+            FileAttributes.EMPTY
+        } else {
+            FileAttributes.Builder()
+                .apply {
+                    if (sourceAttributes.has(FileAttributes.Flag.MODE)) {
+                        withPermissions(sourceAttributes.mode.mask)
                     }
                 }
-                val sourceInputStream = try {
-                    Client.openByteChannel(source, enumSetOf(OpenMode.READ), FileAttributes.EMPTY)
-                } catch (e: ClientException) {
-                    throw e.toFileSystemException(source.toString())
-                }.newInputStream()
+                .build()
+        }
+        val deleteExisting: (() -> Unit)? = if (targetAttributes != null) {
+            {
                 try {
+                    Client.remove(target)
+                } catch (e: ClientException) {
+                    throw e.toFileSystemException(target.toString())
+                }
+            }
+        } else {
+            null
+        }
+        when (sourceType) {
+            FileMode.Type.REGULAR -> {
+                replaceAfterOpeningSource(
+                    openSource = {
+                        try {
+                            Client.openByteChannel(
+                                source, enumSetOf(OpenMode.READ), FileAttributes.EMPTY
+                            )
+                        } catch (e: ClientException) {
+                            throw e.toFileSystemException(source.toString())
+                        }.newInputStream()
+                    },
+                    closeSource = {
+                        try {
+                            it.close()
+                        } catch (e: IOException) {
+                            throw ClientException(e).toFileSystemException(source.toString())
+                        }
+                    },
+                    deleteExisting = deleteExisting
+                ) { sourceInputStream ->
                     val targetFlags = enumSetOf(OpenMode.WRITE, OpenMode.TRUNC, OpenMode.CREAT)
                     if (!copyOptions.replaceExisting) {
                         targetFlags += OpenMode.EXCL
@@ -129,31 +150,28 @@ internal object SftpCopyMove {
                             }
                         }
                     }
-                } finally {
-                    try {
-                        sourceInputStream.close()
-                    } catch (e: IOException) {
-                        throw ClientException(e).toFileSystemException(source.toString())
-                    }
                 }
             }
             FileMode.Type.DIRECTORY -> {
-                if (targetAttributes != null) {
-                    try {
-                        Client.remove(target)
-                    } catch (e: ClientException) {
-                        val exception = e.toFileSystemException(target.toString())
-                        if (exception !is NoSuchFileException) {
-                            throw exception
+                replaceAfterCheckingSource(
+                    checkSource = {
+                        if (targetAttributes != null) {
+                            try {
+                                Client.scandir(source)
+                            } catch (e: ClientException) {
+                                throw e.toFileSystemException(source.toString())
+                            }
                         }
+                    },
+                    deleteExisting = deleteExisting
+                ) {
+                    try {
+                        Client.mkdir(target, sourceModeAttributes)
+                    } catch (e: ClientException) {
+                        throw e.toFileSystemException(target.toString())
                     }
+                    copyOptions.progressListener?.invoke(sourceSize)
                 }
-                try {
-                    Client.mkdir(target, sourceModeAttributes)
-                } catch (e: ClientException) {
-                    throw e.toFileSystemException(target.toString())
-                }
-                copyOptions.progressListener?.invoke(sourceSize)
             }
             FileMode.Type.SYMLINK -> {
                 val sourceTarget = try {
@@ -161,32 +179,29 @@ internal object SftpCopyMove {
                 } catch (e: ClientException) {
                     throw e.toFileSystemException(source.toString())
                 }
-                try {
-                    Client.symlink(target, sourceTarget)
-                } catch (e: ClientException) {
-                    val exception = e.toFileSystemException(target.toString())
-                    if (exception is FileAlreadyExistsException && copyOptions.replaceExisting) {
-                        try {
-                            Client.remove(target)
-                        } catch (e2: ClientException) {
-                            if (e2.toFileSystemException(target.toString())
-                                    !is NoSuchFileException) {
-                                e2.addSuppressed(exception)
-                                throw e2.toFileSystemException(target.toString())
-                            }
-                        }
+                createSymbolicLinkForCopy(
+                    copyOptions.replaceExisting,
+                    createLink = {
                         try {
                             Client.symlink(target, sourceTarget)
-                        } catch (e2: ClientException) {
-                            e2.addSuppressed(exception)
-                            throw e2.toFileSystemException(target.toString())
+                        } catch (e: ClientException) {
+                            throw e.toFileSystemException(target.toString())
+                        }
+                    },
+                    deleteExisting = {
+                        try {
+                            Client.remove(target)
+                        } catch (e: ClientException) {
+                            throw e.toFileSystemException(target.toString())
                         }
                     }
-                    throw e.toFileSystemException(target.toString())
-                }
+                )
                 copyOptions.progressListener?.invoke(sourceSize)
             }
             else -> throw FileSystemException(source.toString(), null, "type $sourceType")
+        }
+        if (copyOptions.skipAttributes) {
+            return
         }
         // We don't take error when copying attribute fatal, so errors will only be logged from now
         // on.

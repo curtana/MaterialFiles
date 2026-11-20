@@ -6,6 +6,7 @@
 package me.zhanghai.android.files.provider.common
 
 import java8.nio.channels.SeekableByteChannel
+import java8.nio.file.AccessDeniedException
 import java8.nio.file.AccessMode
 import java8.nio.file.CopyOption
 import java8.nio.file.DirectoryStream
@@ -16,6 +17,7 @@ import java8.nio.file.NoSuchFileException
 import java8.nio.file.OpenOption
 import java8.nio.file.Path
 import java8.nio.file.PathMatcher
+import java8.nio.file.StandardCopyOption
 import java8.nio.file.WatchEvent
 import java8.nio.file.WatchKey
 import java8.nio.file.WatchService
@@ -130,15 +132,103 @@ class ForeignCopyMoveCleanupTest {
         assertEquals(listOf(false), provider.interruptedOnClose)
         assertEquals(listOf(false), provider.interruptedOnDelete)
     }
+
+    // U-C10
+    @Test
+    fun copy_replace_sourceUnreadable_targetKept() {
+        val openException = AccessDeniedException(source.toString())
+        provider.inputStreamException = openException
+        assertSame(
+            openException,
+            assertThrows(AccessDeniedException::class.java) {
+                ForeignCopyMove.copy(source, target, StandardCopyOption.REPLACE_EXISTING)
+            }
+        )
+        assertTrue(provider.deletedPaths.isEmpty())
+    }
+
+    // U-C11
+    @Test
+    fun copy_replace_opensSourceBeforeDeletingTarget() {
+        ForeignCopyMove.copy(source, target, StandardCopyOption.REPLACE_EXISTING)
+        val openIndex = provider.events.indexOf("open:$source")
+        val deleteIndex = provider.events.indexOf("delete:$target")
+        assertTrue(provider.events.toString(), openIndex >= 0 && deleteIndex >= 0)
+        assertTrue(provider.events.toString(), openIndex < deleteIndex)
+    }
+
+    // U-C12
+    @Test
+    fun copy_replace_sourceDirectoryUnlistable_targetKept() {
+        provider.sourceIsDirectory = true
+        val listException = AccessDeniedException(source.toString())
+        provider.directoryStreamException = listException
+        assertSame(
+            listException,
+            assertThrows(AccessDeniedException::class.java) {
+                ForeignCopyMove.copy(source, target, StandardCopyOption.REPLACE_EXISTING)
+            }
+        )
+        assertTrue(provider.deletedPaths.isEmpty())
+        assertFalse(provider.events.any { it.startsWith("mkdir:") })
+    }
+
+    // U-C13
+    @Test
+    fun copy_replace_directory_checksThenDeletesThenCreates() {
+        provider.sourceIsDirectory = true
+        ForeignCopyMove.copy(source, target, StandardCopyOption.REPLACE_EXISTING)
+        assertEquals(
+            listOf("dirstream:$source", "delete:$target", "mkdir:$target"), provider.events
+        )
+    }
+
+    // U-C14
+    @Test
+    fun copy_noReplace_directory_noCheck() {
+        provider.sourceIsDirectory = true
+        ForeignCopyMove.copy(source, target)
+        assertEquals(listOf("mkdir:$target"), provider.events)
+    }
+
+    // U-A07
+    @Test
+    fun copy_skipAttributes_file_noSetTimes() {
+        ForeignCopyMove.copy(source, target, SkipAttributesCopyOption)
+        assertEquals(listOf(false), provider.interruptedOnClose)
+        assertTrue(provider.setTimesPaths.toString(), provider.setTimesPaths.isEmpty())
+    }
+
+    // U-A08
+    @Test
+    fun copy_skipAttributes_directory_noSetTimes() {
+        provider.sourceIsDirectory = true
+        ForeignCopyMove.copy(source, target, SkipAttributesCopyOption)
+        assertEquals(listOf("mkdir:$target"), provider.events)
+        assertTrue(provider.setTimesPaths.toString(), provider.setTimesPaths.isEmpty())
+    }
+
+    // U-A09
+    @Test
+    fun copy_default_setsTimes() {
+        ForeignCopyMove.copy(source, target)
+        assertEquals(listOf<Path>(target), provider.setTimesPaths)
+    }
 }
 
 private class FakeProvider(private val fileSystem: FileSystem) : FileSystemProvider() {
     var writeException: IOException? = null
     var interruptOnWrite = false
     var deleteException: Exception? = null
+    var inputStreamException: IOException? = null
+    var directoryStreamException: IOException? = null
+    var sourceIsDirectory = false
     val deletedPaths = mutableListOf<Path>()
+    val events = mutableListOf<String>()
     val interruptedOnClose = mutableListOf<Boolean>()
     val interruptedOnDelete = mutableListOf<Boolean>()
+    // Kept out of events, which U-C13 and U-C14 compare in full.
+    val setTimesPaths = mutableListOf<Path>()
 
     override fun getScheme(): String = "fake"
 
@@ -149,11 +239,18 @@ private class FakeProvider(private val fileSystem: FileSystem) : FileSystemProvi
 
     override fun getPath(uri: URI): Path = throw UnsupportedOperationException()
 
-    override fun newInputStream(path: Path, vararg options: OpenOption): InputStream =
-        ByteArrayInputStream(ByteArray(16))
+    override fun newInputStream(path: Path, vararg options: OpenOption): InputStream {
+        events += "open:$path"
+        inputStreamException?.let { throw it }
+        return ByteArrayInputStream(ByteArray(16))
+    }
 
     override fun newOutputStream(path: Path, vararg options: OpenOption): OutputStream =
         object : OutputStream() {
+            init {
+                events += "write:$path"
+            }
+
             override fun write(b: Int) {
                 write(byteArrayOf(b.toByte()), 0, 1)
             }
@@ -179,14 +276,24 @@ private class FakeProvider(private val fileSystem: FileSystem) : FileSystemProvi
     override fun newDirectoryStream(
         dir: Path,
         filter: DirectoryStream.Filter<in Path>
-    ): DirectoryStream<Path> = throw UnsupportedOperationException()
+    ): DirectoryStream<Path> {
+        events += "dirstream:$dir"
+        directoryStreamException?.let { throw it }
+        return object : DirectoryStream<Path> {
+            override fun iterator(): MutableIterator<Path> = mutableListOf<Path>().iterator()
 
-    override fun createDirectory(dir: Path, vararg attrs: FileAttribute<*>) =
-        throw UnsupportedOperationException()
+            override fun close() {}
+        }
+    }
+
+    override fun createDirectory(dir: Path, vararg attrs: FileAttribute<*>) {
+        events += "mkdir:$dir"
+    }
 
     override fun delete(path: Path) {
         interruptedOnDelete += Thread.currentThread().isInterrupted
         deletedPaths.add(path)
+        events += "delete:$path"
         when (val exception = deleteException) {
             null -> {}
             is IOException -> throw exception
@@ -218,7 +325,16 @@ private class FakeProvider(private val fileSystem: FileSystem) : FileSystemProvi
         path: Path,
         type: Class<V>,
         vararg options: LinkOption
-    ): V = FakeAttributeView as V
+    ): V =
+        object : BasicFileAttributeView by FakeAttributeView {
+            override fun setTimes(
+                lastModifiedTime: FileTime?,
+                lastAccessTime: FileTime?,
+                createTime: FileTime?
+            ) {
+                setTimesPaths.add(path)
+            }
+        } as V
 
     @Suppress("UNCHECKED_CAST")
     override fun <A : BasicFileAttributes> readAttributes(
@@ -229,7 +345,7 @@ private class FakeProvider(private val fileSystem: FileSystem) : FileSystemProvi
         if (path.toString().startsWith("/target")) {
             throw NoSuchFileException(path.toString())
         }
-        return FakeAttributes as A
+        return (if (sourceIsDirectory) FakeDirectoryAttributes else FakeAttributes) as A
     }
 
     override fun readAttributes(
@@ -278,6 +394,12 @@ private object FakeAttributes : BasicFileAttributes {
     override fun size(): Long = 16
 
     override fun fileKey(): Any? = null
+}
+
+private object FakeDirectoryAttributes : BasicFileAttributes by FakeAttributes {
+    override fun isRegularFile(): Boolean = false
+
+    override fun isDirectory(): Boolean = true
 }
 
 private class FakeFileSystem : FileSystem() {

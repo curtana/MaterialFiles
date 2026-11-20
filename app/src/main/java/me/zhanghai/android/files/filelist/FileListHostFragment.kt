@@ -32,6 +32,7 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.switchMap
 import java8.nio.file.Path
 import kotlinx.parcelize.Parcelize
+import me.zhanghai.android.files.BuildConfig
 import me.zhanghai.android.files.R
 import me.zhanghai.android.files.app.application
 import me.zhanghai.android.files.compat.checkSelfPermissionCompat
@@ -48,6 +49,7 @@ import me.zhanghai.android.files.util.args
 import me.zhanghai.android.files.util.checkSelfPermission
 import me.zhanghai.android.files.util.createManageAppAllFilesAccessPermissionIntent
 import me.zhanghai.android.files.util.putArgs
+import me.zhanghai.android.files.util.startActivitySafe
 import me.zhanghai.android.files.util.supportsExternalStorageManager
 import me.zhanghai.android.files.util.valueCompat
 import me.zhanghai.android.files.util.viewModels
@@ -96,6 +98,10 @@ class FileListHostFragment : Fragment(), FileListFragment.Listener, NavigationFr
 
     private val fileJobIndicatorUpdateRunnable = Runnable { updateFileJobIndicator() }
 
+    // An intent received while this fragment isn't resumed, applied when it's resumed. It isn't
+    // saved, like a received intent that the system doesn't redeliver after recreation.
+    private var pendingNewIntent: Pair<NewIntentAction, Path>? = null
+
     private val activePane: FileListFragment
         get() = panes[viewModel.activePane]
 
@@ -111,7 +117,7 @@ class FileListHostFragment : Fragment(), FileListFragment.Listener, NavigationFr
     override fun onActivityCreated(savedInstanceState: Bundle?) {
         super.onActivityCreated(savedInstanceState)
 
-        val isDualPaneEnabled = !isPickIntent(args.intent)
+        val isDualPaneEnabled = !isPickAction(args.intent.action)
         viewModel.isDualPaneEnabled = isDualPaneEnabled
         val pane1: FileListFragment
         var pane2: FileListFragment?
@@ -145,6 +151,13 @@ class FileListHostFragment : Fragment(), FileListFragment.Listener, NavigationFr
                 as NavigationFragment
         }
         panes = listOfNotNull(pane1, pane2)
+        if (savedInstanceState != null) {
+            // The view model is new after the system killed the process, and everything below reads
+            // the active pane (#11).
+            viewModel.setActivePane(
+                savedInstanceState.getInt(STATE_ACTIVE_PANE, viewModel.activePane)
+            )
+        }
         navigationFragment.listener = this
         // The pane mode of the previous configuration doesn't apply to the new views, and the
         // layout reports the new one after its first measure.
@@ -233,8 +246,16 @@ class FileListHostFragment : Fragment(), FileListFragment.Listener, NavigationFr
         output.seqToConsume?.let { FileJobStateTracker.consumeResult(it) }
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+
+        outState.putInt(STATE_ACTIVE_PANE, viewModel.activePane)
+    }
+
     override fun onResume() {
         super.onResume()
+
+        applyPendingNewIntent()
 
         if (!viewModel.isNotificationPermissionRequested) {
             ensureStorageAccess()
@@ -258,13 +279,42 @@ class FileListHostFragment : Fragment(), FileListFragment.Listener, NavigationFr
         return activePane.onMenuKeyEvent(event)
     }
 
-    // Must be kept in sync with the pick actions in FileListFragment.onActivityCreated().
-    private fun isPickIntent(intent: Intent): Boolean =
-        when (intent.action) {
-            Intent.ACTION_GET_CONTENT, Intent.ACTION_OPEN_DOCUMENT, Intent.ACTION_CREATE_DOCUMENT,
-            Intent.ACTION_OPEN_DOCUMENT_TREE -> true
-            else -> false
+    // Called by the activity when it's on top and receives an intent (#80). The active pane opens
+    // the path of the intent, and a pick screen opens it in a new task instead.
+    fun onNewIntent(intent: Intent) {
+        // A pick intent is ignored, and its path isn't resolved into an archive file system.
+        if (isPickAction(intent.action)) {
+            return
         }
+        val path = intent.resolvePanePath()
+        val action = resolveNewIntentAction(
+            isPickAction(args.intent.action), intent.action, intent.flags, path
+        )
+        if (action == NewIntentAction.IGNORE) {
+            return
+        }
+        // The latest intent wins.
+        pendingNewIntent = action to path!!
+        // In case the intent is delivered without pausing this fragment first.
+        if (isResumed) {
+            applyPendingNewIntent()
+        }
+    }
+
+    private fun applyPendingNewIntent() {
+        val (action, path) = pendingNewIntent ?: return
+        pendingNewIntent = null
+        when (action) {
+            NewIntentAction.OPEN_IN_ACTIVE_PANE -> {
+                navigateTo(path)
+                closeNavigationDrawer()
+            }
+            // Started when resumed, so that it doesn't depend on background activity starts.
+            NewIntentAction.OPEN_IN_NEW_TASK ->
+                startActivitySafe(FileListActivity.createNewTaskViewIntent(path))
+            NewIntentAction.IGNORE -> {}
+        }
+    }
 
     private val dualPaneLayoutListener = object : DualPaneLayout.Listener {
         override fun onPaneModeChanged(mode: PaneMode) {
@@ -535,6 +585,10 @@ class FileListHostFragment : Fragment(), FileListFragment.Listener, NavigationFr
         override fun parseResult(resultCode: Int, intent: Intent?): Boolean =
             application.checkSelfPermissionCompat(permissionName) ==
                 PackageManager.PERMISSION_GRANTED
+    }
+
+    companion object {
+        private const val STATE_ACTIVE_PANE = "${BuildConfig.APPLICATION_ID}.state.ACTIVE_PANE"
     }
 
     @Parcelize

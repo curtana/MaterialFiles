@@ -11,6 +11,9 @@ import java8.nio.file.FileSystemException
 import java8.nio.file.StandardCopyOption
 import me.zhanghai.android.files.provider.common.ByteString
 import me.zhanghai.android.files.provider.common.CopyOptions
+import me.zhanghai.android.files.provider.common.createSymbolicLinkForCopy
+import me.zhanghai.android.files.provider.common.replaceAfterCheckingSource
+import me.zhanghai.android.files.provider.common.replaceAfterOpeningSource
 import me.zhanghai.android.files.provider.common.toByteString
 import me.zhanghai.android.files.provider.linux.syscall.Constants
 import me.zhanghai.android.files.provider.linux.syscall.StructTimespec
@@ -53,22 +56,33 @@ internal object LinuxCopyMove {
             }
             // Symbolic links may not be supported so we cannot simply remove the target here.
         }
-        if (OsConstants.S_ISREG(sourceStat.st_mode)) {
-            if (targetStat != null) {
+        // Delete an existing target only after the source is known to be readable. A missing
+        // target becomes NoSuchFileException and is ignored.
+        val deleteExisting: (() -> Unit)? = if (targetStat != null) {
+            {
                 try {
                     Syscall.remove(target)
                 } catch (e: SyscallException) {
-                    if (e.errno != OsConstants.ENOENT) {
-                        throw e.toFileSystemException(target.toString())
-                    }
+                    throw e.toFileSystemException(target.toString())
                 }
             }
-            val sourceFd = try {
-                Syscall.open(source, OsConstants.O_RDONLY, 0)
-            } catch (e: SyscallException) {
-                throw e.toFileSystemException(source.toString())
-            }
-            try {
+        } else {
+            null
+        }
+        if (OsConstants.S_ISREG(sourceStat.st_mode)) {
+            replaceAfterOpeningSource({
+                try {
+                    Syscall.open(source, OsConstants.O_RDONLY, 0)
+                } catch (e: SyscallException) {
+                    throw e.toFileSystemException(source.toString())
+                }
+            }, { sourceFd ->
+                try {
+                    Syscall.close(sourceFd)
+                } catch (e: SyscallException) {
+                    throw e.toFileSystemException(source.toString())
+                }
+            }, deleteExisting) { sourceFd ->
                 var targetFlags = (OsConstants.O_WRONLY or OsConstants.O_TRUNC
                     or OsConstants.O_CREAT)
                 if (!copyOptions.replaceExisting) {
@@ -125,28 +139,23 @@ internal object LinuxCopyMove {
                         }
                     }
                 }
-            } finally {
-                try {
-                    Syscall.close(sourceFd)
-                } catch (e: SyscallException) {
-                    throw e.toFileSystemException(source.toString())
-                }
             }
         } else if (OsConstants.S_ISDIR(sourceStat.st_mode)) {
-            if (targetStat != null) {
-                try {
-                    Syscall.remove(target)
-                } catch (e: SyscallException) {
-                    if (e.errno != OsConstants.ENOENT) {
-                        throw e.toFileSystemException(target.toString())
+            replaceAfterCheckingSource({
+                if (deleteExisting != null) {
+                    try {
+                        Syscall.closedir(Syscall.opendir(source))
+                    } catch (e: SyscallException) {
+                        throw e.toFileSystemException(source.toString())
                     }
                 }
-            }
-            try {
-                Syscall.mkdir(target, sourceStat.st_mode)
-            } catch (e: SyscallException) {
-                e.maybeThrowInvalidFileNameException(target.toString())
-                throw e.toFileSystemException(target.toString())
+            }, deleteExisting) {
+                try {
+                    Syscall.mkdir(target, sourceStat.st_mode)
+                } catch (e: SyscallException) {
+                    e.maybeThrowInvalidFileNameException(target.toString())
+                    throw e.toFileSystemException(target.toString())
+                }
             }
             copyOptions.progressListener?.invoke(sourceStat.st_size)
         } else if (OsConstants.S_ISLNK(sourceStat.st_mode)) {
@@ -155,28 +164,24 @@ internal object LinuxCopyMove {
             } catch (e: SyscallException) {
                 throw e.toFileSystemException(source.toString())
             }
-            try {
-                Syscall.symlink(sourceTarget, target)
-            } catch (e: SyscallException) {
-                if (e.errno == OsConstants.EEXIST && copyOptions.replaceExisting) {
-                    try {
-                        Syscall.remove(target)
-                    } catch (e2: SyscallException) {
-                        if (e2.errno != OsConstants.ENOENT) {
-                            e2.addSuppressed(e.toFileSystemException(target.toString()))
-                            throw e2.toFileSystemException(target.toString())
-                        }
-                    }
+            createSymbolicLinkForCopy(
+                copyOptions.replaceExisting,
+                createLink = {
                     try {
                         Syscall.symlink(sourceTarget, target)
-                    } catch (e2: SyscallException) {
-                        e2.addSuppressed(e.toFileSystemException(target.toString()))
-                        throw e2.toFileSystemException(target.toString())
+                    } catch (e: SyscallException) {
+                        e.maybeThrowInvalidFileNameException(target.toString())
+                        throw e.toFileSystemException(target.toString())
+                    }
+                },
+                deleteExisting = {
+                    try {
+                        Syscall.remove(target)
+                    } catch (e: SyscallException) {
+                        throw e.toFileSystemException(target.toString())
                     }
                 }
-                e.maybeThrowInvalidFileNameException(target.toString())
-                throw e.toFileSystemException(target.toString())
-            }
+            )
             copyOptions.progressListener?.invoke(sourceStat.st_size)
         } else {
             throw FileSystemException(source.toString(), null, "st_mode ${sourceStat.st_mode}")

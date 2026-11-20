@@ -10,6 +10,8 @@ import java8.nio.file.NoSuchFileException
 import java8.nio.file.StandardCopyOption
 import me.zhanghai.android.files.provider.common.CopyOptions
 import me.zhanghai.android.files.provider.common.copyTo
+import me.zhanghai.android.files.provider.common.replaceAfterCheckingSource
+import me.zhanghai.android.files.provider.common.replaceAfterOpeningSource
 import me.zhanghai.android.files.provider.ftp.client.Client
 import java.io.IOException
 
@@ -38,30 +40,59 @@ internal object FtpCopyMove {
             if (!copyOptions.replaceExisting) {
                 throw FileAlreadyExistsException(source.toString(), target.toString(), null)
             }
-            try {
-                Client.delete(target, targetFile.isDirectory)
-            } catch (e: IOException) {
-                throw e.toFileSystemExceptionForFtp(target.toString())
-            }
         }
-        when {
-            sourceFile.isDirectory -> {
+        val deleteExisting: (() -> Unit)? = if (targetFile != null) {
+            {
                 try {
-                    Client.createDirectory(target)
+                    Client.delete(target, targetFile.isDirectory)
                 } catch (e: IOException) {
                     throw e.toFileSystemExceptionForFtp(target.toString())
                 }
-                copyOptions.progressListener?.invoke(sourceSize)
             }
+        } else {
+            null
+        }
+        when {
+            sourceFile.isDirectory ->
+                replaceAfterCheckingSource(
+                    checkSource = {
+                        if (targetFile != null) {
+                            try {
+                                Client.listDirectory(source)
+                            } catch (e: IOException) {
+                                throw e.toFileSystemExceptionForFtp(source.toString())
+                            }
+                        }
+                    },
+                    deleteExisting = deleteExisting
+                ) {
+                    try {
+                        Client.createDirectory(target)
+                    } catch (e: IOException) {
+                        throw e.toFileSystemExceptionForFtp(target.toString())
+                    }
+                    copyOptions.progressListener?.invoke(sourceSize)
+                }
             sourceFile.isSymbolicLink ->
                 throw UnsupportedOperationException("Cannot copy symbolic links")
-            else -> {
-                val sourceInputStream = try {
-                    Client.retrieveFile(source)
-                } catch (e: IOException) {
-                    throw e.toFileSystemExceptionForFtp(source.toString())
-                }
-                try {
+            else ->
+                replaceAfterOpeningSource(
+                    openSource = {
+                        try {
+                            Client.retrieveFile(source)
+                        } catch (e: IOException) {
+                            throw e.toFileSystemExceptionForFtp(source.toString())
+                        }
+                    },
+                    closeSource = {
+                        try {
+                            it.close()
+                        } catch (e: IOException) {
+                            throw e.toFileSystemExceptionForFtp(source.toString())
+                        }
+                    },
+                    deleteExisting = deleteExisting
+                ) { sourceInputStream ->
                     val targetOutputStream = try {
                         Client.storeFile(target)
                     } catch (e: IOException) {
@@ -92,14 +123,10 @@ internal object FtpCopyMove {
                             }
                         }
                     }
-                } finally {
-                    try {
-                        sourceInputStream.close()
-                    } catch (e: IOException) {
-                        throw e.toFileSystemExceptionForFtp(source.toString())
-                    }
                 }
-            }
+        }
+        if (copyOptions.skipAttributes) {
+            return
         }
         // We don't take error when copying attribute fatal, so errors will only be logged from now
         // on.

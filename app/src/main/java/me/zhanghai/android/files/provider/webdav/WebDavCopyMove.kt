@@ -11,6 +11,8 @@ import java8.nio.file.NoSuchFileException
 import java8.nio.file.StandardCopyOption
 import me.zhanghai.android.files.provider.common.CopyOptions
 import me.zhanghai.android.files.provider.common.copyTo
+import me.zhanghai.android.files.provider.common.replaceAfterCheckingSource
+import me.zhanghai.android.files.provider.common.replaceAfterOpeningSource
 import me.zhanghai.android.files.provider.webdav.client.Client
 import me.zhanghai.android.files.provider.webdav.client.isDirectory
 import me.zhanghai.android.files.provider.webdav.client.isSymbolicLink
@@ -43,30 +45,59 @@ internal object WebDavCopyMove {
             if (!copyOptions.replaceExisting) {
                 throw FileAlreadyExistsException(source.toString(), target.toString(), null)
             }
-            try {
-                Client.delete(target)
-            } catch (e: DavException) {
-                throw e.toFileSystemException(target.toString())
-            }
         }
-        when {
-            sourceResponse.isDirectory -> {
+        val deleteExisting: (() -> Unit)? = if (targetFile != null) {
+            {
                 try {
-                    Client.makeCollection(target)
+                    Client.delete(target)
                 } catch (e: DavException) {
                     throw e.toFileSystemException(target.toString())
                 }
-                copyOptions.progressListener?.invoke(sourceSize)
             }
+        } else {
+            null
+        }
+        when {
+            sourceResponse.isDirectory ->
+                replaceAfterCheckingSource(
+                    checkSource = {
+                        if (targetFile != null) {
+                            try {
+                                Client.findCollectionMembers(source)
+                            } catch (e: DavException) {
+                                throw e.toFileSystemException(source.toString())
+                            }
+                        }
+                    },
+                    deleteExisting = deleteExisting
+                ) {
+                    try {
+                        Client.makeCollection(target)
+                    } catch (e: DavException) {
+                        throw e.toFileSystemException(target.toString())
+                    }
+                    copyOptions.progressListener?.invoke(sourceSize)
+                }
             sourceResponse.isSymbolicLink ->
                 throw UnsupportedOperationException("Cannot copy symbolic links")
-            else -> {
-                val sourceInputStream = try {
-                    Client.get(source)
-                } catch (e: DavException) {
-                    throw e.toFileSystemException(source.toString())
-                }
-                try {
+            else ->
+                replaceAfterOpeningSource(
+                    openSource = {
+                        try {
+                            Client.get(source)
+                        } catch (e: DavException) {
+                            throw e.toFileSystemException(source.toString())
+                        }
+                    },
+                    closeSource = {
+                        try {
+                            it.close()
+                        } catch (e: DavException) {
+                            throw e.toFileSystemException(source.toString())
+                        }
+                    },
+                    deleteExisting = deleteExisting
+                ) { sourceInputStream ->
                     val targetOutputStream = try {
                         Client.put(target)
                     } catch (e: DavException) {
@@ -103,14 +134,10 @@ internal object WebDavCopyMove {
                             }
                         }
                     }
-                } finally {
-                    try {
-                        sourceInputStream.close()
-                    } catch (e: DavException) {
-                        throw e.toFileSystemException(source.toString())
-                    }
                 }
-            }
+        }
+        if (copyOptions.skipAttributes) {
+            return
         }
         // We don't take error when copying attribute fatal, so errors will only be logged from now
         // on.

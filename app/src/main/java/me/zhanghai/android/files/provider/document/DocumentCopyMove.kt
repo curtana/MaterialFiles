@@ -8,7 +8,9 @@ package me.zhanghai.android.files.provider.document
 import android.net.Uri
 import java8.nio.file.FileAlreadyExistsException
 import java8.nio.file.StandardCopyOption
+import me.zhanghai.android.files.file.MimeType
 import me.zhanghai.android.files.provider.common.CopyOptions
+import me.zhanghai.android.files.provider.common.replaceAfterCheckingSource
 import me.zhanghai.android.files.provider.content.resolver.ResolverException
 import me.zhanghai.android.files.provider.document.resolver.DocumentResolver
 import java.io.IOException
@@ -30,24 +32,50 @@ internal object DocumentCopyMove {
             return targetUri
         }
         val targetExists = DocumentResolver.exists(target)
-        if (targetExists) {
-            if (!copyOptions.replaceExisting) {
-                throw FileAlreadyExistsException(target.toString())
+        if (targetExists && !copyOptions.replaceExisting) {
+            throw FileAlreadyExistsException(target.toString())
+        }
+        // Delete an existing target only after the source is known to be readable.
+        val deleteExisting: (() -> Unit)? = if (targetExists) {
+            {
+                try {
+                    DocumentResolver.remove(target)
+                } catch (e: ResolverException) {
+                    throw e.toFileSystemException(target.toString())
+                }
             }
+        } else {
+            null
+        }
+        return replaceAfterCheckingSource({
+            if (targetExists) {
+                checkSourceReadable(source)
+            }
+        }, deleteExisting) {
             try {
-                DocumentResolver.remove(target)
+                DocumentResolver.copy(
+                    source, target, copyOptions.progressIntervalMillis,
+                    copyOptions.progressListener, copyOptions.cleanupFailureListener
+                )
             } catch (e: ResolverException) {
-                throw e.toFileSystemException(target.toString())
+                (e.cause as? InterruptedIOException)?.let { throw it }
+                throw e.toFileSystemException(source.toString(), target.toString())
             }
         }
-        return try {
-            DocumentResolver.copy(
-                source, target, copyOptions.progressIntervalMillis, copyOptions.progressListener,
-                copyOptions.cleanupFailureListener
-            )
+    }
+
+    // The copy itself may not read the source as a stream (DocumentsContract.copyDocument()), so
+    // the source is only opened and closed here without being read.
+    @Throws(IOException::class)
+    private fun checkSourceReadable(source: DocumentPath) {
+        try {
+            if (DocumentResolver.getMimeType(source) == MimeType.DIRECTORY.value) {
+                DocumentResolver.queryChildren(source)
+            } else {
+                DocumentResolver.openInputStream(source, "r").close()
+            }
         } catch (e: ResolverException) {
-            (e.cause as? InterruptedIOException)?.let { throw it }
-            throw e.toFileSystemException(source.toString(), target.toString())
+            throw e.toFileSystemException(source.toString())
         }
     }
 

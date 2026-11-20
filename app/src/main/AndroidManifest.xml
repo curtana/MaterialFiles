@@ -64,6 +64,7 @@
         <activity
             android:name="me.zhanghai.android.files.filelist.FileListActivity"
             android:exported="true"
+            android:launchMode="singleTop"
             android:visibleToInstantApps="true"
             tools:ignore="UnusedAttribute">
             <intent-filter>

@@ -14,6 +14,8 @@ import java8.nio.file.FileSystemException
 import java8.nio.file.NoSuchFileException
 import java8.nio.file.StandardCopyOption
 import me.zhanghai.android.files.provider.common.CopyOptions
+import me.zhanghai.android.files.provider.common.createSymbolicLinkForCopy
+import me.zhanghai.android.files.provider.common.replaceAfterCheckingSource
 import me.zhanghai.android.files.provider.smb.client.Client
 import me.zhanghai.android.files.provider.smb.client.ClientException
 import me.zhanghai.android.files.provider.smb.client.FileInformation
@@ -70,22 +72,23 @@ internal object SmbCopyMove {
         } else {
             enumSetOf(FileAttributes.FILE_ATTRIBUTE_NORMAL)
         }
-        if (sourceIsRegularFile) {
-            if (targetInformation != null) {
+        val deleteExisting: (() -> Unit)? = if (targetInformation != null) {
+            {
                 try {
                     Client.delete(target)
                 } catch (e: ClientException) {
-                    val exception = e.toFileSystemException(target.toString())
-                    if (exception !is NoSuchFileException) {
-                        throw exception
-                    }
+                    throw e.toFileSystemException(target.toString())
                 }
             }
+        } else {
+            null
+        }
+        if (sourceIsRegularFile) {
             try {
                 Client.copyFile(
                     source, target, copyOptions.copyAttributes, copyOptions.noFollowLinks,
                     copyOptions.progressIntervalMillis, copyOptions.progressListener,
-                    copyOptions.cleanupFailureListener
+                    copyOptions.cleanupFailureListener, deleteExisting
                 )
             } catch (e: ClientException) {
                 (e.cause as? InterruptedIOException)?.let { throw it }
@@ -93,55 +96,56 @@ internal object SmbCopyMove {
                 throw e.toFileSystemException(target.toString())
             }
         } else if (sourceIsDirectory) {
-            if (targetInformation != null) {
-                try {
-                    Client.delete(target)
-                } catch (e: ClientException) {
-                    val exception = e.toFileSystemException(target.toString())
-                    if (exception !is NoSuchFileException) {
-                        throw exception
+            replaceAfterCheckingSource(
+                checkSource = {
+                    if (targetInformation != null) {
+                        try {
+                            Client.openDirectoryIterator(source).close()
+                        } catch (e: ClientException) {
+                            throw e.toFileSystemException(source.toString())
+                        }
                     }
+                },
+                deleteExisting = deleteExisting
+            ) {
+                try {
+                    Client.createDirectory(target, attributesToCopy)
+                } catch (e: ClientException) {
+                    e.maybeThrowInvalidFileNameException(target.toString())
+                    throw e.toFileSystemException(target.toString())
                 }
+                copyOptions.progressListener?.invoke(sourceInformation.endOfFile)
             }
-            try {
-                Client.createDirectory(target, attributesToCopy)
-            } catch (e: ClientException) {
-                e.maybeThrowInvalidFileNameException(target.toString())
-                throw e.toFileSystemException(target.toString())
-            }
-            copyOptions.progressListener?.invoke(sourceInformation.endOfFile)
         } else if (sourceIsReparsePoint) {
             val sourceReparseData = try {
                 Client.readSymbolicLink(source)
             } catch (e: ClientException) {
                 throw e.toFileSystemException(source.toString())
             }
-            try {
-                Client.createSymbolicLink(target, sourceReparseData, attributesToCopy)
-            } catch (e: ClientException) {
-                val exception = e.toFileSystemException(target.toString())
-                if (exception is FileAlreadyExistsException && copyOptions.replaceExisting) {
-                    try {
-                        Client.delete(target)
-                    } catch (e2: ClientException) {
-                        if (e2.toFileSystemException(target.toString()) !is NoSuchFileException) {
-                            e2.addSuppressed(exception)
-                            throw e2.toFileSystemException(target.toString())
-                        }
-                    }
+            createSymbolicLinkForCopy(
+                copyOptions.replaceExisting,
+                createLink = {
                     try {
                         Client.createSymbolicLink(target, sourceReparseData, attributesToCopy)
-                    } catch (e2: ClientException) {
-                        e2.addSuppressed(exception)
-                        throw e2.toFileSystemException(target.toString())
+                    } catch (e: ClientException) {
+                        e.maybeThrowInvalidFileNameException(target.toString())
+                        throw e.toFileSystemException(target.toString())
+                    }
+                },
+                deleteExisting = {
+                    try {
+                        Client.delete(target)
+                    } catch (e: ClientException) {
+                        throw e.toFileSystemException(target.toString())
                     }
                 }
-                e.maybeThrowInvalidFileNameException(target.toString())
-                throw e.toFileSystemException(target.toString())
-            }
+            )
             copyOptions.progressListener?.invoke(sourceInformation.endOfFile)
         } else {
             throw AssertionError()
+        }
+        if (copyOptions.skipAttributes) {
+            return
         }
         // We don't take error when copying attribute fatal, so errors will only be logged from now
         // on.

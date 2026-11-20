@@ -11,7 +11,6 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.os.Environment
 import android.os.Handler
 import android.os.Looper
 import android.text.TextUtils
@@ -55,9 +54,9 @@ import androidx.recyclerview.widget.RecyclerView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.leinardi.android.speeddial.SpeedDialView
 import java8.nio.file.Path
-import java8.nio.file.Paths
 import kotlin.math.roundToInt
 import kotlinx.parcelize.Parcelize
+import me.zhanghai.android.files.BuildConfig
 import me.zhanghai.android.files.R
 import me.zhanghai.android.files.app.clipboardManager
 import me.zhanghai.android.files.compat.setGroupDividerEnabledCompat
@@ -83,7 +82,6 @@ import me.zhanghai.android.files.fileproperties.FilePropertiesDialogFragment
 import me.zhanghai.android.files.navigation.BookmarkDirectories
 import me.zhanghai.android.files.navigation.BookmarkDirectory
 import me.zhanghai.android.files.navigation.NavigationRootMapLiveData
-import me.zhanghai.android.files.provider.archive.createArchiveRootPath
 import me.zhanghai.android.files.provider.archive.isArchivePath
 import me.zhanghai.android.files.provider.linux.isLinuxPath
 import me.zhanghai.android.files.settings.Settings
@@ -138,7 +136,6 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
     CreateDirectoryDialogFragment.Listener, NavigateToPathDialogFragment.Listener,
     ConfirmCopyMoveDialogFragment.Listener {
     private val args by args<Args>()
-    private val argsPath by lazy { args.intent.extraPath }
 
     private val viewModel by viewModels { { FileListViewModel() } }
 
@@ -185,6 +182,26 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
             return@DebouncedRunnable
         }
         viewModel.search(query)
+    }
+
+    // The path saved before the system recreated this pane, kept in case the state is saved again
+    // before the view is created.
+    private var restoredPathUri: String? = null
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        restoredPathUri = savedInstanceState?.getString(STATE_PATH_URI)
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+
+        // Only the current path is saved, and the view model keeps the rest across configuration
+        // changes (#11).
+        val pathUri =
+            if (viewModel.hasTrail) encodePanePath(viewModel.currentPath) else restoredPathUri
+        pathUri?.let { outState.putString(STATE_PATH_URI, it) }
     }
 
     override fun onCreateView(
@@ -272,10 +289,10 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
         )
 
         if (!viewModel.hasTrail) {
-            var path = argsPath
+            var path: Path? = args.intent.extraPath
             val intent = args.intent
             var pickOptions: PickOptions? = null
-            // The pick actions must be kept in sync with FileListHostFragment.isPickIntent().
+            // The pick actions must be kept in sync with isPickAction().
             when (val action = intent.action) {
                 Intent.ACTION_GET_CONTENT, Intent.ACTION_OPEN_DOCUMENT,
                 Intent.ACTION_CREATE_DOCUMENT -> {
@@ -311,24 +328,14 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
                         PickOptions.Mode.OPEN_DIRECTORY, null, false, emptyList(), localOnly, false
                     )
                 }
-                ACTION_VIEW_DOWNLOADS ->
-                    path = Paths.get(
-                        Environment.getExternalStoragePublicDirectory(
-                            Environment.DIRECTORY_DOWNLOADS
-                        ).path
-                    )
-                else ->
-                    if (path != null) {
-                        val mimeType = intent.type?.asMimeTypeOrNull()
-                        if (mimeType != null && path.isArchiveFile(mimeType)) {
-                            path = path.createArchiveRootPath()
-                        }
-                    }
+                else -> path = intent.resolvePanePath()
             }
-            if (path == null) {
-                path = Settings.FILE_LIST_DEFAULT_DIRECTORY.valueCompat
+            // The saved path takes precedence over the intent after the system recreated this pane,
+            // but the pick options above still come from the intent (#11).
+            val startPath = resolvePaneStartPath(decodePanePath(restoredPathUri), path) {
+                Settings.FILE_LIST_DEFAULT_DIRECTORY.valueCompat
             }
-            viewModel.resetTo(path)
+            viewModel.resetTo(startPath)
             if (pickOptions != null) {
                 viewModel.pickOptions = pickOptions
             }
@@ -952,9 +959,7 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
     }
 
     override fun openInNewTask(path: Path) {
-        val intent = FileListActivity.createViewIntent(path)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_DOCUMENT or Intent.FLAG_ACTIVITY_MULTIPLE_TASK)
-        startActivitySafe(intent)
+        startActivitySafe(FileListActivity.createNewTaskViewIntent(path))
     }
 
     private fun onPickOptionsChanged(pickOptions: PickOptions?) {
@@ -1649,10 +1654,9 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
         get() = viewModel.currentPathLiveData
 
     companion object {
-        private const val ACTION_VIEW_DOWNLOADS =
-            "me.zhanghai.android.files.intent.action.VIEW_DOWNLOADS"
-
         private const val IMAGE_VIEWER_ACTIVITY_PATH_LIST_SIZE_MAX = 1000
+
+        private const val STATE_PATH_URI = "${BuildConfig.APPLICATION_ID}.state.PATH_URI"
     }
 
     @Parcelize

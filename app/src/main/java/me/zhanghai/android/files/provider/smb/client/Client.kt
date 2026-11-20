@@ -39,6 +39,7 @@ import me.zhanghai.android.files.provider.common.closeReportingFailure
 import me.zhanghai.android.files.provider.common.copyTo
 import me.zhanghai.android.files.provider.common.newInputStream
 import me.zhanghai.android.files.provider.common.newOutputStream
+import me.zhanghai.android.files.provider.common.replaceAfterOpeningSource
 import me.zhanghai.android.files.util.closeSafe
 import me.zhanghai.android.files.util.enumSetOf
 import me.zhanghai.android.files.util.hasBits
@@ -314,7 +315,14 @@ object Client {
     }
 
     // @see https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-smb2/cd0162e4-7650-4293-8a2a-d696923203ef
-    @Throws(ClientException::class)
+    /**
+     * Copies a regular file, using a server-side copy when both paths are on the same session.
+     *
+     * [deleteExistingTarget], if not null, is invoked after the source is opened and before the
+     * target is created. Exceptions it throws (already converted
+     * [java8.nio.file.FileSystemException], not [ClientException]) are propagated as is.
+     */
+    @Throws(ClientException::class, IOException::class)
     fun copyFile(
         source: Path,
         target: Path,
@@ -322,7 +330,8 @@ object Client {
         openReparsePoint: Boolean,
         intervalMillis: Long,
         listener: ((Long) -> Unit)?,
-        cleanupFailureListener: (() -> Unit)?
+        cleanupFailureListener: (() -> Unit)?,
+        deleteExistingTarget: (() -> Unit)?
     ) {
         val sourceSharePath = source.sharePath
             ?: throw ClientException("$source does not have a share path")
@@ -332,23 +341,28 @@ object Client {
         val sourceShare = getDiskShare(sourceSession, sourceSharePath.name)
         val targetSession = getSession(target.authority)
         val targetShare = getDiskShare(targetSession, targetSharePath.name)
-        val sourceFile = try {
-            sourceShare.openFile(
-                sourceSharePath.path, enumSetOf(
-                    AccessMask.FILE_READ_DATA, AccessMask.FILE_READ_ATTRIBUTES,
-                    AccessMask.FILE_READ_EA
-                ), null, SMB2ShareAccess.ALL, SMB2CreateDisposition.FILE_OPEN,
-                if (openReparsePoint) {
-                    enumSetOf(SMB2CreateOptions.FILE_OPEN_REPARSE_POINT)
-                } else {
-                    null
-                }
-            )
-        } catch (e: SMBRuntimeException) {
-            throw ClientException(e)
-        }
         try {
-            sourceFile.use {
+            replaceAfterOpeningSource(
+                openSource = {
+                    try {
+                        sourceShare.openFile(
+                            sourceSharePath.path, enumSetOf(
+                                AccessMask.FILE_READ_DATA, AccessMask.FILE_READ_ATTRIBUTES,
+                                AccessMask.FILE_READ_EA
+                            ), null, SMB2ShareAccess.ALL, SMB2CreateDisposition.FILE_OPEN,
+                            if (openReparsePoint) {
+                                enumSetOf(SMB2CreateOptions.FILE_OPEN_REPARSE_POINT)
+                            } else {
+                                null
+                            }
+                        )
+                    } catch (e: SMBRuntimeException) {
+                        throw ClientException(e)
+                    }
+                },
+                closeSource = { it.close() },
+                deleteExisting = deleteExistingTarget
+            ) { sourceFile ->
                 val attributesToCopy = if (copyAttributes) {
                     val sourceAttributes = try {
                         sourceFile.getFileInformation(FileBasicInformation::class.java)
