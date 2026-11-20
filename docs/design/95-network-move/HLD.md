@@ -31,7 +31,7 @@ flowchart LR
 | C3 WebDAV 다른 서버 예외형 | `provider/webdav/client/Client.kt:114-116` | 다른 `Authority`일 때의 `IOException`을 `DavException`형(`IOException.toDavException()`, `webdav/client/DavIOException.kt:16`)으로 던져 `WebDavCopyMove.move`의 `catch (e: DavException)`(`:187`)에 걸리게 한다. 그러면 비원자 이동은 대체로, 원자 시도는 변환된 오류로 간다 — 다른 세 백엔드와 같다 | REQ-95-06 |
 | C4 검증 코드 | `app/src/test/java/me/zhanghai/android/files/...`(JVM) | 6.1 표 | 전부 |
 
-바꾸지 않는 곳: `filejob/FileJobs.kt` 전체(되돌리기에 해당하는 코드가 없다 — 폴더 원본 삭제 `postVisitDirectory` → `delete`(`:1348-`)는 실패 시 대상을 지우지 않는다)(`RenameFileJob`·`MoveFileJob`·`moveRecursively`·`copyOrMove`·`askCopyError`), 네 `copy()`와 `provider/common/SourceCheckedReplace.kt`, `ForeignCopyMove`, 로컬·루트·SAF·압축 제공자, 내장 FTP 서버(`ftpserver/ProviderFtpFile.kt:168`, `Path.moveTo` 호출자 — 비원자 이동이라 바꾸기·덮어쓰기와 무관. C1 (4)의 영향은 R6), 문자열.
+바꾸지 않는 곳: `filejob/FileJobs.kt` 전체 — `RenameFileJob`·`MoveFileJob`·`moveRecursively`·`copyOrMove`·`askCopyError`. 되돌리기에 해당하는 코드도 없다: 폴더 원본 삭제(`postVisitDirectory` `:1500-1510` → `delete()` 헬퍼 `:1348-`)는 실패 시 대상을 지우지 않는다. 그 밖에 바꾸지 않는 곳: 네 `copy()`와 `provider/common/SourceCheckedReplace.kt`, `ForeignCopyMove`, 로컬·루트·SAF·압축 제공자, 내장 FTP 서버(`ftpserver/ProviderFtpFile.kt:168`, `Path.moveTo` 호출자 — 비원자 이동이라 바꾸기·덮어쓰기와 무관. C1 (4)의 영향은 R6), 문자열.
 
 ## 3. 데이터 흐름·상태
 
@@ -111,4 +111,5 @@ flowchart LR
 | 2026-11-20 | 1.1 | 상태 행 갱신 | 2회차 검수 경미 1 | 검수팀 |
 | 2026-11-20 | 2.0 | SRS v2.0에 맞춰 다시 씀: 이동 대체 유지로 `ServerRenameScope`·`FileJobs` 폴더 처리 변경·Q4 삭제. 구성요소를 C1 `move()` 선삭제 제거와 overwrite 인수, C2 클라이언트 인수, C3 WebDAV 예외형, C4 시험으로 정리 | 오너 2026-11-20 rename/MOVE 구분(#95 코멘트) | PM(오너 결정 전달) |
 | 2026-11-20 | 2.1 | C1 추적에 REQ-95-07(남는 오류가 기존 오류 창으로 감), R5 WebDAV 업로드 본문 위험 추가 | v2.0 검수 조건부 통과 경미 2·참고(PR #96) | 검수팀 |
-| 2026-11-20 | 2.2 | C1 (4) 원본 삭제 실패 시 되돌리기 제거, 3.1-4 갱신, R3를 새 동작(재시도 흐름 포함)으로 교체, R6(내장 FTP 서버 폴더 이동)·미결(ForeignCopyMove 범위) 추가, 6.1 검증 행 추가 | 오너 2026-11-20: "사본 남기기 (추천)" — 대체 복사가 성공하고 원본 삭제만 실패하면 대상의 사본을 남기고 원본 삭제 오류를 알린다(#95 코멘트) | PM(오너 결정 전달) |
+| 2026-11-20 | 2.2 | C1 (4) 원본 삭제 실패 시 되돌리기 제거, 3.1-4 갱신, R3를 새 동작(재시도 흐름 포함)으로 교체, R6(내장 FTP 서버 폴더 이동)·미결(ForeignCopyMove 범위) 추가, 6.1 검증 행 추가 | 오너 원문 2026-11-20: "사본 남기기 (추천)". PM 요약(#95 코멘트): 대체 복사가 성공하고 원본 삭제만 실패하면 대상의 사본을 남기고 원본 삭제 오류를 알린다 | PM(오너 결정 전달) |
+| 2026-11-20 | 2.3 | 2장 "바꾸지 않는 곳" 문장 괄호 정리와 FileJobs 인용 정정, 변경 이력 2.2의 오너 원문과 PM 요약 구분 | v2.2 검수 조건부 통과 경미 2건(PR #96) | 검수팀 |
