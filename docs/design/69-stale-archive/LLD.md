@@ -2,7 +2,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 검수 통과(v1 PR #81 1회차 조건부, 경미 3건 v1.1 반영) |
+| 상태 | 검수 통과(v1 PR #81 1회차 조건부, 경미 3건 v1.1 반영), 구현됨(PR #84, v1.7.5-beta.2) |
 | 근거 | SRS v1.1, HLD v1.2 |
 | 기준 코드 | `origin/develop` f7f5e15(#67 머지 뒤). 이 LLD가 다루는 `filelist/`·`provider/` 파일은 HLD 기준 8cafb75와 같아(`git diff --stat 8cafb75 f7f5e15 -- …/filelist …/provider` 빈 출력) 줄 번호도 같다. 경로는 `app/src/main/java/me/zhanghai/android/files/` 기준, 테스트는 `app/src/test/java/me/zhanghai/android/files/` 기준 |
 
@@ -184,3 +184,4 @@ V5에서 잘린 zip이 오류 없이 읽히면(libarchive가 받아들이면 —
 |---|---|---|---|---|
 | 2026-11-19 | v1 | 최초 작성 | SRS v1.1, HLD v1.2 | PM |
 | 2026-11-19 | v1.1 | R2 확인 `callRootable` 줄 번호 정정, fail-before 담당 시험 명시, T-H2-06 시작 래치 | LLD 1회차 검수 m1~m3 (PR #81) | 검수팀 |
+| 2026-11-20 | v1.1.1 | 머리표 상태에 구현됨(PR #84) 표시. 내용 변경 없음 | 릴리스 v1.7.5-beta.2 문서 동기화 | 설계팀 |

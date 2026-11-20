@@ -2,7 +2,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 검수 통과 (v1.3) |
+| 상태 | 검수 통과 (v1.3), 구현됨(PR #66·#71·#75·#76·#77·#78, v1.7.5-beta.2). v1.3.1은 2.1·2.2 줄 번호 정정 |
 | 근거 | SRS v1.4 (오너 결정 2026-11-19 반영) |
 | 기준 코드 | `origin/develop` 0941fa7. 경로는 `app/src/main/java/me/zhanghai/android/files/` 기준 |
 | 범위 | 조각 C → A → B (SRS 4절). 조각마다 LLD·PR을 따로 하며, 이 문서 2절이 조각별 경계다 |
@@ -33,7 +33,7 @@ flowchart LR
 ### 2.1 조각 C — 바꾸기 전 원본 확인 (REQ-55-08, 09)
 | 구성요소 | 위치 | 책임 | 추적 REQ |
 |---|---|---|---|
-| 원본 확인 뒤 바꾸기(신규 공용 함수) | `provider/common/` (이름은 LLD) | 순서를 강제한다: ① 원본 열기(일반 파일) 또는 원본 폴더 목록 열어 보기(폴더) → ② 대상이 있고 '바꾸기'면 대상 지우기(없음 오류 무시) → ③ 대상 만들고 쓰기. ①이 실패하면 ②·③을 하지 않고 ①의 예외를 그대로 던진다. 열기·지우기·쓰기는 인자(함수)로 받아 JVM에서 시험한다(#47 `createSymbolicLinkForCopy`와 같은 방식, `provider/common/SymbolicLinkCopy.kt:271-297`) | 08, 09 |
+| 원본 확인 뒤 바꾸기(신규 공용 함수) | `provider/common/` (이름은 LLD) | 순서를 강제한다: ① 원본 열기(일반 파일) 또는 원본 폴더 목록 열어 보기(폴더) → ② 대상이 있고 '바꾸기'면 대상 지우기(없음 오류 무시) → ③ 대상 만들고 쓰기. ①이 실패하면 ②·③을 하지 않고 ①의 예외를 그대로 던진다. 열기·지우기·쓰기는 인자(함수)로 받아 JVM에서 시험한다(#47 `createSymbolicLinkForCopy`와 같은 방식, `provider/common/SymbolicLinkCopy.kt:19-46`) | 08, 09 |
 | 로컬·루트 | `provider/linux/LinuxCopyMove.kt:57-71`, 136-151 | 일반 파일: 원본 `open`(67-71)을 대상 `remove`(58-66) 앞으로. 폴더: 대상 `remove`(137-145) 전에 원본을 폴더로 열어 보고 닫는다. 링크 분기(153-177)는 이미 `readlink`가 먼저라 그대로 | 08 |
 | 공급자 간 | `provider/common/ForeignCopyMove.kt:42-92` | 일반 파일: `newInputStream`(51)을 `deleteIfExists`(43-45) 앞으로. 폴더: `deleteIfExists`(87-89) 전에 원본 목록을 열어 보고 닫는다. 링크 분기(93-106)는 그대로 | 08 |
 | 문서 제공자 | `provider/document/DocumentCopyMove.kt:32-51` | `DocumentResolver.remove`(38) 전에 원본을 열어 보고 닫는다(일반 파일: `DocumentResolver.openInputStream(source, "r")`, `document/resolver/DocumentResolver.kt:389`; 폴더: 자식 목록). 복사 자체는 제공자 쪽 `copyDocument`(같은 제공자, API 24+, `DocumentResolver.kt:85-87`, 109)가 원본을 다시 열므로 열린 스트림을 넘길 수 없다 — **열어 보고 닫기**로 확인한다(D4) | 08 |
@@ -70,7 +70,7 @@ flowchart LR
 |---|---|---|---|
 | 복사 분류(신규) | `filejob/` (이름은 LLD) | 경로 하나를 '폰'/'네트워크'로 판정하고, (원본, 대상 폴더) 쌍을 폰→폰/네트워크로 정한다(SRS 2.1 안 A). 판정 규칙: Linux 경로(`provider/linux/LinuxPath.kt:185` `isLinuxPath`, 루트 포함) → 폰. 압축 파일 안(`isArchivePath`, `provider/archive/ArchivePath.kt:110`) → `archiveFile`(`PathArchiveExtensions.kt:16`)로 다시 판정. 문서 제공자(`isDocumentPath`) → `DocumentResolver.isLocal`(`DocumentResolver.kt:269-272`)이 참이고 MTP(`DocumentResolver.kt:49`)가 아니면 폰. 그 밖(content·SFTP·SMB·FTP·WebDAV) → 네트워크. 경로 종류 → 판정 규칙은 순수 함수로 떼어 JVM에서 시험한다 | 01 |
 | 속성 생략 옵션(신규) | `provider/common/CopyOptions.kt` | 새 `CopyOption` 하나와 `CopyOptions`의 필드 하나. `toCopyOptions()`(45-77)가 알아보고 `toArray()`(21-44)가 되돌린다. 지금의 `ProgressCopyOption`·`CleanupFailureCopyOption`처럼 `Parcelable`로 둔다(루트 원격 호출로 넘어가도 깨지지 않게, D2) | 03 |
-| 옵션 조립 | `filejob/FileJobs.kt:949-959`(`copy`), 1255-(`copyOrMove`), 804-(`CopyFileJob`), 1794-1799(`save`), 1583-1603(`open`) | 복사 시작 항목마다 분류를 한 번 하고(SRS D1) 하위 항목에 물려준다. 네트워크면 옵션 배열(1353-1366)에 속성 생략 옵션을 더한다. 폰→폰은 지금과 같은 옵션 | 01, 03 |
+| 옵션 조립 | `filejob/FileJobs.kt:949-959`(`copy`), 1255-(`copyOrMove`), 804-(`CopyFileJob`), 1794-1806(`save`), 1583-1611(`open`) | 복사 시작 항목마다 분류를 한 번 하고(SRS D1) 하위 항목에 물려준다. 네트워크면 옵션 배열(1353-1366)에 속성 생략 옵션을 더한다. 폰→폰은 지금과 같은 옵션 | 01, 03 |
 | 공급자 간 속성 단계 | `provider/common/ForeignCopyMove.kt:109-130` | 속성 생략이면 `setTimes`를 하지 않는다. 대상 파일·폴더는 지금도 권한 없이 만든다(`newOutputStream`·`createDirectory`) | 03 |
 | SFTP 속성 단계 | `provider/sftp/SftpCopyMove.kt:68-74`, 98, 153, 186-217 | 속성 생략이면 만들 때 `FileAttributes.EMPTY`(Q5 안 B)이고 `setstat`을 하지 않는다 | 03 |
 | SMB 속성 단계 | `provider/smb/SmbCopyMove.kt:146-156` | 속성 생략이면 `setFileInformation`을 하지 않는다. 만들 때 속성은 이미 `FILE_ATTRIBUTE_NORMAL`(67-73) | 03 |
@@ -202,3 +202,4 @@ C1 → C2는 공용 함수 때문이다. C → A는 같은 파일(`ForeignCopyMo
 | 2026-11-19 | v1.1 | H1 깊이 쌓기를 `CONTINUE`일 때만(SKIP 뒤 누수 방지)·테스트 추가, H2 C1 → C2 순서, h3 `CopyOptions.kt` 줄 정정, h4 대상 없는 링크 경로 정정, h5 순회 오류 창에 다시 시도 없음(D10), h6 A1 테스트 1개, h7 B1 탐색 영향, h8 REQ-55-09 확인 가능 표·클라우드 SAF 비용 | HLD 검수 1차 반려(H1-H2, h3-h8, PR #64 코멘트) | reviewer |
 | 2026-11-19 | v1.2 | D10과 2.3 오류 처리 행: 목록·속성 읽기 실패에는 다시 시도를 둔다(그 항목부터 새 순회), 깊이 초과·순환은 건너뛰기·취소만. 테스트·6절 보강, 2.3 집계 행에 SKIP 시 깊이 규칙 명시 | PM 결정(D10 조정), HLD 2차 검수 n1 | PM, reviewer |
 | 2026-11-19 | v1.3 | 2.3 오류 처리 행에 목록 도중 실패(`postVisitDirectory` 예외) 처리와 REQ-55-06과의 관계 한 줄 | HLD v1.2 검수 조건부 통과(n1·n2, PR #64 코멘트) | reviewer |
+| 2026-11-20 | v1.3.1 | 2.1 공용 함수 행의 `SymbolicLinkCopy.kt` 줄 번호를 19-46으로(LLD-C F2), 2.2 옵션 조립 행의 `save`·`open` 줄 범위를 0941fa7 기준 함수 전체(1794-1806, 1583-1611)로(LLD-A F5), 머리표 상태(구현됨). 설계 내용 변경 없음 | 릴리스 v1.7.5-beta.2 문서 동기화, LLD-C F2·LLD-A F5 | 설계팀 |

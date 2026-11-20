@@ -4,7 +4,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 검수 통과 (v1.3) — v1·v1.2 조건부 통과(m1–m4 [기계]) 반영 뒤 통과 (PR #72 코멘트) |
+| 상태 | 검수 통과 (v1.3) — v1·v1.2 조건부 통과(m1–m4 [기계]) 반영 뒤 통과 (PR #72 코멘트), 구현됨(A1 PR #75, A2 PR #76, v1.7.5-beta.2). v1.4는 M-A2 기대값·F2 구현 기록 |
 | 근거 | SRS v1.4 (2절 Q1·Q3·Q5, REQ-55-01·03, 8절 D1), HLD v1.3 (1, 2.2 조각 A, 2.4, 3.1, 4, 5 D1·D2) |
 | 기준 코드 | A1(1·2.1–2.7절): `origin/develop` f899359(C1 머지 뒤, PR #66). A2(2.8–2.11절): `origin/develop` 90f2c1e(C2 머지 뒤, PR #71). A1 파일(`filejob/`, `provider/common/`)은 두 커밋 사이에 바뀌지 않았다(`git diff --stat f899359 90f2c1e -- app/src/main/java/me/zhanghai/android/files/filejob app/src/main/java/me/zhanghai/android/files/provider/common` 비어 있음). 경로는 `app/src/main/java/me/zhanghai/android/files/` 기준. 줄과 함께 코드 앵커(주석·식)도 적는다 |
 | 추적 REQ | REQ-55-01, REQ-55-03 (REQ-55-02의 속성 부분: 폰→폰은 지금 그대로) |
@@ -281,7 +281,7 @@ fake 확장: `FakeProvider`에 `val setTimesPaths = mutableListOf<Path>()`를 �
 | 시험 | 조각 | 환경 | 절차 | 기대 |
 |---|---|---|---|---|
 | M-A1 폰→폰 회귀 | A1 | 에뮬레이터 | `adb shell 'mkdir -p /sdcard/Download/a && echo x > /sdcard/Download/a/f && touch -d "2020-01-01 00:00:00" /sdcard/Download/a/f'` → 앱에서 `f`를 `/sdcard/Documents`로 복사 → `adb shell stat -c %Y /sdcard/Download/a/f /sdcard/Documents/f` | 두 값이 같다(REQ-55-02 속성 유지) |
-| M-A2 폰→폰 공급자 간 | A1 | 에뮬레이터 | M-A1의 `f`를 SAF로 연 기기 저장소 폴더(`com.android.externalstorage.documents`, 예: `Documents` 트리)로 복사 → 앱의 속성 화면 또는 `stat` | 수정 시각이 원본과 같다(분류가 기기 저장소를 폰으로 본다). SAF 트리를 열 수 없으면 "미확인" |
+| M-A2 폰→폰 공급자 간 | A1 | 에뮬레이터 | M-A1의 `f`를 SAF로 연 기기 저장소 폴더(`com.android.externalstorage.documents`, 예: `Documents` 트리)로 복사 → 앱의 속성 화면 또는 `stat` | 분류가 기기 저장소를 폰으로 보아 속성 단계를 시도한다(logcat에 `DocumentFileAttributeView.setTimes`의 `UnsupportedOperationException`). **수정 시각은 원본과 같지 않고 복사한 시각이 된다** — SAF 문서 공급자에 수정 시각을 정하는 API가 없는 플랫폼 한계(#74, 오너 결정 2026-11-19 "받아들이기", 릴리스 노트 알려진 제한). SAF 트리를 열 수 없으면 "미확인" |
 | M-A3 폰↔NAS 시각 | A1·A2 | SFTP·SMB·FTP·WebDAV 서버 | 폰의 오래된 파일(M-A1의 `f`)과 폴더를 NAS로, NAS의 오래된 파일을 폰으로, NAS 안 다른 폴더로(같은 서버) 복사 | 모든 복사본의 수정 시각 = 복사한 시각. A1만 머지된 상태에서는 폰↔NAS만 맞고 NAS 안 복사는 아직 원본 시각(HLD 2.2 나눔) |
 | M-A4 SFTP 권한 | A2 | SFTP 서버 | 원본 `chmod 755` 실행 파일·`chmod 700` 폴더를 같은 서버의 다른 폴더로 복사 → 서버에서 `ls -l` | 서버 기본 권한(umask 적용, 예: `644`·`755`). 원본 권한이 아니다(Q5 안 B) |
 | M-A5 폰↔클라우드 SAF | A1 | 에뮬레이터 + 클라우드 SAF 앱 | 오래된 파일을 클라우드 SAF 폴더로 복사 | 복사본 수정 시각 = 복사한 시각. 제공자가 없으면 "미확인" |
@@ -291,7 +291,7 @@ fake 확장: `FakeProvider`에 `val setTimesPaths = mutableListOf<Path>()`를 �
 
 ## 4. 설계 피드백
 - **F1 (PM 판단, 범위 알림)**: A1의 파일 수가 6개다(1절). 운영 코드 4개는 HLD 2.2와 같고 늘어난 것은 `ForeignCopyMoveCleanupTest.kt` 하나다(LLD-C F1과 같은 이유). 5개를 지키려면 U-A07·08(수정 전 실패를 보이는 유일한 테스트)과 회귀 테스트 U-A09를 빼야 한다. **PM 판단 요청.** HLD 수정은 요청하지 않는다(설계 동작 변화 없음).
-- **F2 (LLD 결정, 기록)**: MTP 판정은 `CopyClassification.kt`의 사설 상수 `"com.android.mtp.documents"`로 한다(2.2). `DocumentResolver.MTP_DOCUMENTS_PROVIDER_AUTHORITY`(44)는 `private`이고, 열면 A1이 7개 파일이 된다. 값은 Android 시스템 상수라 바뀔 일이 거의 없고, 이 파일의 KDoc에 출처를 적는다.
+- **F2 (LLD 결정, 기록)**: MTP 판정은 `CopyClassification.kt`의 사설 상수 `"com.android.mtp.documents"`로 한다(2.2). `DocumentResolver.MTP_DOCUMENTS_PROVIDER_AUTHORITY`(44)는 `private`이고, 열면 A1이 7개 파일이 된다. 값은 Android 시스템 상수라 바뀔 일이 거의 없고, 이 파일의 KDoc에 출처를 적는다. **구현(PR #75)**: `filejob/CopyClassification.kt:15-16`에 같은 값으로 복제했고 출처는 KDoc이 아니라 `// @see DocumentResolver.MTP_DOCUMENTS_PROVIDER_AUTHORITY` 한 줄 주석으로 적었다(`DocumentResolver.kt:44`는 그대로 `private`). 두 상수가 함께 바뀌어야 하는 중복으로 남는다 — 코드 검수에서 허용(PR #72 F2 "값 일치, 허용").
 - **F3 (LLD 결정, 기록)**: A2는 JVM 테스트를 두지 않는다. SFTP 생성 속성 식만 `internal` 함수로 떼어 시험하는 안을 검토했으나, 그 식은 세 줄 `if`이고 실제 동작(서버에 보내는 `OPEN`·`MKDIR`·`SETSTAT`)은 `object Client`의 실제 세션이 필요해 fake로 바꿀 수 없다 — 파일 하나를 늘려 얻는 것이 적다. 옵션 해석은 A1(U-A04–06)이, 결선은 코드 검사(3.3)가 맡는다.
 - **F4 (LLD 결정, 기록)**: `copyOrMove`에는 분류(`CopyKind`) 대신 효과(`skipAttributes: Boolean`)를 넘긴다(2.6). `copyOrMove`는 이동도 쓰므로 분류 값이 없는 호출자(이동)가 있다. 분류는 `copy`에서 효과로 바뀐다. 조각 B2가 링크 따라가기에 같은 분류가 필요하면 그때 `copy`에서 인자를 하나 더 만든다(B2 LLD).
 - **F5 (경미, 설계팀 참고)**: HLD 2.2 "옵션 조립" 행의 `FileJobs.kt:1794-1799`(`save`)·`1583-1603`(`open`)는 f899359 기준 `save` 1793-1806, `open` 1582-1610이다(함수 시작 줄 차이). 내용은 같다. 다음 HLD 갱신 때 고치면 된다.
@@ -303,3 +303,4 @@ fake 확장: `FakeProvider`에 `val setTimesPaths = mutableListOf<Path>()`를 �
 | 2026-11-19 | v1.1 | F1 문구의 수정 전 실패 테스트를 U-A07·08로 정정(m1), 2.6 `save`의 `target.parent`가 `null`일 때 `target`으로 판정(m2) | LLD 검수 1차 조건부 통과 m1·m2 [기계] (PR #72 코멘트) | reviewer |
 | 2026-11-19 | v1.2 | A2(2.8–2.11) 줄 번호를 C2 머지 뒤 develop 90f2c1e 기준으로, 기준 코드 행·C2 관계 문단 갱신(동작 변화 없음) | C2 머지(PR #71) | PM |
 | 2026-11-19 | v1.3 | 2.8 `FileAttributes.EMPTY` 인용 줄(m3), 2.5 이동 쪽 `CopyOptions(...)` 호출 줄을 90f2c1e 기준으로(m4) | LLD v1.2 재확인 조건부 통과 m3·m4 [기계] (PR #72 코멘트) | reviewer |
+| 2026-11-20 | v1.4 | 3.4 M-A2 기대값을 실제 결과로(수정 시각 유지 안 됨, #74 플랫폼 한계 — 오너 수용), 4절 F2에 구현 결과(`CopyClassification.kt:15-16` 복제, 한 줄 주석) 기록, 머리표 상태(구현됨). 설계 변경 없음 | 릴리스 v1.7.5-beta.2 문서 동기화, #74 오너 결정, PR #75 M-A2 | 설계팀 |

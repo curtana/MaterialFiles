@@ -2,7 +2,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 검수 통과(v1.1, PR #87 2회차) |
+| 상태 | 검수 통과(v1.1, PR #87 2회차), 구현됨(PR #88, v1.7.5-beta.2) |
 | 근거 | SRS v1.1, HLD v1.1 |
 | 기준 코드 | `origin/develop` ac012e0. 경로는 `app/src/main/java/me/zhanghai/android/files/` 기준, 테스트는 `app/src/test/java/me/zhanghai/android/files/` 기준. 줄 번호는 모두 이 커밋 기준이다 |
 
@@ -218,3 +218,4 @@ V1·V2의 "메뉴 새로 고침"·"당겨서 새로 고침" 조작과 압축 여
 |---|---|---|---|---|
 | 2026-11-20 | v1 | 최초 작성 | SRS v1.1, HLD v1.1 | PM |
 | 2026-11-20 | v1.1 | T-83-08에 "`ClosedFileSystemException`이 아님" 단언 추가 | LLD 1회차 검수 m1 (PR #87) | 검수팀 |
+| 2026-11-20 | v1.1.1 | 머리표 상태에 구현됨(PR #88) 표시. 내용 변경 없음 | 릴리스 v1.7.5-beta.2 문서 동기화 | 설계팀 |
