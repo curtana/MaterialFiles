@@ -2,8 +2,8 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | v2.1 검수 통과. v2.2(C1 (4) 되돌리기 제거) 검수 중 |
-| 근거 | SRS v2.2(오너 rename/MOVE 구분, "사본 남기기" 결정 2026-11-20 반영) |
+| 상태 | v2.3 검수 통과. v2.4(C5 모든 이동의 되돌리기 제거) 검수 중 |
+| 근거 | SRS v2.4(오너 rename/MOVE 구분, "사본 남기기", "모든 이동에 적용" 결정 2026-11-20 반영) |
 | 기준 코드 | `origin/develop` 9374221. 경로는 `app/src/main/java/me/zhanghai/android/files/` 기준 |
 
 ## 1. 구조 개요
@@ -29,9 +29,10 @@ flowchart LR
 | C1 제공자 `move()` 4개 | `provider/ftp/FtpCopyMove.kt:146`, `provider/sftp/SftpCopyMove.kt:241`, `provider/smb/SmbCopyMove.kt:169`, `provider/webdav/WebDavCopyMove.kt:157` | (1) 바꾸기일 때 rename 앞에서 대상을 지우는 블록을 없앤다(FTP `:166-170`, SFTP `:275-279`, SMB `:198-202`, WebDAV `:177-181`). (2) rename에 `overwrite = 대상 있음 && copyOptions.replaceExisting`을 넘긴다. (3) 원자면 실패를 던지고, 비원자면 실패를 무시하고 대체 꼬리(옵션 보정 → `copy()` → 원본 삭제)로 가는 흐름은 그대로. (4) 원본 삭제 실패 시 대상 복사본을 지우는 되돌리기를 없앤다(FTP `:199-208`의 `:200-206`, SFTP `:308-317`의 `:309-315`, SMB `:233-242`의 `:234-240`, WebDAV `:210-219`의 `:211-217`) — 원본 삭제 예외를 그대로 던진다 | REQ-95-01, 02, 03, 04, 05, 07, 08, 09 |
 | C2 클라이언트 rename | `provider/sftp/client/Client.kt:98`, `provider/smb/client/Client.kt:445`, `provider/webdav/client/Client.kt:113` | `overwrite: Boolean` 인수 추가. SFTP: `true`면 `SFTPClient.rename(old, new, setOf(RenameFlags.OVERWRITE))`, 아니면 지금 2인수 호출. SMB: `DiskEntry.rename(path, overwrite)`(지금 상수 `true`, `:469`). WebDAV: `DavResource.move(url, overwrite)`(지금 상수 `false`, `:118`). FTP `Client.renameFile`(`ftp/client/Client.kt:206`)은 그대로 — RNTO에는 덮어쓰기 지정 수단이 없어, 바꾸기 이동이면 기존 파일 위로 그냥 RNTO한다 | REQ-95-04 |
 | C3 WebDAV 다른 서버 예외형 | `provider/webdav/client/Client.kt:114-116` | 다른 `Authority`일 때의 `IOException`을 `DavException`형(`IOException.toDavException()`, `webdav/client/DavIOException.kt:16`)으로 던져 `WebDavCopyMove.move`의 `catch (e: DavException)`(`:187`)에 걸리게 한다. 그러면 비원자 이동은 대체로, 원자 시도는 변환된 오류로 간다 — 다른 세 백엔드와 같다 | REQ-95-06 |
+| C5 다른 이동 경로의 되돌리기 제거 | `provider/common/ForeignCopyMove.kt:164-186`, `provider/linux/LinuxCopyMove.kt:299-310`(루트도 같은 함수: `root/RootableFileSystemProvider.kt:104-106` → `linux/LocalLinuxFileSystemProvider.kt:225`), `provider/document/resolver/DocumentResolver.kt:374-383` | C1 (4)와 같은 변경: 원본 삭제 실패 `catch` 안의 대상 삭제를 없애고 지금 던지는 예외를 그대로 던진다. `ForeignCopyMove`는 `IOException` 분기(`:167-175`)와 `UnsupportedOperationException` 분기(`:178-184`) 둘 다. `LinuxCopyMove`는 `:302-308`, `DocumentResolver.moveByCopy`는 `:375-382`. 각 경로의 다른 동작(바꾸기 선삭제 등)은 그대로 | REQ-95-07, 08, 09 |
 | C4 검증 코드 | `app/src/test/java/me/zhanghai/android/files/...`(JVM) | 6.1 표 | 전부 |
 
-바꾸지 않는 곳: `filejob/FileJobs.kt` 전체 — `RenameFileJob`·`MoveFileJob`·`moveRecursively`·`copyOrMove`·`askCopyError`. 되돌리기에 해당하는 코드도 없다: 폴더 원본 삭제(`postVisitDirectory` `:1500-1510` → `delete()` 헬퍼 `:1348-`)는 실패 시 대상을 지우지 않는다. 그 밖에 바꾸지 않는 곳: 네 `copy()`와 `provider/common/SourceCheckedReplace.kt`, `ForeignCopyMove`, 로컬·루트·SAF·압축 제공자, 내장 FTP 서버(`ftpserver/ProviderFtpFile.kt:168`, `Path.moveTo` 호출자 — 비원자 이동이라 바꾸기·덮어쓰기와 무관. C1 (4)의 영향은 R6), 문자열.
+바꾸지 않는 곳: `filejob/FileJobs.kt` 전체 — `RenameFileJob`·`MoveFileJob`·`moveRecursively`·`copyOrMove`·`askCopyError`. 되돌리기에 해당하는 코드도 없다: 폴더 원본 삭제(`postVisitDirectory` `:1500-1510` → `delete()` 헬퍼 `:1348-`)는 실패 시 대상을 지우지 않는다. 그 밖에 바꾸지 않는 곳: 네 `copy()`와 `provider/common/SourceCheckedReplace.kt`, `ForeignCopyMove`·로컬·루트·SAF 제공자의 C5 밖 동작(바꾸기 선삭제 `LinuxCopyMove.kt:266-270`·`DocumentCopyMove.kt:94-103` 포함), 압축 제공자(읽기 전용), 내장 FTP 서버(`ftpserver/ProviderFtpFile.kt:168`, `Path.moveTo` 호출자 — 비원자 이동이라 바꾸기·덮어쓰기와 무관. C1 (4)의 영향은 R6), 문자열.
 
 ## 3. 데이터 흐름·상태
 
@@ -88,7 +89,8 @@ flowchart LR
 - **R4 FTP 바꾸기 이동의 서버 의존**: 덮어쓰기를 하는 FTP 서버는 RNTO로 끝나고, 거절하는 서버는 대체 복사로 간다. 어느 서버가 어느 쪽인지 미리 알 수 없지만 결과는 둘 다 이동 성공(대체가 되면)이다.
 - **R5 WebDAV 업로드 본문(기존 동작)**: 대체 복사의 업로드는 길이 없는 one-shot 본문(`DavResourceCompat.kt:64-`, okio `Pipe`)이라 일부 서버가 거절할 수 있다. 그러면 대체 복사가 실패하고 오류 창으로 간다(REQ-95-07). 지금과 같고 이 작업에서 바꾸지 않는다(미확인).
 - **R6 비원자 폴더 이동의 대체(내장 FTP 서버 경로)**: `MoveFileJob`은 폴더를 제공자 `move()`로 옮기지 않지만(`copyForMove` 경로), 내장 FTP 서버의 `Path.moveTo`는 폴더도 제공자 비원자 `move()`로 보낸다. rename이 실패하면 `copy()`가 빈 폴더만 만들고 원본 폴더 삭제는 비어 있지 않아 실패한다. 지금은 빈 폴더를 되돌려 지우지만 C1 (4) 뒤에는 대상에 빈 폴더가 남는다. 드문 경로이고 손실은 없다.
-- **미결(PM 확인)**: 공급자가 다른 이동(`ForeignCopyMove.move`, `provider/common/ForeignCopyMove.kt:164-186` — 폰↔네트워크, 그리고 FTP↔SMB처럼 다른 종류의 네트워크 백엔드 사이)에도 같은 되돌리기가 있다. 오너 결정문은 "all four network backends' fallback"이라 네트워크 백엔드 사이의 다른 종류 이동이 포함되는지 문면상 분명하지 않다. 이 HLD는 SRS 1.3·REQ-95-08대로 `ForeignCopyMove`를 바꾸지 않는다. 포함하려면 요구 범위 변경이다.
+- **R7 폰 안 이동의 동작 변화(C5)**: 로컬·루트·SAF 이동에서 rename/`moveDocument`가 안 돼 복사로 대신하고 원본 삭제만 실패하면(예: 쓰기 금지 SD카드 원본, 삭제 권한 없는 문서 제공자), 지금은 사본을 지우지만 바뀐 뒤에는 대상에 사본이 남고 오류 창이 뜬다. 오너 결정("모든 이동에 적용")대로의 변화다. R3의 재시도 흐름이 같게 적용된다.
+- 미결 없음(ForeignCopyMove 포함 여부는 오너 결정 "모든 이동에 적용"으로 닫힘).
 
 ### 6.1 검증 계획
 | 대상 | 방법 | REQ |
@@ -98,7 +100,7 @@ flowchart LR
 | 선삭제 제거·순서 | 코드 검사: 네 `move()`의 rename 앞에 `Client.delete`/`remove` 없음. 단위 테스트(가능하면): 흐름 결정을 순수 함수로 떼면(LLD) "바꾸기·대상 있음 → 삭제 없이 overwrite=true rename" 시험 | REQ-95-03 |
 | 덮어쓰기 인수 | 코드 검사: `overwrite`가 `대상 있음 && replaceExisting`에서만 참. SFTP 3인수·SMB·WebDAV 전달. 순수 함수로 떼면 진리표 시험 | REQ-95-04 |
 | 대체의 #55 순서 | 코드 검사: 대체가 기존 `copy()`를 그대로 부른다. 기존 `SourceCheckedReplaceTest`가 순서를 덮는다 | REQ-95-05 |
-| 복사본 유지 | 코드 검사: 네 `move()`의 원본 삭제 `catch`에 `Client.delete(target)`/`remove(target)`가 없고 원본 삭제 예외(변환형)를 그대로 던진다. 단위 테스트: 흐름을 순수 함수로 떼면 "원본 삭제 실패 → 대상 삭제 호출 없음"(LLD에서 판단). 수동(미확인): 원본 폴더에 삭제 권한이 없는 서버에서 이동 → 오류 창, 대상에 사본, 원본 유지 | REQ-95-09 |
+| 복사본 유지 | 코드 검사: C1 (4)의 네 곳과 C5의 세 곳(`ForeignCopyMove` 두 분기 포함)의 원본 삭제 `catch`에 대상 삭제가 없고 원본 삭제 예외를 그대로 던진다. 단위 테스트: `ForeignCopyMove`는 기존 `app/src/test/.../provider/common/ForeignCopyMoveCleanupTest.kt`와 같은 방식으로 "원본 삭제 실패 → 대상 남음" JVM 시험. 네트워크 네 곳은 흐름을 순수 함수로 떼면 시험(LLD에서 판단). 수동: 로컬은 기기에서 확인 가능(설치 전 오너에게 묻기), 서버는 미확인 | REQ-95-09 |
 | WebDAV 예외형 | 코드 검사: `Client.move`의 다른 서버 예외가 `DavException`형. 경로 객체를 JVM에서 만들 수 있으면 단위 테스트(LLD에서 판단) | REQ-95-06 |
 | 회귀 | `./gradlew assembleDebug`와 기존 JVM 테스트 전부 통과 | REQ-95-08 |
 | 실서버 | 수동(미확인): 바꾸기 이동(덮어쓰기 수락 서버/거절 서버), WebDAV 두 서버 사이 이동, SMB 일반 이동. 서버가 없어 이번에는 하지 않음 | — |
@@ -113,3 +115,4 @@ flowchart LR
 | 2026-11-20 | 2.1 | C1 추적에 REQ-95-07(남는 오류가 기존 오류 창으로 감), R5 WebDAV 업로드 본문 위험 추가 | v2.0 검수 조건부 통과 경미 2·참고(PR #96) | 검수팀 |
 | 2026-11-20 | 2.2 | C1 (4) 원본 삭제 실패 시 되돌리기 제거, 3.1-4 갱신, R3를 새 동작(재시도 흐름 포함)으로 교체, R6(내장 FTP 서버 폴더 이동)·미결(ForeignCopyMove 범위) 추가, 6.1 검증 행 추가 | 오너 원문 2026-11-20: "사본 남기기 (추천)". PM 요약(#95 코멘트): 대체 복사가 성공하고 원본 삭제만 실패하면 대상의 사본을 남기고 원본 삭제 오류를 알린다 | PM(오너 결정 전달) |
 | 2026-11-20 | 2.3 | 2장 "바꾸지 않는 곳" 문장 괄호 정리와 FileJobs 인용 정정, 변경 이력 2.2의 오너 원문과 PM 요약 구분 | v2.2 검수 조건부 통과 경미 2건(PR #96) | 검수팀 |
+| 2026-11-20 | 2.4 | C5(공급자 간·로컬·루트·SAF 이동의 되돌리기 제거) 추가, "바꾸지 않는 곳" 갱신, 미결 닫음, R7 추가, 6.1 복사본 유지 행 확장 | 오너 원문 2026-11-20: "모든 이동에 적용". PM 요약(#95 코멘트): 사본 남기기 규칙(REQ-95-09)을 복사로 대신하는 모든 이동에 적용, `ForeignCopyMove.move` 포함 | PM(오너 결정 전달) |
