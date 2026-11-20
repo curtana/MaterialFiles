@@ -2,7 +2,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | v2.3 검수 통과. v2.4(C5 모든 이동의 되돌리기 제거) 검수 중 |
+| 상태 | 검수 통과(v2.5). LLD는 개발팀 |
 | 근거 | SRS v2.4(오너 rename/MOVE 구분, "사본 남기기", "모든 이동에 적용" 결정 2026-11-20 반영) |
 | 기준 코드 | `origin/develop` 9374221. 경로는 `app/src/main/java/me/zhanghai/android/files/` 기준 |
 
