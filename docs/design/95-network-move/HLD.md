@@ -32,7 +32,7 @@ flowchart LR
 | C5 다른 이동 경로의 되돌리기 제거 | `provider/common/ForeignCopyMove.kt:164-186`, `provider/linux/LinuxCopyMove.kt:299-310`(루트도 같은 함수: `root/RootableFileSystemProvider.kt:104-106` → `linux/LocalLinuxFileSystemProvider.kt:225`), `provider/document/resolver/DocumentResolver.kt:374-383` | C1 (4)와 같은 변경: 원본 삭제 실패 `catch` 안의 대상 삭제를 없애고 지금 던지는 예외를 그대로 던진다. `ForeignCopyMove`는 `IOException` 분기(`:167-175`)와 `UnsupportedOperationException` 분기(`:178-184`) 둘 다. `LinuxCopyMove`는 `:302-308`, `DocumentResolver.moveByCopy`는 `:375-382`. 각 경로의 다른 동작(바꾸기 선삭제 등)은 그대로 | REQ-95-07, 08, 09 |
 | C4 검증 코드 | `app/src/test/java/me/zhanghai/android/files/...`(JVM) | 6.1 표 | 전부 |
 
-바꾸지 않는 곳: `filejob/FileJobs.kt` 전체 — `RenameFileJob`·`MoveFileJob`·`moveRecursively`·`copyOrMove`·`askCopyError`. 되돌리기에 해당하는 코드도 없다: 폴더 원본 삭제(`postVisitDirectory` `:1500-1510` → `delete()` 헬퍼 `:1348-`)는 실패 시 대상을 지우지 않는다. 그 밖에 바꾸지 않는 곳: 네 `copy()`와 `provider/common/SourceCheckedReplace.kt`, `ForeignCopyMove`·로컬·루트·SAF 제공자의 C5 밖 동작(바꾸기 선삭제 `LinuxCopyMove.kt:266-270`·`DocumentCopyMove.kt:94-103` 포함), 압축 제공자(읽기 전용), 내장 FTP 서버(`ftpserver/ProviderFtpFile.kt:168`, `Path.moveTo` 호출자 — 비원자 이동이라 바꾸기·덮어쓰기와 무관. C1 (4)의 영향은 R6), 문자열.
+바꾸지 않는 곳: `filejob/FileJobs.kt` 전체 — `RenameFileJob`·`MoveFileJob`·`moveRecursively`·`copyOrMove`·`askCopyError`. 되돌리기에 해당하는 코드도 없다: 폴더 원본 삭제(`postVisitDirectory` `:1500-1510` → `delete()` 헬퍼 `:1348-`)는 실패 시 대상을 지우지 않는다. 그 밖에 바꾸지 않는 곳: 네 `copy()`와 `provider/common/SourceCheckedReplace.kt`, `ForeignCopyMove`·로컬·루트·SAF 제공자의 C5 밖 동작(바꾸기 선삭제 `LinuxCopyMove.kt:266-270`·`DocumentCopyMove.kt:94-103` 포함), 압축 제공자(읽기 전용), 내장 FTP 서버(`ftpserver/ProviderFtpFile.kt:168`, `Path.moveTo` 호출자 — 비원자 이동이라 바꾸기·덮어쓰기와 무관. C1 (4)·C5의 영향은 R6), 문자열.
 
 ## 3. 데이터 흐름·상태
 
@@ -88,8 +88,8 @@ flowchart LR
 - **R3 대체 뒤 원본 삭제 실패 → 복사본 유지(C1 (4))**: 대상에 새 내용, 원본도 남는다. 내용 손실은 없고 같은 파일이 두 곳에 있게 된다. 사용자는 오류 창(재시도·건너뛰기·취소)을 본다. "재시도"를 고르면 `copyOrMove`가 같은 옵션으로 다시 `moveTo`를 부른다(`FileJobs.kt:1759-1763`): 일반 이동이면 대상이 이제 있으므로 `FileAlreadyExistsException` → 충돌 창, 바꾸기 이동이면 다시 덮어쓰기 rename/대체 → 원본 삭제를 한 번 더 시도한다. 새 분기 없이 기존 흐름으로 처리된다. 끝 알림의 정리 실패 목록(`cleanupFailures`)에는 들어가지 않는다(그 목록은 실패한 복사의 부분 대상용, `CleanupFailureCopyOption`).
 - **R4 FTP 바꾸기 이동의 서버 의존**: 덮어쓰기를 하는 FTP 서버는 RNTO로 끝나고, 거절하는 서버는 대체 복사로 간다. 어느 서버가 어느 쪽인지 미리 알 수 없지만 결과는 둘 다 이동 성공(대체가 되면)이다.
 - **R5 WebDAV 업로드 본문(기존 동작)**: 대체 복사의 업로드는 길이 없는 one-shot 본문(`DavResourceCompat.kt:64-`, okio `Pipe`)이라 일부 서버가 거절할 수 있다. 그러면 대체 복사가 실패하고 오류 창으로 간다(REQ-95-07). 지금과 같고 이 작업에서 바꾸지 않는다(미확인).
-- **R6 비원자 폴더 이동의 대체(내장 FTP 서버 경로)**: `MoveFileJob`은 폴더를 제공자 `move()`로 옮기지 않지만(`copyForMove` 경로), 내장 FTP 서버의 `Path.moveTo`는 폴더도 제공자 비원자 `move()`로 보낸다. rename이 실패하면 `copy()`가 빈 폴더만 만들고 원본 폴더 삭제는 비어 있지 않아 실패한다. 지금은 빈 폴더를 되돌려 지우지만 C1 (4) 뒤에는 대상에 빈 폴더가 남는다. 드문 경로이고 손실은 없다.
-- **R7 폰 안 이동의 동작 변화(C5)**: 로컬·루트·SAF 이동에서 rename/`moveDocument`가 안 돼 복사로 대신하고 원본 삭제만 실패하면(예: 쓰기 금지 SD카드 원본, 삭제 권한 없는 문서 제공자), 지금은 사본을 지우지만 바뀐 뒤에는 대상에 사본이 남고 오류 창이 뜬다. 오너 결정("모든 이동에 적용")대로의 변화다. R3의 재시도 흐름이 같게 적용된다.
+- **R6 비원자 폴더 이동의 대체(내장 FTP 서버 경로)**: `MoveFileJob`은 폴더를 제공자 `move()`로 옮기지 않지만(`copyForMove` 경로), 내장 FTP 서버의 `Path.moveTo`는 폴더도 제공자 비원자 `move()`로 보낸다. rename이 실패하면 `copy()`가 빈 폴더만 만들고 원본 폴더 삭제는 비어 있지 않아 실패한다. 지금은 빈 폴더를 되돌려 지우지만 C1 (4) 뒤에는 대상에 빈 폴더가 남는다. 공유 대상이 로컬·루트·SAF 경로이거나 공급자가 다른 이동이어도 C5 때문에 같다(빈 대상 폴더가 남음). 드문 경로이고 손실은 없다.
+- **R7 폰 안 이동의 동작 변화(C5)**: 로컬·루트·SAF 이동에서 rename/`moveDocument`가 안 돼 복사로 대신하고 원본 삭제만 실패하면(예: 쓰기 금지 SD카드 원본, 삭제 권한 없는 문서 제공자), 지금은 사본을 지우지만 바뀐 뒤에는 대상에 사본이 남고 오류 창이 뜬다. 오너 결정("모든 이동에 적용")대로의 변화다. R3의 재시도 흐름이 같게 적용된다. 폴더는 `MoveFileJob`이 제공자 `move()`로 보내지 않으므로 이 변화는 파일에 해당하고, 내장 FTP 서버 경로의 폴더는 R6(빈 폴더가 남음, 손실 없음)이다.
 - 미결 없음(ForeignCopyMove 포함 여부는 오너 결정 "모든 이동에 적용"으로 닫힘).
 
 ### 6.1 검증 계획
@@ -116,3 +116,4 @@ flowchart LR
 | 2026-11-20 | 2.2 | C1 (4) 원본 삭제 실패 시 되돌리기 제거, 3.1-4 갱신, R3를 새 동작(재시도 흐름 포함)으로 교체, R6(내장 FTP 서버 폴더 이동)·미결(ForeignCopyMove 범위) 추가, 6.1 검증 행 추가 | 오너 원문 2026-11-20: "사본 남기기 (추천)". PM 요약(#95 코멘트): 대체 복사가 성공하고 원본 삭제만 실패하면 대상의 사본을 남기고 원본 삭제 오류를 알린다 | PM(오너 결정 전달) |
 | 2026-11-20 | 2.3 | 2장 "바꾸지 않는 곳" 문장 괄호 정리와 FileJobs 인용 정정, 변경 이력 2.2의 오너 원문과 PM 요약 구분 | v2.2 검수 조건부 통과 경미 2건(PR #96) | 검수팀 |
 | 2026-11-20 | 2.4 | C5(공급자 간·로컬·루트·SAF 이동의 되돌리기 제거) 추가, "바꾸지 않는 곳" 갱신, 미결 닫음, R7 추가, 6.1 복사본 유지 행 확장 | 오너 원문 2026-11-20: "모든 이동에 적용". PM 요약(#95 코멘트): 사본 남기기 규칙(REQ-95-09)을 복사로 대신하는 모든 이동에 적용, `ForeignCopyMove.move` 포함 | PM(오너 결정 전달) |
+| 2026-11-20 | 2.5 | R6·R7과 2장 "바꾸지 않는 곳"에 C5 경로(로컬·루트·SAF·공급자 간)의 폴더 영향(빈 대상 폴더가 남음) 추가 | v2.4 검수 조건부 통과 경미 1(PR #96) | 검수팀 |
