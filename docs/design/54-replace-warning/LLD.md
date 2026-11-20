@@ -40,7 +40,7 @@
   ```
 - **글자 모양(HLD v1.3 C1·E2, 설계 피드백 F1로 반영됨)**: `?textAppearanceListItem`이 아니라 창 메시지와 **같은 스타일 속성** `?materialAlertDialogBodyTextStyle`을 쓴다. 근거(Material 1.14.0, `app/build.gradle:149`):
   - 창 메시지 `TextView`는 두 테마 계열 모두 `style="?attr/materialAlertDialogBodyTextStyle"`이다(라이브러리 `res/layout/mtrl_alert_dialog.xml`·`m3_alert_dialog.xml`의 `@android:id/message`). 근거 원본: Gradle 캐시의 `com.google.android.material/material/1.14.0/.../material-1.14.0.aar`(풀린 사본 `~/.gradle/caches/<버전>/transforms/<해시>/transformed/material-1.14.0/res/`)의 `layout/mtrl_alert_dialog.xml`·`layout/m3_alert_dialog.xml`과 `values/values.xml`의 스타일 `MaterialAlertDialog.MaterialComponents.Body.Text`·`MaterialAlertDialog.Material3.Body.Text`, 매크로 `m3_comp_dialog_supporting_text_type/color`, 색 `color/material_on_surface_emphasis_medium.xml`.
-  - 기본 테마(Material Design 3 설정 꺼짐, `res/values/donottranslate_prefs.xml:40`, 테마 부모 `Theme.MaterialComponents.DayNight`, `res/values/themes.xml:10`)에서 이 속성은 `MaterialAlertDialog.MaterialComponents.Body.Text` = `?textAppearanceBody2`(14sp) + `material_on_surface_emphasis_medium`(colorOnSurface 60%)이다. Material 3 테마에서는 `MaterialAlertDialog.Material3.Body.Text` = `?textAppearanceBodyMedium`(14sp) + `?colorOnSurfaceVariant`이다.
+  - MaterialComponents 테마(Material Design 3 설정 꺼짐 — API 30 이하의 기본값 `res/values/donottranslate_prefs.xml:40`. API 31 이상은 켜짐이 기본값 `res/values-v31/donottranslate_prefs.xml:10`. 테마 부모 `Theme.MaterialComponents.DayNight`, `res/values/themes.xml:10`)에서 이 속성은 `MaterialAlertDialog.MaterialComponents.Body.Text` = `?textAppearanceBody2`(14sp) + `material_on_surface_emphasis_medium`(colorOnSurface 60%)이다. Material 3 테마에서는 `MaterialAlertDialog.Material3.Body.Text` = `?textAppearanceBodyMedium`(14sp) + `?colorOnSurfaceVariant`이다.
   - 반면 `?textAppearanceListItem`은 기본 테마에서 AppCompat Subhead(16sp, 주 글자색), Material 3에서 TitleMedium(16sp, `res/values/styles_material3.xml:35-38`)이라 메시지보다 크고 진하다. 경고가 메시지보다 두드러져 O3("강조 없이 일반 본문 글자")·D5와 어긋난다.
   - 같은 스타일이므로 색은 메시지와 같은 테마 속성에서 오고, 새 색·`textColor` 지정이 없다(HLD E2의 "새 색 없음", SRS 5장 `Visual_Contrast` "기존 창 메시지와 같은 색 속성"). `?android:textColorSecondary`를 쓰지 않으므로 #27의 대비 결함과 무관하다.
   - 스타일 속성은 창의 테마 문맥에서 풀린다: `binding`은 `MaterialAlertDialogBuilder`의 `context`(창 테마 오버레이가 적용된 문맥)로 inflate된다(`FileJobConflictDialogFragment.kt:77,81`).
@@ -132,7 +132,7 @@
 - **기기**: 로컬 에뮬레이터만(`Medium_Phone_API_36` 등, `emulator -list-avds`). 모든 `adb` 명령에 `-s emulator-<포트>`를 붙이고, `adb devices`에 실기기가 보여도 그쪽에 설치·실행하지 않는다. 오너 기기 설치 금지.
 - **준비**: `assembleDebug` APK를 AVD에 설치. 시험 파일은 `adb -s emulator-5554 shell`로 `/sdcard/Download/w54/`에 만든다:
   `src/a.txt`, `dst/a.txt`(파일↔파일), `src/d1/`(안에 `x.txt`)와 `dst/d1`(파일, 폴더→파일), `src/d2/`(안에 `x.txt`)와 `dst/d2/`(안에 `x.txt`, 합치기).
-- **언어**: 앱 설정의 언어(`settings/LocalePreference.kt`)로 English/한국어를 바꾼다. **테마**: 기본(Material Design 3 꺼짐, 밝은 테마)에서 찍고, 추가 2장만 어두운 테마·Material Design 3로 찍는다.
+- **언어**: 앱 설정의 언어(`settings/LocalePreference.kt`)로 English/한국어를 바꾼다. **테마**: 기본 테마(밝은 테마)에서 찍고, 추가 2장만 어두운 테마·Material Design 3로 찍는다. API 31 이상 AVD에서는 Material Design 3가 기본으로 켜져 있으므로(`res/values-v31/donottranslate_prefs.xml:10`) 기본 캡처가 MD3이고 M6은 M1과 같다. MaterialComponents 스타일은 설정에서 MD3를 끄고 찍은 보충 캡처(M1x 밝은·M5x 어두운)로 확인했다(PR #68).
 - **캡처 저장**: `$MAIN_REPO/_workspace/wo/54-replace-warning/screens/<ID>-<en|ko>.png`(`adb -s … exec-out screencap -p`). PR 코멘트에 파일 이름과 관찰 결과를 적는다.
 
 | ID | 경우 | 조작 | 기대(en·ko 각각) | REQ |
@@ -157,6 +157,7 @@
 ## 5. 변경 이력
 | 일자 | 버전 | 변경 | 사유 | 요청자 |
 |---|---|---|---|---|
+| 2026-11-20 | v1.3.1 | 2-1·3-3: 기본 테마 전제 정정 — API 31 이상은 Material Design 3가 기본(`values-v31/donottranslate_prefs.xml:10`), 보충 캡처 M1x·M5x 기록. 설계 내용 변경 없음 | 릴리스 문서 동기화(v1.7.5-beta.2), PR #68 구현 보고 강조점 1 | 설계팀 |
 | 2026-11-19 | v1.3 | 3-1: U-W02·U-W03·U-W04 삭제, U-W01을 "키 존재·서식 인자 없음"으로 축소, U-W05(#58 정확한 문구)·U-W06 유지. 3-3: 캡처 목록(M1~M6)과 대비 계산 확정 | LLD 검수 1회차 [판단] 지적에 대한 PM 결정 2026-11-19(PROCESS_ROLES 12장: 형식적 검사 지양). 자체 확인 | PM |
 | 2026-11-19 | v1.2 | 머리표 상태·근거 커밋 정리, 3-3 캡처 수 "14장"으로 통일 | LLD 검수 1회차 경미 [기계] | 검수팀 |
 | 2026-11-19 | v1.1 | 근거를 HLD v1.3으로, F1 결과 기록, 라이브러리 근거 경로 추가, 3-3에 대비비 계산(4.5:1, 미달 시 별도 이슈) 추가 | 설계 문의 F1 결과(HLD v1.3) | 개발팀 |

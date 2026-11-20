@@ -4,7 +4,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 검수 통과 (v1.3) — 1차 반려(M1, m1–m4) 반영 뒤 2차 통과 (PR #73 코멘트) |
+| 상태 | 검수 통과 (v1.3) — 1차 반려(M1, m1–m4) 반영 뒤 2차 통과 (PR #73 코멘트), 구현됨(B1 PR #77, B2 PR #78, v1.7.5-beta.2). v1.4는 3.1 시험 준비 문구·3.2 U-B11 횟수 정정 |
 | 근거 | SRS v1.4 (2절 Q2, REQ-55-02·04·05·06·07, 6절, 7절), HLD v1.3 (2.3 조각 B, 2.4, 3.1, 3.3, 4, 5 D5–D10, 6) |
 | 기준 코드 | `origin/develop` c39a97e(A1 머지 뒤, PR #75). v1·v1.1은 55c521f 기준이었고 v1.2에서 `FileJobs.kt` 줄을 c39a97e로 옮겼다. 그 밖의 파일(`FileJobConflictDialogFragment.kt`, `ftp/client/Client.kt`, `FileItem.kt`, `provider/common/`)은 두 커밋 사이에 바뀌지 않았다(`git diff --stat 55c521f c39a97e`). 경로는 `app/src/main/java/me/zhanghai/android/files/` 기준. 줄과 함께 코드 앵커(식·주석)를 적는다. A2(네트워크 백엔드 속성 단계)는 B 파일과 겹치지 않는다 |
 | 추적 REQ | B1: REQ-55-04(FTP 원본). B2: REQ-55-02, 04, 05, 06, 07 |
@@ -459,7 +459,7 @@ internal class ExitedDirectory(val depth: Int, val visitedChildren: Set<Path>)
 ## 3. 테스트 설계
 
 ### 3.1 B1 — `provider/ftp/client/FtpSymbolicLinkTargetTest` (JVM, 신규)
-시험용 `Client.Path`: 파일 안 `private class TestFtpPath(private val path: ByteStringListPath<*>) : Client.Path` — `authority`는 `throw UnsupportedOperationException()`, `remotePath = path.toString()`, `resolve(other) = TestFtpPath(path.resolve(other.toByteString()))`, `resolveSibling(other) = TestFtpPath(path.resolveSibling(other.toByteString()))`. 경로는 `filejob/TestPaths.path(...)`(`internal`, 같은 테스트 모듈)로 만들고 `ByteStringListPath`로 형변환한다 — `TestFileSystem.getPath(String)`은 지원하지 않으므로 `ByteString` 판(`ByteStringListPath.resolve(ByteString)`·`resolveSibling(ByteString)`, 172-174)을 쓴다. 두 판은 `AbstractPath`의 `String` 판과 같은 `resolve(Path)`·`resolveSibling(Path)`로 간다.
+시험용 `Client.Path`: 파일 안 `private class TestFtpPath(private val path: LinkTestPath) : Client.Path` — `authority`는 `throw UnsupportedOperationException()`, `remotePath = path.toString()`, `resolve(other) = TestFtpPath(path.resolve(other.toByteString()))`, `resolveSibling(other) = TestFtpPath(path.resolveSibling(other.toByteString()))`. 경로는 이 테스트 파일의 전용 스텁 `LinkTestPath : ByteStringListPath<LinkTestPath>`와 `LinkTestFileSystem`·`LinkTestFileSystemProvider`(공급자는 하나의 객체를 돌려주고 나머지는 예외, `FtpSymbolicLinkTargetTest.kt:90`·`:132`·`:161`)로 만든다. (v1.4 정정, PR #77) 처음 판이 정한 `filejob/TestPaths.path(...)`는 쓸 수 없다 — `ByteStringListPath.resolve(Path)`(`ByteStringListPath.kt:150`)가 `provider`를 비교하는데 `TestFileSystem.provider`가 `UnsupportedOperationException`을 던진다(`TestPaths.kt:80`). 공유 파일 `TestPaths.kt`는 B1의 2개 파일 범위 밖이라 고치지 않았다. 기대값은 같다. `getPath(String)`이 아니라 `ByteString` 판(`ByteStringListPath.resolve(ByteString)`·`resolveSibling(ByteString)`, 172-174)을 쓴다. 두 판은 `AbstractPath`의 `String` 판과 같은 `resolve(Path)`·`resolveSibling(Path)`로 간다.
 
 | 테스트 | 경우 | 기대 결과 | 수정 전(2.2 (1) 상태) |
 |---|---|---|---|
@@ -489,7 +489,7 @@ internal class ExitedDirectory(val depth: Int, val visitedChildren: Set<Path>)
 | 테스트 | 경우 | 기대 결과 |
 |---|---|---|
 | U-B10 `skip_doesNotRewalk` | `ask`가 거짓 | 거짓, `rewalk` 0회 |
-| U-B11 `consecutiveFailures_loopNotRecurse` | `rewalk`가 3번 새 실패 뒤 `null`, `ask`는 늘 참. `rewalk` 안에서 '실행 중' 표시를 켜고 `ask`가 그 표시가 꺼져 있음을 단언 | 참, `ask` 4회·`rewalk` 3회, 단언 실패 없음(같은 항목의 재시도가 `rewalk` 안에서 다시 묻지 않는다 = 재귀 아님) |
+| U-B11 `consecutiveFailures_loopNotRecurse` | `rewalk`가 3번 새 실패 뒤 `null`, `ask`는 늘 참. `rewalk` 안에서 '실행 중' 표시를 켜고 `ask`가 그 표시가 꺼져 있음을 단언 | 참, `ask` 4회·`rewalk` 4회(첫 실패 1 + 새 실패 3 = `ask` 4, `ask`가 참일 때마다 `rewalk` 1회 = 새 실패 3 + 마지막 `null` 1. v1.4 정정, PR #78), 단언 실패 없음(같은 항목의 재시도가 `rewalk` 안에서 다시 묻지 않는다 = 재귀 아님) |
 | U-B12 `rewalk_receivesPreviousFailure` | 첫 실패 `ItemWalkFailure(e1, 2, {a})`, 둘째 `(e2, 2, {a, b})` | 첫 `rewalk`가 첫 실패를, 둘째가 둘째 실패를 받음; `ask`가 첫·둘째 실패를 순서대로 받음 |
 | U-B13 `cancel_propagates` | `ask`가 둘째 호출에서 `InterruptedIOException` | 예외 전파, `rewalk` 1회 |
 
@@ -567,3 +567,4 @@ internal class ExitedDirectory(val depth: Int, val visitedChildren: Set<Path>)
 | 2026-11-19 | v1.1 | 2.8·F3 상한 효과 문구 정정(m2), 2.12 방문자를 `private inner class`로(m3). M1·m1·m4([판단])는 PM 판단 대기 | LLD 검수 1차 반려 [기계] 항목 (PR #73 코멘트) | reviewer |
 | 2026-11-19 | v1.2 | 2.5a 신설(`startFailureBeforeEntering`·`enterIfResumedStart`, 재개 중 ②로 실패해도 재개 정보 유지 — M1·m4), 2.5 `isCountedOnSkip`·2.12 `askWalkError`가 ③ 건너뛰기에서 수를 빼지 않음, 2.8 건너뛰기에도 상한 불변식(m1), 2.6 `ask`가 `ItemWalkFailure`를 받음, U-B25–28, 3.3 검사 항목. 기준 코드를 A1 머지 뒤 c39a97e로 옮기고 `FileJobs.kt` 줄 번호 갱신, F7을 머지된 A1과 대조 | LLD 검수 1차 반려 M1·m1·m4([판단], PM 승인 — PR #73 결정 코멘트), A1 머지(PR #75) | PM, reviewer |
 | 2026-11-19 | v1.3 | 2.5a `enterIfResumedStart`를 스마트 캐스트에 기대지 않게 지역 변수로(동작 같음), 상태를 검수 통과로 | LLD 검수 2차 통과, 참고 [기계] (PR #73 코멘트) | reviewer |
+| 2026-11-20 | v1.4 | 3.1: 경로 시험 준비를 실제 구현(파일 전용 `LinkTestPath` 스텁)으로 — `TestPaths`는 `provider` 비교 때문에 쓸 수 없음. 3.2 U-B11 기대 횟수를 `ask` 4회·`rewalk` 4회로. 머리표 상태(구현됨). 설계·기대 동작 변경 없음 | 릴리스 v1.7.5-beta.2 문서 동기화, PR #77 구현 편차 보고·PR #78 검수 경미 1 | 설계팀 |
