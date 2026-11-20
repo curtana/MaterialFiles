@@ -11,6 +11,7 @@ import java8.nio.file.NoSuchFileException
 import java8.nio.file.StandardCopyOption
 import me.zhanghai.android.files.provider.common.CopyOptions
 import me.zhanghai.android.files.provider.common.copyTo
+import me.zhanghai.android.files.provider.common.moveByRenameOrCopy
 import me.zhanghai.android.files.provider.common.replaceAfterCheckingSource
 import me.zhanghai.android.files.provider.common.replaceAfterOpeningSource
 import me.zhanghai.android.files.provider.webdav.client.Client
@@ -174,48 +175,24 @@ internal object WebDavCopyMove {
             if (!copyOptions.replaceExisting) {
                 throw FileAlreadyExistsException(source.toString(), target.toString(), null)
             }
-            try {
-                Client.delete(target)
-            } catch (e: DavException) {
-                throw e.toFileSystemException(target.toString())
-            }
         }
-        var renameSuccessful = false
-        try {
-            Client.move(source, target)
-            renameSuccessful = true
-        } catch (e: DavException) {
-            if (copyOptions.atomicMove) {
-                throw e.toFileSystemException(source.toString(), target.toString())
-            }
-            // Ignored.
-        }
-        if (renameSuccessful) {
-            copyOptions.progressListener?.invoke(sourceSize)
-            return
-        }
-        if (copyOptions.atomicMove) {
-            throw AssertionError()
-        }
-        var copyOptions = copyOptions
-        if (!copyOptions.copyAttributes || !copyOptions.noFollowLinks) {
-            copyOptions = CopyOptions(
-                copyOptions.replaceExisting, true, false, true, copyOptions.progressIntervalMillis,
-                copyOptions.progressListener, copyOptions.cleanupFailureListener
-            )
-        }
-        copy(source, target, copyOptions)
-        try {
-            Client.delete(source)
-        } catch (e: DavException) {
-            if (e.toFileSystemException(source.toString()) !is NoSuchFileException) {
+        moveByRenameOrCopy(
+            copyOptions, targetResponse != null, sourceSize,
+            rename = { overwrite ->
                 try {
-                    Client.delete(target)
-                } catch (e2: DavException) {
-                    e.addSuppressed(e2.toFileSystemException(target.toString()))
+                    Client.move(source, target, overwrite)
+                } catch (e: DavException) {
+                    throw e.toFileSystemException(source.toString(), target.toString())
+                }
+            },
+            copy = { copy(source, target, it) },
+            deleteSource = {
+                try {
+                    Client.delete(source)
+                } catch (e: DavException) {
+                    throw e.toFileSystemException(source.toString())
                 }
             }
-            throw e.toFileSystemException(source.toString())
-        }
+        )
     }
 }

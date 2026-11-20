@@ -442,7 +442,7 @@ object Client {
     // @see https://gitlab.com/samba-team/devel/samba/-/blob/master/source3/libsmb/cli_smb2_fnum.c
     //      cli_smb2_rename
     @Throws(ClientException::class)
-    fun rename(path: Path, newPath: Path) {
+    fun rename(path: Path, newPath: Path, overwrite: Boolean) {
         val sharePath = path.sharePath ?: throw ClientException("$path does not have a share path")
         val newSharePath = newPath.sharePath
             ?: throw ClientException("$newPath does not have a share path")
@@ -466,7 +466,7 @@ object Client {
             throw ClientException(e)
         }
         try {
-            diskEntry.use { it.rename(newSharePath.path, true) }
+            diskEntry.use { it.rename(newSharePath.path, overwrite) }
         } catch (e: SMBRuntimeException) {
             throw ClientException(e)
         }
