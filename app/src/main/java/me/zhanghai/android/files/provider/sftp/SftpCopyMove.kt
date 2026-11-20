@@ -14,6 +14,7 @@ import java8.nio.file.StandardCopyOption
 import me.zhanghai.android.files.provider.common.CopyOptions
 import me.zhanghai.android.files.provider.common.copyTo
 import me.zhanghai.android.files.provider.common.createSymbolicLinkForCopy
+import me.zhanghai.android.files.provider.common.moveByRenameOrCopy
 import me.zhanghai.android.files.provider.common.newInputStream
 import me.zhanghai.android.files.provider.common.newOutputStream
 import me.zhanghai.android.files.provider.common.replaceAfterCheckingSource
@@ -272,48 +273,24 @@ internal object SftpCopyMove {
             if (!copyOptions.replaceExisting) {
                 throw FileAlreadyExistsException(source.toString(), target.toString(), null)
             }
-            try {
-                Client.remove(target)
-            } catch (e: ClientException) {
-                throw e.toFileSystemException(target.toString())
-            }
         }
-        var renameSuccessful = false
-        try {
-            Client.rename(source, target)
-            renameSuccessful = true
-        } catch (e: ClientException) {
-            if (copyOptions.atomicMove) {
-                throw e.toFileSystemException(source.toString(), target.toString())
-            }
-            // Ignored.
-        }
-        if (renameSuccessful) {
-            copyOptions.progressListener?.invoke(sourceSize)
-            return
-        }
-        if (copyOptions.atomicMove) {
-            throw AssertionError()
-        }
-        var copyOptions = copyOptions
-        if (!copyOptions.copyAttributes || !copyOptions.noFollowLinks) {
-            copyOptions = CopyOptions(
-                copyOptions.replaceExisting, true, false, true, copyOptions.progressIntervalMillis,
-                copyOptions.progressListener, copyOptions.cleanupFailureListener
-            )
-        }
-        copy(source, target, copyOptions)
-        try {
-            Client.remove(source)
-        } catch (e: ClientException) {
-            if (e.toFileSystemException(source.toString()) !is NoSuchFileException) {
+        moveByRenameOrCopy(
+            copyOptions, targetAttributes != null, sourceSize,
+            rename = { overwrite ->
                 try {
-                    Client.remove(target)
-                } catch (e2: ClientException) {
-                    e.addSuppressed(e2.toFileSystemException(target.toString()))
+                    Client.rename(source, target, overwrite)
+                } catch (e: ClientException) {
+                    throw e.toFileSystemException(source.toString(), target.toString())
+                }
+            },
+            copy = { copy(source, target, it) },
+            deleteSource = {
+                try {
+                    Client.remove(source)
+                } catch (e: ClientException) {
+                    throw e.toFileSystemException(source.toString())
                 }
             }
-            throw e.toFileSystemException(source.toString())
-        }
+        )
     }
 }

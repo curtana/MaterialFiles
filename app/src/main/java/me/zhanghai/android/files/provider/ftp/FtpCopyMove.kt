@@ -6,10 +6,10 @@
 package me.zhanghai.android.files.provider.ftp
 
 import java8.nio.file.FileAlreadyExistsException
-import java8.nio.file.NoSuchFileException
 import java8.nio.file.StandardCopyOption
 import me.zhanghai.android.files.provider.common.CopyOptions
 import me.zhanghai.android.files.provider.common.copyTo
+import me.zhanghai.android.files.provider.common.moveByRenameOrCopy
 import me.zhanghai.android.files.provider.common.replaceAfterCheckingSource
 import me.zhanghai.android.files.provider.common.replaceAfterOpeningSource
 import me.zhanghai.android.files.provider.ftp.client.Client
@@ -163,48 +163,26 @@ internal object FtpCopyMove {
             if (!copyOptions.replaceExisting) {
                 throw FileAlreadyExistsException(source.toString(), target.toString(), null)
             }
-            try {
-                Client.delete(target, targetFile.isDirectory)
-            } catch (e: IOException) {
-                throw e.toFileSystemExceptionForFtp(target.toString())
-            }
         }
-        var renameSuccessful = false
-        try {
-            Client.renameFile(source, target)
-            renameSuccessful = true
-        } catch (e: IOException) {
-            if (copyOptions.atomicMove) {
-                throw e.toFileSystemExceptionForFtp(source.toString(), target.toString())
-            }
-            // Ignored.
-        }
-        if (renameSuccessful) {
-            copyOptions.progressListener?.invoke(sourceSize)
-            return
-        }
-        if (copyOptions.atomicMove) {
-            throw AssertionError()
-        }
-        var copyOptions = copyOptions
-        if (!copyOptions.copyAttributes || !copyOptions.noFollowLinks) {
-            copyOptions = CopyOptions(
-                copyOptions.replaceExisting, true, false, true, copyOptions.progressIntervalMillis,
-                copyOptions.progressListener, copyOptions.cleanupFailureListener
-            )
-        }
-        copy(source, target, copyOptions)
-        try {
-            Client.delete(source, sourceFile.isDirectory)
-        } catch (e: IOException) {
-            if (e.toFileSystemExceptionForFtp(source.toString()) !is NoSuchFileException) {
+        // RNTO has no way to ask for an overwrite, so a replace move simply renames onto the
+        // existing file and falls back to copying if the server refuses.
+        moveByRenameOrCopy(
+            copyOptions, targetFile != null, sourceSize,
+            rename = {
                 try {
-                    Client.delete(target, sourceFile.isDirectory)
-                } catch (e2: IOException) {
-                    e.addSuppressed(e2.toFileSystemExceptionForFtp(target.toString()))
+                    Client.renameFile(source, target)
+                } catch (e: IOException) {
+                    throw e.toFileSystemExceptionForFtp(source.toString(), target.toString())
+                }
+            },
+            copy = { copy(source, target, it) },
+            deleteSource = {
+                try {
+                    Client.delete(source, sourceFile.isDirectory)
+                } catch (e: IOException) {
+                    throw e.toFileSystemExceptionForFtp(source.toString())
                 }
             }
-            throw e.toFileSystemExceptionForFtp(source.toString())
-        }
+        )
     }
 }
