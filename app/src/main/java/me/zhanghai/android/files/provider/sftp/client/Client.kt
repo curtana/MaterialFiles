@@ -13,6 +13,7 @@ import net.schmizz.sshj.SSHClient
 import net.schmizz.sshj.sftp.FileAttributes
 import net.schmizz.sshj.sftp.FileMode
 import net.schmizz.sshj.sftp.OpenMode
+import net.schmizz.sshj.sftp.RenameFlags
 import net.schmizz.sshj.sftp.Response
 import net.schmizz.sshj.sftp.SFTPClient
 import net.schmizz.sshj.sftp.SFTPException
@@ -21,6 +22,7 @@ import net.schmizz.sshj.transport.verification.PromiscuousVerifier
 import net.schmizz.sshj.userauth.UserAuthException
 import java.io.IOException
 import java.util.Collections
+import java.util.EnumSet
 import java.util.WeakHashMap
 import java8.nio.file.Path as Java8Path
 
@@ -93,15 +95,24 @@ object Client {
         }
     }
 
-    // Note that unlike POSIX rename(), this won't overwrite an existing file.
+    // Note that unlike POSIX rename(), this won't overwrite an existing file unless overwrite is
+    // true, which needs SFTP v5+ or the posix-rename@openssh.com extension on the server.
     @Throws(ClientException::class)
-    fun rename(path: Path, newPath: Path) {
+    fun rename(path: Path, newPath: Path, overwrite: Boolean) {
         if (newPath.authority != path.authority) {
             throw ClientException(
                 SFTPException(Response.StatusCode.FAILURE, "Paths aren't on the same authority")
             )
         }
-        withClient(path.authority) { it.rename(path.remotePath, newPath.remotePath) }
+        withClient(path.authority) {
+            if (overwrite) {
+                it.rename(
+                    path.remotePath, newPath.remotePath, EnumSet.of(RenameFlags.OVERWRITE)
+                )
+            } else {
+                it.rename(path.remotePath, newPath.remotePath)
+            }
+        }
         directoryFileAttributesCache -= path
         directoryFileAttributesCache -= newPath
         LocalWatchService.onEntryDeleted(path as Java8Path)
